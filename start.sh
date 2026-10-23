@@ -4,7 +4,6 @@
 #
 #   ./start.sh             only this computer can connect
 #   ./start.sh --network   also other devices on your network or Tailscale
-#   ./start.sh --menu      add "syncdeck" to your applications menu (Linux)
 #
 # Decks go to ./decks and settings to ./.syncdeck (both git-ignored).
 set -euo pipefail
@@ -25,23 +24,7 @@ open_url() {
 case "${1:-}" in
   '') ;;
   --network) HOST=0.0.0.0 ;;
-  --menu)
-    apps="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
-    mkdir -p "$apps"
-    cat > "$apps/syncdeck.desktop" <<DESKTOP
-[Desktop Entry]
-Type=Application
-Name=syncdeck
-Comment=Start syncdeck on this computer (close the window to stop it)
-Exec=bash "$PWD/start.sh"
-Icon=x-office-presentation
-Terminal=true
-Categories=Office;Presentation;
-DESKTOP
-    echo "Added \"syncdeck\" to your applications menu. Closing its window stops the server."
-    exit 0
-    ;;
-  -h|--help) sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+  -h|--help) sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
   *) die "unknown option: $1 (try --help)" ;;
 esac
 
