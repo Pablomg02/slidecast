@@ -1,9 +1,8 @@
 # The author's existing HTML decks ("legacy PRES engine")
 
-Source: the author's private repository `sistemas-de-propulsion`
-(`contenido/01-Apuntes/Editable/*/Tema_*.html` and the template
-`contenido/98-Plantillas/html-clase/plantilla_clase.html`), read on 2026-10-23.
-The implementer cannot access it; this note is the reference. Do not copy
+Source: the author's private course decks and their HTML template, read on
+2026-10-23.
+The implementer cannot access them; this note is the reference. Do not copy
 any of that content into this public repository: build synthetic fixtures.
 
 ## Shape

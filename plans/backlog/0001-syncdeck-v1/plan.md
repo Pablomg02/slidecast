@@ -57,7 +57,7 @@ Real scenarios that must work:
 - Editing the deck HTML itself in the browser (the author edits with AI).
 - Multi-user admin accounts or roles beyond the three above.
 - A generic engine for arbitrary HTML that implements neither adapter (D5).
-- Updating the template in the `sistemas-de-propulsion` repository (separate
+- Updating the author's private deck template (separate
   follow-up in that repository).
 - reveal.js compatibility.
 
