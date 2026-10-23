@@ -46,10 +46,13 @@ Pick the case that fits.
 ### 1. On your own computer (one screen, or laptop + projector)
 
 ```bash
-node bin/syncdeck.js serve
+./start.sh
 ```
 
-Open `http://127.0.0.1:4321/admin` and upload a deck (a `.zip` or `.html`).
+It starts syncdeck and opens `http://127.0.0.1:4321/admin` in your browser;
+press Ctrl+C (or close the window) to stop it. `./start.sh --menu` adds a
+*syncdeck* entry to your applications menu (Linux) that does the same with
+one click. Upload a deck there (a `.zip` or `.html`).
 Then open the deck: choose **Presenter** in one window and **Viewer** in
 another (drag that one to the projector and press `F`). On this computer
 no password is needed. To try it first with the demo deck:
@@ -62,7 +65,7 @@ listen on the network:
 
 ```bash
 node bin/syncdeck.js passwd presenter
-node bin/syncdeck.js serve --host 0.0.0.0
+./start.sh --network
 ```
 
 The command prints the addresses to use from the other devices, e.g.
