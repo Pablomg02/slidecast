@@ -1,0 +1,8 @@
+node_modules/
+.syncdeck/
+decks/*
+!decks/.gitkeep
+test-results/
+playwright-report/
+deploy/.env
+deploy/data/

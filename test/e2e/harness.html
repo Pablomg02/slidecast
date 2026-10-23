@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>bridge harness</title>
+<style>html,body{margin:0;height:100%}iframe{border:0;width:800px;height:450px}</style>
+</head>
+<body>
+<iframe id="deck" sandbox="allow-scripts"></iframe>
+<script>
+  // Minimal shell for bridge tests: records every message from the iframe.
+  window.__msgs = [];
+  const frame = document.getElementById('deck');
+  window.addEventListener('message', (e) => {
+    if (e.source === frame.contentWindow && e.data && e.data.sd === 1) window.__msgs.push(e.data);
+  });
+  window.send = (msg) => frame.contentWindow.postMessage({ sd: 1, ...msg }, '*');
+  frame.src = new URLSearchParams(location.search).get('deck');
+</script>
+</body>
+</html>

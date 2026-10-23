@@ -1,0 +1,27 @@
+# syncdeck behind Cloudflare Tunnel. Run from this folder:
+#   docker compose up -d --build                      # syncdeck only
+#   docker compose --profile tunnel up -d --build     # with cloudflared
+# The tunnel token goes in deploy/.env (never commit it): TUNNEL_TOKEN=...
+# See docs/deploy-raspberry.md.
+services:
+  syncdeck:
+    build: ..
+    image: syncdeck:local
+    restart: unless-stopped
+    volumes:
+      - ./data/decks:/data
+      - ./data/state:/state
+    # No published ports: only cloudflared reaches it, on the compose network.
+    # For LAN access without the tunnel, uncomment:
+    # ports:
+    #   - "4321:4321"
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    profiles: ["tunnel"]
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN:?set TUNNEL_TOKEN in deploy/.env}
+    depends_on:
+      - syncdeck

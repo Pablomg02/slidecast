@@ -1,0 +1,27 @@
+{
+  "syncdeck": 1,
+  "title": "syncdeck demo",
+  "aspect": "16:9",
+  "viewerNav": "back",
+  "slides": {
+    "intro": {
+      "notes": "Welcome. This deck is **served by syncdeck**: open it as a viewer on the projector and as a presenter on your laptop or phone."
+    },
+    "how": {
+      "notes": "Three steps on this slide; each press reveals one line.",
+      "steps": {
+        "1": "Point at your clicker: `PageDown` works too.",
+        "2": "Open a second tab as a viewer to see the sync."
+      }
+    },
+    "roles": {
+      "notes": "Presenter and admin need a password unless you run syncdeck on your own machine."
+    },
+    "keys": {
+      "notes": "`B` blanks every viewer screen. Press it again to come back."
+    },
+    "end": {
+      "notes": "Edit these notes in the admin panel: `/admin`, then **Edit notes**."
+    }
+  }
+}

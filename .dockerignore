@@ -1,0 +1,11 @@
+.git
+node_modules
+.syncdeck
+decks
+deploy/data
+plans
+test
+test-results
+playwright-report
+docs
+*.md
