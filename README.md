@@ -75,17 +75,18 @@ nothing connects, check that your firewall allows TCP port 4321.
 
 ### 3. On a Raspberry Pi, on the Internet through Cloudflare Tunnel
 
-Create a tunnel in the Cloudflare dashboard (Zero Trust → Networks →
-Tunnels), copy its token, and on the Pi run:
+On the Pi run:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Pablomg02/syncdeck/main/deploy/install.sh | sudo bash
 ```
 
-It installs everything, asks for the passwords and the token, and starts
-syncdeck and the tunnel as services. Finally, in the tunnel's *Public
-hostname* tab, point your hostname to `http://localhost:4321`. Details,
-Docker and hardening tips: [docs/deploy-raspberry.md](docs/deploy-raspberry.md).
+It installs everything, asks for the passwords, and starts syncdeck as a
+service on `http://localhost:4321`. Then create a tunnel in the Cloudflare
+dashboard (Zero Trust → Networks → Tunnels), install `cloudflared` on the Pi
+with its token, and point your hostname to `http://localhost:4321`. Step by
+step, Docker and hardening tips:
+[docs/deploy-raspberry.md](docs/deploy-raspberry.md).
 
 ### Updating
 

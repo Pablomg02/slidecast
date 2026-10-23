@@ -8,26 +8,35 @@ Replace `slides.example.com` with your own hostname everywhere below.
 
 There are three ways to set it up. Pick one:
 
-- **Install script** (recommended): one command does option B for you.
+- **Install script** (recommended): one command does option B for you,
+  except the tunnel, which you add with two more commands.
 - **A. Docker Compose**: syncdeck and `cloudflared` as two containers.
 - **B. systemd**: Node.js and `cloudflared` installed on the Pi itself, by hand.
 
 ## Install script
 
-1. In the Cloudflare dashboard create a tunnel (Zero Trust → Networks →
-   Tunnels → Create a tunnel → Cloudflared) and copy its token.
-2. On the Pi:
+1. On the Pi:
 
    ```bash
    curl -fsSL https://raw.githubusercontent.com/Pablomg02/syncdeck/main/deploy/install.sh | sudo bash
    ```
 
-   It installs Node.js 22, git and `cloudflared`; clones syncdeck into
-   `/opt/syncdeck`; creates the `syncdeck` user and `/var/lib/syncdeck`; asks
-   for the admin and presenter passwords and the tunnel token; installs and
-   starts both services; and checks that syncdeck answers. Running it again
-   is safe: it skips what is already done. To skip the token prompt, pass it:
-   `curl … | sudo TUNNEL_TOKEN=… bash`.
+   It installs Node.js 22 and git; clones syncdeck into `/opt/syncdeck`;
+   creates the `syncdeck` user and `/var/lib/syncdeck`; asks for the admin and
+   presenter passwords; installs and starts the service; and checks that
+   syncdeck answers on `http://127.0.0.1:4321`. Running it again is safe: it
+   skips what is already done.
+2. In the Cloudflare dashboard create a tunnel (Zero Trust → Networks →
+   Tunnels → Create a tunnel → Cloudflared) and copy its token. On the Pi,
+   install `cloudflared` and run it as a service with that token:
+
+   ```bash
+   curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
+   echo 'deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main' | sudo tee /etc/apt/sources.list.d/cloudflared.list
+   sudo apt-get update && sudo apt-get install -y cloudflared
+   sudo cloudflared service install <the token>
+   ```
+
 3. In the tunnel's *Public hostname* tab add `slides.example.com` with service
    `http://localhost:4321`.
 
@@ -40,9 +49,10 @@ sudo syncdeck-update
 It fetches the latest `main` from GitHub, copies the state folder to
 `/var/lib/syncdeck/backups/` (keeps the last 5), installs the new version,
 restarts it and checks that it answers. If the new version does not start,
-it goes back to the previous one by itself and says so. It also restarts
-`cloudflared` if it is not running. `sudo syncdeck-update --force` reinstalls
-and restarts even when there is nothing new.
+it goes back to the previous one by itself and says so.
+`sudo syncdeck-update --force` reinstalls and restarts even when there is
+nothing new. `cloudflared` is a separate package: `sudo apt-get upgrade`
+updates it.
 
 The rest of this guide describes the manual options and what the script sets
 up.

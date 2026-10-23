@@ -49,17 +49,6 @@ deploy_head() {
   systemctl restart syncdeck
 }
 
-check_tunnel() {
-  if ! systemctl list-unit-files cloudflared.service 2>/dev/null | grep -q cloudflared; then
-    warn "no cloudflared service: syncdeck is only reachable on this machine"
-    return
-  fi
-  systemctl is-active --quiet cloudflared || systemctl restart cloudflared
-  sleep 1
-  if systemctl is-active --quiet cloudflared; then ok "cloudflared running"
-  else warn "cloudflared is not running: journalctl -u cloudflared"; fi
-}
-
 cd "$APP_DIR"
 say "Fetching $BRANCH from GitHub"
 [ -z "$(git status --porcelain --untracked-files=no)" ] \
@@ -77,7 +66,6 @@ if [ "$old" = "$new" ] && [ "$FORCE" -eq 0 ]; then
     healthy 30 || die "syncdeck does not start: journalctl -u syncdeck -n 50"
     ok "syncdeck running"
   fi
-  check_tunnel
   exit 0
 fi
 
@@ -99,7 +87,6 @@ git merge --quiet --ff-only "$new"
 deploy_head
 if healthy 30; then
   ok "syncdeck $(git rev-parse --short HEAD) is running"
-  check_tunnel
   say "Done"
   exit 0
 fi
@@ -110,7 +97,6 @@ git reset --quiet --hard "$old"
 deploy_head
 if healthy 30; then
   ok "previous version running again"
-  check_tunnel
   die "update failed (log above); syncdeck is back on the previous version"
 fi
 die "update failed and the previous version does not start either: journalctl -u syncdeck -n 50; state backup in $backup"

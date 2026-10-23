@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # First-time install of syncdeck on a Raspberry Pi (Raspberry Pi OS / Debian),
-# as a systemd service published through Cloudflare Tunnel.
+# as a systemd service listening on 127.0.0.1. Publishing it on the Internet
+# (Cloudflare Tunnel) is a separate step: see docs/deploy-raspberry.md.
 #
 #   curl -fsSL https://raw.githubusercontent.com/Pablomg02/syncdeck/main/deploy/install.sh | sudo bash
 #   # or, from a clone:  sudo bash deploy/install.sh
@@ -8,8 +9,6 @@
 # Safe to run again: every step checks what is already there.
 #
 # Optional environment variables:
-#   TUNNEL_TOKEN     token of a tunnel created in the Cloudflare dashboard
-#                    (asked for if missing; leave empty to skip the tunnel)
 #   SYNCDECK_REPO    git URL      (default: https://github.com/Pablomg02/syncdeck.git)
 #   SYNCDECK_BRANCH  branch       (default: main)
 #   SYNCDECK_PORT    local port   (default: 4321)
@@ -32,7 +31,6 @@ die() { printf '\n\033[31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 
 # Prompts read from the terminal, also when the script itself comes from a pipe.
 have_tty() { [ -r /dev/tty ] && [ -w /dev/tty ] && : </dev/tty 2>/dev/null; }
-ask() { local answer=''; if have_tty; then read -r -p "$1" answer </dev/tty || true; fi; printf '%s' "$answer"; }
 
 [ "$(id -u)" -eq 0 ] || die "run it with sudo: sudo bash $0"
 command -v apt-get >/dev/null || die "this script needs a Debian-based system (Raspberry Pi OS)"
@@ -118,42 +116,9 @@ ok "syncdeck is running and answers on http://127.0.0.1:$PORT"
 ln -sf "$APP_DIR/deploy/update.sh" /usr/local/bin/syncdeck-update
 ok "update later with: sudo syncdeck-update"
 
-# ---- Cloudflare Tunnel --------------------------------------------------------
-say "Cloudflare Tunnel"
-if systemctl list-unit-files cloudflared.service >/dev/null 2>&1 \
-  && systemctl list-unit-files cloudflared.service | grep -q cloudflared; then
-  systemctl is-active --quiet cloudflared || systemctl restart cloudflared
-  if systemctl is-active --quiet cloudflared; then ok "cloudflared service already installed and running"
-  else warn "cloudflared is installed but not running: journalctl -u cloudflared"; fi
-else
-  token="${TUNNEL_TOKEN:-}"
-  if [ -z "$token" ]; then
-    echo "    Create a tunnel in the Cloudflare dashboard (Zero Trust > Networks > Tunnels >"
-    echo "    Create a tunnel > Cloudflared) and paste its token here (empty to skip)."
-    token="$(ask '    Tunnel token: ')"
-  fi
-  if [ -z "$token" ]; then
-    warn "skipped; run this script again with TUNNEL_TOKEN=... to add the tunnel"
-  else
-    if ! command -v cloudflared >/dev/null; then
-      install -d -m 0755 /usr/share/keyrings
-      curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg -o /usr/share/keyrings/cloudflare-main.gpg
-      echo 'deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main' \
-        > /etc/apt/sources.list.d/cloudflared.list
-      apt-get update -qq
-      apt-get install -y -qq cloudflared >/dev/null
-    fi
-    cloudflared service install "$token" >/dev/null 2>&1 || die "cloudflared service install failed"
-    sleep 3
-    if systemctl is-active --quiet cloudflared; then ok "cloudflared installed and running"
-    else warn "cloudflared did not start: journalctl -u cloudflared"; fi
-  fi
-fi
-
 say "Done"
 cat <<EOF
-    In the tunnel's "Public hostname" tab (Cloudflare dashboard), point your
-    hostname to:  http://localhost:$PORT
-    Then open https://<your hostname>/admin and upload a deck.
-    Recommended: Cloudflare Access and a bot check (docs/deploy-raspberry.md).
+    syncdeck answers on http://127.0.0.1:$PORT (this machine only).
+    To publish it on the Internet, set up Cloudflare Tunnel and point your
+    hostname to http://localhost:$PORT: see docs/deploy-raspberry.md.
 EOF
