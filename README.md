@@ -5,7 +5,9 @@
 > espectador sincronizada: el proyector, tu móvil como mando y los portátiles
 > del público siguen el mismo paso. Funciona en tu portátil con un comando o en
 > una Raspberry Pi publicada con Cloudflare Tunnel. La interfaz está en español
-> e inglés.
+> e inglés. Las instrucciones de instalación (en tu ordenador, en tu red o
+> Tailscale, y en una Raspberry Pi con Cloudflare Tunnel) están en
+> *Getting started*.
 
 syncdeck serves single-file HTML presentations with PowerPoint-style
 presenter and audience views. The presenter moves through the deck with the
@@ -28,27 +30,79 @@ It is built for decks generated with AI: a deck is just a folder with an
 - **New deck from anywhere.** Sign in to `/admin`, upload a deck, write the
   speaker notes step by step in the browser.
 
-## Quick start
+## Getting started
 
-Requires Node.js 20 or newer.
+You need [Node.js](https://nodejs.org) 20 or newer and a copy of this
+repository:
 
 ```bash
+git clone https://github.com/Pablomg02/syncdeck.git
+cd syncdeck
 npm install
-node bin/syncdeck.js serve examples/demo
 ```
 
-Open the printed URL (`http://127.0.0.1:4321/demo`), choose **Presenter** in
-one tab and **Viewer** in another, and press → in the presenter tab.
+Pick the case that fits.
 
-To serve a folder with several decks (one subfolder each):
+### 1. On your own computer (one screen, or laptop + projector)
 
 ```bash
-node bin/syncdeck.js new my-talk --data decks
-node bin/syncdeck.js serve decks
+node bin/syncdeck.js serve
 ```
 
-`npm install -g .` (or `npm link`) makes the `syncdeck` command available
-everywhere.
+Open `http://127.0.0.1:4321/admin` and upload a deck (a `.zip` or `.html`).
+Then open the deck: choose **Presenter** in one window and **Viewer** in
+another (drag that one to the projector and press `F`). On this computer
+no password is needed. To try it first with the demo deck:
+`node bin/syncdeck.js serve examples/demo`.
+
+### 2. From other devices on your network or Tailscale (phone as a remote, students on the same Wi-Fi)
+
+Set a presenter password (8+ characters, a letter and a digit) once, and
+listen on the network:
+
+```bash
+node bin/syncdeck.js passwd presenter
+node bin/syncdeck.js serve --host 0.0.0.0
+```
+
+The command prints the addresses to use from the other devices, e.g.
+`http://192.168.1.20:4321/<deck>/present` on your phone (it asks for the
+password) and `/<deck>/view` for everyone else. To manage decks from another
+device too, set an admin password: `node bin/syncdeck.js passwd admin`. If
+nothing connects, check that your firewall allows TCP port 4321.
+
+### 3. On a Raspberry Pi, on the Internet through Cloudflare Tunnel
+
+Create a tunnel in the Cloudflare dashboard (Zero Trust → Networks →
+Tunnels), copy its token, and on the Pi run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Pablomg02/syncdeck/main/deploy/install.sh | sudo bash
+```
+
+It installs everything, asks for the passwords and the token, and starts
+syncdeck and the tunnel as services. Finally, in the tunnel's *Public
+hostname* tab, point your hostname to `http://localhost:4321`. Details,
+Docker and hardening tips: [docs/deploy-raspberry.md](docs/deploy-raspberry.md).
+
+### Updating
+
+- Cases 1 and 2: `git pull && npm install`, then start it again.
+- Case 3: `sudo syncdeck-update` (it backs up the settings, restarts, and goes
+  back to the previous version by itself if the new one fails).
+
+### Forgot a password?
+
+Passwords cannot be read back; set a new one on the machine running syncdeck
+with `node bin/syncdeck.js passwd admin` (or `presenter`); add `--clear` to
+remove it. On the Pi, see the guide.
+
+### Making decks
+
+A deck is a folder with an `index.html` (and its assets). Start one with
+`node bin/syncdeck.js new my-talk`; the format and a prompt for your AI
+assistant are in [docs/deck-format.md](docs/deck-format.md).
+`npm install -g .` makes the `syncdeck` command available everywhere.
 
 ## Roles and URLs
 
