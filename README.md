@@ -111,11 +111,11 @@ assistant are in [docs/deck-format.md](docs/deck-format.md).
 
 | URL | Who | What |
 | --- | --- | --- |
-| `/` | everyone | Redirects to the featured deck, or to the only deck. Otherwise a list (if enabled) or a neutral page. A signed-in admin always gets the list. |
+| `/` | everyone | Opens the deck chosen to open at `/`, or the only deck. Otherwise the list of decks (if enabled) or a page asking for the link. A signed-in admin always gets the list. |
 | `/<deck>` | everyone | Choose viewer or presenter. |
 | `/<deck>/view` | viewers | The deck, full window, following the live step. |
 | `/<deck>/present` | presenter | Current and next step, notes, timer, clock, controls. Works on a phone. |
-| `/admin` | admin | Upload and delete decks, featured deck, passwords, settings. |
+| `/admin` | admin | Upload and delete decks, what `/` shows, passwords, settings. |
 | `/admin/edit/<deck>` | admin | Notes editor. |
 
 Passwords: an **admin** password, a **presenter** password (for every deck,
@@ -157,8 +157,8 @@ once):
 
 At `/admin`: upload a deck as a `.zip` (with `index.html` at the root or in a
 single top folder) or as one `.html` file; replacing a deck keeps its notes.
-Delete (moved to a trash folder, never erased), choose the featured deck,
-show the list of decks to everyone, set passwords, change a deck's title or
+Delete (moved to a trash folder, never erased), choose what `/` shows (one
+deck, the list of decks, or a page asking for the link), set passwords, change a deck's title or
 default viewer mode, and open the notes editor.
 
 ## CLI
