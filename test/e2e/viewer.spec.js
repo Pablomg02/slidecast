@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import assert from 'node:assert/strict';
 import { startServer } from './server.js';
 
 let srv;
@@ -129,6 +130,31 @@ test('a viewer page with a presenter session drives the live index', async ({ br
   // The clicker's "black screen" key works from the projector too.
   await page.keyboard.press('b');
   await presenter.state((s) => s.blank === true);
+  await context.close();
+});
+
+test('a controlling viewer can stop and resume controlling', async ({ browser }) => {
+  const context = await browser.newContext();
+  await context.addCookies([{ name: 'sd_session', value: presenterCookie, url: srv.url }]);
+  const page = await context.newPage();
+  await openViewer(page);
+  await expect(page.locator('.badge-control')).toBeVisible();
+  await page.locator('.control-toggle').click();
+  await expect(page).toHaveURL(/control=off/);
+  await expect.poll(() => deckFrame(page)?.evaluate(() => Boolean(window.SYNCDECK_DECK)).catch(() => false)).toBe(true);
+  await expect(page.locator('.badge-control')).toBeHidden();
+  await expect(page.locator('.control-toggle')).toHaveText('Control');
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.keyboard.press('ArrowRight'); // a plain viewer in "back" mode cannot go ahead
+  await page.waitForTimeout(500);
+  await page.locator('.control-toggle').click();
+  await expect(page).not.toHaveURL(/control=off/);
+  await expect.poll(() => deckFrame(page)?.evaluate(() => Boolean(window.SYNCDECK_DECK)).catch(() => false)).toBe(true);
+  await expect(page.locator('.badge-control')).toBeVisible();
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.keyboard.press('ArrowRight');
+  const s = await presenter.state((x) => x.index >= 1);
+  assert.equal(s.index, 1);
   await context.close();
 });
 

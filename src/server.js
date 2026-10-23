@@ -40,6 +40,8 @@ export async function buildServer(opts = {}) {
     config,
     stateDir,
     trustProxy: Boolean(o.trustProxy),
+    loginLimits: o.loginLimits,
+    wsLimits: o.wsLimits,
     decks: createDeckStore({
       dataDir: o.dataDir,
       stateDir,

@@ -13,7 +13,16 @@ if (info.status === 403) location.replace(`/${slug}/login?as=viewer`);
 if (!info.ok) throw new Error(`deck info: ${info.status}`);
 setTitle(info.data.title);
 
-const controlling = info.data.canPresent;
+// A viewer that may present controls the deck unless this tab opted out
+// with ?control=off (D1 of 0002); switching reloads the page in the other role.
+const params = new URLSearchParams(location.search);
+const controlling = info.data.canPresent && params.get('control') !== 'off';
+function setControl(on) {
+  if (on) params.delete('control');
+  else params.set('control', 'off');
+  const query = params.toString();
+  location.replace(`${location.pathname}${query ? `?${query}` : ''}`);
+}
 const stage = el('div.viewer-stage');
 const blank = el('div.blank-overlay', { hidden: true });
 const idleCover = el('div.idle-cover', { hidden: true });
@@ -22,7 +31,12 @@ const reconnecting = el('span.badge.badge-warn', { hidden: true }, t('reconnecti
 const controlBadge = el('span.badge.badge-control', { hidden: !controlling }, t('controlling'));
 const liveBtn = el('button.back-to-live', { hidden: true, onclick: () => attach() }, t('backToLive'));
 const message = el('div.deck-message', { hidden: true });
-badges.append(controlBadge, reconnecting);
+const controlToggle = el('button.badge.control-toggle', {
+  type: 'button',
+  hidden: !info.data.canPresent,
+  onclick: () => setControl(!controlling),
+}, t(controlling ? 'stopControlling' : 'takeControl'));
+badges.append(controlBadge, controlToggle, reconnecting);
 app.append(stage, blank, idleCover, liveBtn, badges, message);
 
 const frame = createDeckFrame(stage, info.data.deckUrl, { mode: 'live' });

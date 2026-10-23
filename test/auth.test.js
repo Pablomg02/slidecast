@@ -224,3 +224,39 @@ test('a running server picks up a password changed by the CLI and revokes sessio
   });
   assert.equal((await login(app, { scope: 'presenter', password: 'changed-by-cli' })).statusCode, 204);
 });
+
+test('20 failed logins in an hour lock that address out, and failures are logged', async (t) => {
+  const dirs = await tempDirs(t);
+  await makeDeck(dirs.dataDir, 'talk');
+  const lines = [];
+  const stream = { write: (s) => lines.push(JSON.parse(s)) };
+  const app = await buildServer({
+    ...dirs, trustProxy: true, logger: { level: 'warn', stream }, loginLimits: { perMinute: 100 },
+  });
+  onCleanup(t, () => app.close());
+  await app.syncdeck.auth.setPassword('admin', null, 'admin-password1');
+  const ip = { 'cf-connecting-ip': '203.0.113.50' };
+  for (let i = 0; i < 20; i++) {
+    assert.equal((await login(app, { scope: 'admin', password: `wrong-guess-${i}` }, ip)).statusCode, 401);
+  }
+  const locked = await login(app, { scope: 'admin', password: 'admin-password1' }, ip);
+  assert.equal(locked.statusCode, 429);
+  assert.ok(Number(locked.headers['retry-after']) > 60);
+  // Another address is not affected.
+  const other = await login(app, { scope: 'admin', password: 'admin-password1' }, { 'cf-connecting-ip': '203.0.113.51' });
+  assert.equal(other.statusCode, 204);
+  const failed = lines.filter((l) => l.msg === 'login failed');
+  assert.equal(failed.length, 20);
+  assert.deepEqual({ ip: failed[0].ip, scope: failed[0].scope }, { ip: '203.0.113.50', scope: 'admin' });
+  assert.ok(lines.some((l) => l.msg === 'login locked' && l.ip === '203.0.113.50'));
+  assert.ok(!JSON.stringify(lines).includes('wrong-guess'));
+});
+
+test('passwords need a letter and a digit', async () => {
+  const { checkPasswordInput } = await import('../src/auth.js');
+  assert.equal(checkPasswordInput('abcdefgh'), 'password-too-weak');
+  assert.equal(checkPasswordInput('12345678'), 'password-too-weak');
+  assert.equal(checkPasswordInput('abc123'), 'password-too-short');
+  assert.equal(checkPasswordInput('abcd1234'), null);
+  assert.equal(checkPasswordInput('contraseña9'), null);
+});

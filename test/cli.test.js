@@ -34,6 +34,9 @@ test('passwd rejects short passwords and bad usage', async (t) => {
   const short = await run(['passwd', 'admin', '--state', stateDir], { input: 'short\n' });
   assert.equal(short.code, 1);
   assert.match(short.stderr, /8 characters/);
+  const weak = await run(['passwd', 'admin', '--state', stateDir], { input: 'passwords\n' });
+  assert.equal(weak.code, 1);
+  assert.match(weak.stderr, /one letter and one digit/);
   const bad = await run(['passwd', 'admin', '--viewer', '--state', stateDir], { input: 'password123\n' });
   assert.equal(bad.code, 1);
 });

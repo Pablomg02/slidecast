@@ -154,3 +154,51 @@ test('clients that miss two pings are dropped', async (t) => {
   await new Promise((r) => setTimeout(r, 250));
   assert.equal(state.terminated, true);
 });
+
+test('changing the default viewer mode in the admin panel reaches connected viewers', async (t) => {
+  const { connect, app } = await setup(t);
+  const viewer = connect('viewer');
+  await viewer.next(isState((m) => m.viewerNav === 'follow'));
+  // Local direct with no admin password: implicit admin.
+  const res = await app.inject({
+    method: 'PATCH',
+    url: '/api/admin/decks/talk',
+    headers: { host: 'syncdeck.test', origin: 'http://syncdeck.test' },
+    payload: { viewerNav: 'free' },
+  });
+  assert.equal(res.statusCode, 200);
+  await viewer.next(isState((m) => m.viewerNav === 'free'));
+});
+
+test('WebSocket connections are capped per address and in total', async (t) => {
+  const dirs = await tempDirs(t);
+  await makeDeck(dirs.dataDir, 'talk');
+  const app = await buildServer({ ...dirs, trustProxy: true, wsLimits: { perIp: 2, total: 3 } });
+  const urls = await listen(app);
+  const clients = [];
+  onCleanup(t, async () => {
+    for (const c of clients) c.close();
+    await app.close();
+  });
+  const from = (ip) => {
+    const c = wsClient(`${urls.ws}/ws/talk?role=viewer`, { headers: { 'Cf-Connecting-IP': ip } });
+    clients.push(c);
+    return c;
+  };
+  const a1 = from('198.51.100.1');
+  const a2 = from('198.51.100.1');
+  await a1.next(isState());
+  await a2.next(isState());
+  const a3 = from('198.51.100.1');
+  assert.equal((await a3.closed).code, 4429);
+  const b1 = from('198.51.100.2');
+  await b1.next(isState());
+  const c1 = from('198.51.100.3');
+  assert.equal((await c1.closed).code, 4429);
+  // A closed connection frees its slot.
+  a1.close();
+  await a1.closed;
+  await new Promise((r) => setTimeout(r, 50));
+  const c2 = from('198.51.100.3');
+  await c2.next(isState());
+});

@@ -66,7 +66,7 @@ test('deck settings dialog sets a viewer password', async ({ page }) => {
   await page.fill('#password', 'admin-password');
   await page.click('button[type=submit]');
   await page.click('tr[data-slug=legacy-pres] button:has-text("Settings")');
-  await page.fill('#pw-deckViewer-legacy-pres', 'viewer-secret');
+  await page.fill('#pw-deckViewer-legacy-pres', 'viewer-secret1');
   await page.click('.password-control:has(#pw-deckViewer-legacy-pres) button:has-text("Set")');
   await expect(page.locator('.deck-settings .status.ok')).toHaveText('Saved');
   await page.click('.deck-settings button:has-text("Close")');

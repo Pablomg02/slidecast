@@ -6,10 +6,46 @@ is opened on your router: the Pi connects out to Cloudflare.
 
 Replace `slides.example.com` with your own hostname everywhere below.
 
-There are two ways to run it. Pick one:
+There are three ways to set it up. Pick one:
 
+- **Install script** (recommended): one command does option B for you.
 - **A. Docker Compose**: syncdeck and `cloudflared` as two containers.
-- **B. systemd**: Node.js and `cloudflared` installed on the Pi itself.
+- **B. systemd**: Node.js and `cloudflared` installed on the Pi itself, by hand.
+
+## Install script
+
+1. In the Cloudflare dashboard create a tunnel (Zero Trust → Networks →
+   Tunnels → Create a tunnel → Cloudflared) and copy its token.
+2. On the Pi:
+
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/Pablomg02/syncdeck/main/deploy/install.sh | sudo bash
+   ```
+
+   It installs Node.js 22, git and `cloudflared`; clones syncdeck into
+   `/opt/syncdeck`; creates the `syncdeck` user and `/var/lib/syncdeck`; asks
+   for the admin and presenter passwords and the tunnel token; installs and
+   starts both services; and checks that syncdeck answers. Running it again
+   is safe: it skips what is already done. To skip the token prompt, pass it:
+   `curl … | sudo TUNNEL_TOKEN=… bash`.
+3. In the tunnel's *Public hostname* tab add `slides.example.com` with service
+   `http://localhost:4321`.
+
+To update later:
+
+```bash
+sudo syncdeck-update
+```
+
+It fetches the latest `main` from GitHub, copies the state folder to
+`/var/lib/syncdeck/backups/` (keeps the last 5), installs the new version,
+restarts it and checks that it answers. If the new version does not start,
+it goes back to the previous one by itself and says so. It also restarts
+`cloudflared` if it is not running. `sudo syncdeck-update --force` reinstalls
+and restarts even when there is nothing new.
+
+The rest of this guide describes the manual options and what the script sets
+up.
 
 ## Before you expose anything: passwords
 
@@ -21,7 +57,7 @@ allowed without one). Set both passwords **before** you open the tunnel:
 - presenter password: drives the presentation from your phone or laptop.
 
 The commands are given in each option below. Passwords need 8 characters or
-more. They are stored as scrypt hashes in the state folder (`config.json`),
+more, with at least one letter and one digit. They are stored as scrypt hashes in the state folder (`config.json`),
 never in plain text. Changing one signs out everyone who used the old one.
 
 ## Option A: Docker Compose
@@ -125,6 +161,51 @@ The unit already passes `--trust-proxy`: syncdeck then reads the visitor's
 address from `Cf-Connecting-IP` (for the login rate limit) and marks cookies
 `Secure` because Cloudflare reports HTTPS.
 
+## Extra protection at Cloudflare (recommended)
+
+syncdeck limits password attempts by itself, but Cloudflare can stop most
+automated traffic before it reaches the Pi. Both steps are done in the
+Cloudflare dashboard; nothing changes in syncdeck.
+
+**1. Cloudflare Access in front of the admin panel.** Visitors to the admin
+pages must first sign in with Cloudflare (for example a one-time code sent to
+your e-mail), and only then see syncdeck's own admin password.
+
+- Zero Trust → Access → Applications → *Add an application* → *Self-hosted*.
+- Add two destinations on `slides.example.com`: path `admin` and path
+  `api/admin` (the panel's API must be covered too, not only the page).
+- Policy: *Allow*, rule *Emails* → your address. Login method: *One-time PIN*
+  (or your Google / GitHub account).
+
+Presenter and viewer pages stay outside Access, so the audience needs no
+Cloudflare account.
+
+**2. A bot check on the sign-in pages.** Security → WAF → Custom rules →
+*Create rule*, action **Managed Challenge**, with this expression (*Edit
+expression*):
+
+```
+(http.request.uri.path eq "/admin")
+or (http.request.uri.path eq "/api/login")
+or (http.request.uri.path wildcard r"/*/login")
+or (http.request.uri.path wildcard r"/*/present")
+```
+
+People see Cloudflare's "verifying you are human" check, usually without
+clicking anything; scripts that guess passwords do not get through. If a
+sign-in ever answers *Something went wrong (403)*, reload the page so the
+check runs again.
+
+**Watching failed sign-ins.** Every wrong password is logged as
+`login failed` with the visitor's address, and 20 failures in an hour from one
+address block it for the rest of that hour (`login locked`):
+
+```bash
+journalctl -u syncdeck | grep -E "login (failed|locked)"
+```
+
+(With Docker: `docker compose logs syncdeck | grep -E "login (failed|locked)"`.)
+
 ## Using it
 
 - `https://slides.example.com/admin` — sign in, upload decks (a `.zip` with
@@ -152,8 +233,9 @@ them.
 ## Updating
 
 - Docker: `git pull && docker compose up -d --build` in `deploy/`.
-- systemd: `cd /opt/syncdeck && sudo git pull && sudo npm ci --omit=dev &&
-  sudo systemctl restart syncdeck`.
+- Install script or systemd: `sudo syncdeck-update` (or by hand:
+  `cd /opt/syncdeck && sudo git pull && sudo npm ci --omit=dev &&
+  sudo systemctl restart syncdeck`).
 
 ## Forgot the admin password
 

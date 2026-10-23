@@ -23,8 +23,9 @@ file (it holds the secret that signs deck links).
 **Passwords.** Admin, presenter (global or per deck) and per-deck viewer
 passwords are hashed with scrypt (N=16384, r=8, p=1, 16-byte random salt,
 64-byte key) and compared in constant time. They are set with
-`syncdeck passwd` or from the admin panel, must have 8 characters or more, and
-are never stored or logged in clear.
+`syncdeck passwd` or from the admin panel, must have 8 characters or more with
+at least one letter and one digit, and are never stored or logged in clear.
+(Passwords set before this rule keep working.)
 
 **No password, no remote access.** When no password covers a role (admin, or
 presenter for a deck), that role is granted only to "local direct" requests:
@@ -50,9 +51,17 @@ cross-site form could send) and uploads only `application/zip` / `text/html`
 on the admin route.
 
 **Brute force.** `/api/login` allows 5 attempts per minute per client address
-and scope, and 50 per minute in total. Behind a proxy (`--trust-proxy`) the
+and scope, and 50 per minute in total. On top of that, 20 *failed* attempts in
+an hour from one address for one scope (and deck) block that address for the
+rest of the hour, even with the right password. Every failed attempt is logged
+at `warn` level as `login failed` with the address, scope and deck (never the
+password), and a block as `login locked`. Behind a proxy (`--trust-proxy`) the
 client address comes from `Cf-Connecting-IP` or the first `X-Forwarded-For`
 entry; without it these headers are ignored.
+
+**Connections.** At most 100 live (WebSocket) connections per client address
+and 1 000 in total; further ones are closed with code 4429 and the page retries
+later. 100 leaves room for a whole class behind one school address.
 
 **Decks are untrusted code.** Each deck runs in `<iframe sandbox="allow-scripts">`
 without `allow-same-origin`, so it gets an opaque origin: it cannot read
@@ -85,6 +94,10 @@ also after resolving symlinks.
 **Secrets on disk.** The state folder is created with mode 0700 and its files
 with mode 0600. `decks/` and `.syncdeck/` are git-ignored so personal decks and
 secrets do not end up in a repository by accident.
+
+**At the edge.** With Cloudflare in front, Cloudflare Access on the admin
+paths and a managed challenge on the sign-in pages stop most automated attacks
+before they reach syncdeck; see the Raspberry Pi guide.
 
 ## Reporting a vulnerability
 

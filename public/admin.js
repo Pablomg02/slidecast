@@ -20,8 +20,11 @@ function status(node, text, kind = '') {
   node.className = `status ${kind}`;
 }
 
+const FRIENDLY = { 'password-too-short': 'passwordTooShort', 'password-too-weak': 'passwordTooWeak' };
+
 function errorText(res) {
   const code = res.data?.error ?? res.status;
+  if (FRIENDLY[code]) return t(FRIENDLY[code]);
   return res.data?.detail ? `${t('error', { code })}: ${res.data.detail}` : t('error', { code });
 }
 

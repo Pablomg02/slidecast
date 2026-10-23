@@ -99,9 +99,10 @@ test('passwords: short → 400, admin cannot be cleared, deck scopes need a deck
   const put = (payload) => as({ method: 'PUT', url: '/api/admin/passwords', payload });
   assert.equal((await put({ scope: 'presenter', password: 'short' })).statusCode, 400);
   assert.equal((await put({ scope: 'presenter', password: 'short' })).json().error, 'password-too-short');
+  assert.equal((await put({ scope: 'presenter', password: 'letters-only' })).json().error, 'password-too-weak');
   assert.equal((await put({ scope: 'admin', password: null })).json().error, 'cannot-clear-admin');
-  assert.equal((await put({ scope: 'deckViewer', deck: 'nope', password: 'long-enough' })).json().error, 'no-deck');
-  assert.equal((await put({ scope: 'deckViewer', deck: 'talk', password: 'long-enough' })).statusCode, 204);
+  assert.equal((await put({ scope: 'deckViewer', deck: 'nope', password: 'long-enough1' })).json().error, 'no-deck');
+  assert.equal((await put({ scope: 'deckViewer', deck: 'talk', password: 'long-enough1' })).statusCode, 204);
   assert.equal((await as({ url: '/api/admin/decks' })).json().decks[0].hasViewerPassword, true);
   assert.equal((await put({ scope: 'deckViewer', deck: 'talk', password: null })).statusCode, 204);
   assert.equal(app.syncdeck.config.decks.talk, undefined);
@@ -109,7 +110,7 @@ test('passwords: short → 400, admin cannot be cleared, deck scopes need a deck
 
 test('changing the admin password keeps the requester signed in on a new session', async (t) => {
   const { app, cookie } = await setup(t);
-  const res = await app.inject({ method: 'PUT', url: '/api/admin/passwords', headers: { ...REMOTE, cookie }, payload: { scope: 'admin', password: 'new-admin-password' } });
+  const res = await app.inject({ method: 'PUT', url: '/api/admin/passwords', headers: { ...REMOTE, cookie }, payload: { scope: 'admin', password: 'new-admin-password1' } });
   assert.equal(res.statusCode, 204);
   const fresh = `sd_session=${res.cookies[0].value}`;
   assert.notEqual(fresh, cookie);

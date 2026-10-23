@@ -206,7 +206,12 @@ async function passwd(argv) {
       password = await readStdinLine();
     }
     const problem = checkPasswordInput(password);
-    if (problem) return fail(problem === 'password-too-short' ? 'the password needs 8 characters or more' : 'the password is too long');
+    const messages = {
+      'password-too-short': 'the password needs 8 characters or more',
+      'password-too-weak': 'the password needs at least one letter and one digit',
+      'password-too-long': 'the password is too long',
+    };
+    if (problem) return fail(messages[problem]);
     hash = await hashPassword(password);
   }
 

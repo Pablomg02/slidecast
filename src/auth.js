@@ -39,6 +39,7 @@ export async function verifyPassword(password, stored) {
 export function checkPasswordInput(password) {
   if (typeof password !== 'string' || password.length < MIN_PASSWORD) return 'password-too-short';
   if (password.length > MAX_PASSWORD) return 'password-too-long';
+  if (!/\p{L}/u.test(password) || !/\p{N}/u.test(password)) return 'password-too-weak';
   return null;
 }
 
@@ -304,22 +305,56 @@ export async function createAuth(ctx) {
 
 const SCOPES = new Set(['admin', 'presenter', 'viewer']);
 
+const HOUR = 3_600_000;
+
+// Failed logins per key in a fixed one-hour window (D3 of 0002). Only failures
+// count, so people who sign in often are never locked out.
+export function createFailureLimit({ max, windowMs = HOUR, now = Date.now } = {}) {
+  const entries = new Map(); // key → {count, resetAt}
+  function current(key) {
+    const e = entries.get(key);
+    if (e && e.resetAt > now()) return e;
+    entries.delete(key);
+    return null;
+  }
+  return {
+    // Seconds until the key may try again, or 0 if it may try now.
+    blockedFor(key) {
+      const e = current(key);
+      return e && e.count >= max ? Math.ceil((e.resetAt - now()) / 1000) : 0;
+    },
+    // Records a failure; returns true when this one reached the limit.
+    fail(key) {
+      const e = current(key) ?? { count: 0, resetAt: now() + windowMs };
+      e.count++;
+      entries.set(key, e);
+      if (entries.size > 10_000) {
+        for (const k of entries.keys()) if (!current(k)) entries.delete(k);
+      }
+      return e.count === max;
+    },
+  };
+}
+
 export function registerAuthRoutes(app, ctx) {
   const { auth, config } = ctx;
-  const perClient = app.createRateLimit({
-    max: 5,
-    timeWindow: 60_000,
-    keyGenerator: (req) => `${clientIp(req, ctx.trustProxy)}|${req.body?.scope}|${req.body?.deck ?? ''}`,
-  });
-  const overall = app.createRateLimit({ max: 50, timeWindow: 60_000, keyGenerator: () => 'login' });
+  const limits = { perMinute: 5, overallPerMinute: 50, failuresPerHour: 20, ...ctx.loginLimits };
+  const keyOf = (req) => `${clientIp(req, ctx.trustProxy)}|${req.body?.scope}|${req.body?.deck ?? ''}`;
+  const perClient = app.createRateLimit({ max: limits.perMinute, timeWindow: 60_000, keyGenerator: keyOf });
+  const overall = app.createRateLimit({ max: limits.overallPerMinute, timeWindow: 60_000, keyGenerator: () => 'login' });
+  const failures = createFailureLimit({ max: limits.failuresPerHour });
+
+  function tooMany(reply, seconds) {
+    reply.header('Retry-After', seconds);
+    return reply.code(429).send({ error: 'too-many-attempts' });
+  }
 
   async function limit(req, reply) {
+    const wait = failures.blockedFor(keyOf(req));
+    if (wait) return tooMany(reply, wait);
     for (const limiter of [perClient, overall]) {
       const r = await limiter(req);
-      if (r.isExceeded) {
-        reply.header('Retry-After', r.ttlInSeconds);
-        return reply.code(429).send({ error: 'too-many-attempts' });
-      }
+      if (r.isExceeded) return tooMany(reply, r.ttlInSeconds);
     }
     return undefined;
   }
@@ -346,7 +381,12 @@ export function registerAuthRoutes(app, ctx) {
       grantArgs = { view: [deck] };
     }
     if (!hash) return reply.code(409).send({ error: 'no-password-configured' });
-    if (!(await verifyPassword(password, hash))) return reply.code(401).send({ error: 'bad-password' });
+    if (!(await verifyPassword(password, hash))) {
+      const who = { ip: clientIp(req, ctx.trustProxy), scope, deck: deck || undefined };
+      req.log.warn(who, 'login failed');
+      if (failures.fail(keyOf(req))) req.log.warn(who, 'login locked');
+      return reply.code(401).send({ error: 'bad-password' });
+    }
     await auth.grant(req, reply, grantArgs);
     return reply.code(204).send();
   });

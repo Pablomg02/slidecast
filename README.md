@@ -82,12 +82,14 @@ Most presentation clickers send PageUp/PageDown and `B`/`.`, so they work
 out of the box. If the viewer window on the projector has the focus and that
 browser may present (on the machine running syncdeck without a presenter
 password, or after signing in as presenter), it shows a *Controlling* badge and
-the clicker drives the presentation from there too.
+the clicker drives the presentation from there too. Its *Stop controlling*
+button turns that window into a plain viewer (and *Control* back).
 
 ## Viewer modes
 
 Chosen per deck (`viewerNav` in `deck.json`, or the admin panel) and switchable
-live from the presenter view:
+live from the presenter view (changing it in the admin panel also applies at
+once):
 
 - **Follow**: viewers always show the presenter's step.
 - **May go back** (default): viewers can look at earlier steps, never ahead;
@@ -124,7 +126,8 @@ syncdeck --help | --version
 
 - [Deck format](docs/deck-format.md): folder layout, `deck.json`, the deck
   API, and a prompt for your AI assistant.
-- [Deploying on a Raspberry Pi with Cloudflare Tunnel](docs/deploy-raspberry.md)
+- [Deploying on a Raspberry Pi with Cloudflare Tunnel](docs/deploy-raspberry.md):
+  one-command install (`deploy/install.sh`) and updates (`sudo syncdeck-update`).
 - [Security](docs/security.md): threat model, measures, reporting issues.
 
 ## Development

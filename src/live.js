@@ -2,16 +2,22 @@ import { join } from 'node:path';
 import { readJson, writeJsonAtomic } from './store.js';
 import { originMatches } from './security.js';
 import { VIEWER_NAV } from './decks.js';
+import { clientIp } from './auth.js';
 
 export const MAX_MESSAGE = 4096;
 const HEARTBEAT_MS = 25_000;
 const MAX_TOTAL = 100_000;
+// Connection caps (D5 of 0002): high enough for a classroom behind one NAT address.
+const WS_LIMITS = { perIp: 100, total: 1000 };
 
 // Per-deck live state, role-checked commands and broadcasts (D2, D3, D15, D25, D26).
 export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS } = {}) {
   const livePath = join(ctx.stateDir, 'live.json');
   const persisted = await readJson(livePath, {}).catch(() => ({}));
   const decks = new Map(); // slug → {index, total, blank, viewerNav, rev, clients}
+  const wsLimits = { ...WS_LIMITS, ...ctx.wsLimits };
+  const perIp = new Map(); // address → open connections
+  let open = 0;
 
   let persistTimer = null;
   function persistNow() {
@@ -108,6 +114,19 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS } = {}) {
   const COMMANDS = new Set(['meta', 'step', 'goto', 'blank', 'nav']);
 
   async function handleConnection(socket, req) {
+    const ip = clientIp(req, ctx.trustProxy);
+    if (open >= wsLimits.total || (perIp.get(ip) ?? 0) >= wsLimits.perIp) {
+      return socket.close(4429, 'too-many-connections');
+    }
+    open++;
+    perIp.set(ip, (perIp.get(ip) ?? 0) + 1);
+    socket.on('close', () => {
+      open--;
+      const n = perIp.get(ip) - 1;
+      if (n > 0) perIp.set(ip, n);
+      else perIp.delete(ip);
+    });
+
     const slug = req.params.slug;
     const role = req.query?.role ?? 'viewer';
     const queue = [];
@@ -185,6 +204,14 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS } = {}) {
       const s = decks.get(slug);
       if (!s) return;
       for (const c of s.clients) if (c.role === 'presenter') send(c, { t: 'notes', slides });
+    },
+    // The admin changed the deck's default viewer mode: apply it live too.
+    setViewerNav(slug, mode) {
+      const s = decks.get(slug);
+      if (!s || s.viewerNav === mode) return;
+      s.viewerNav = mode;
+      s.rev++;
+      broadcast(s);
     },
     // A deck was replaced or deleted: forget its step count; close sockets if gone.
     resetDeck(slug, { removed = false } = {}) {

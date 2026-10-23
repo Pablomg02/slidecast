@@ -94,6 +94,7 @@ export function registerAdmin(app, ctx) {
       const { title, viewerNav, aspect } = req.body ?? {};
       try {
         const meta = await decks.updateSettings(req.params.slug, { title, viewerNav, aspect });
+        if (viewerNav !== undefined) live.setViewerNav(req.params.slug, meta.viewerNav);
         return { title: meta.title ?? null, viewerNav: meta.viewerNav, aspect: meta.aspect };
       } catch (err) {
         return sendError(reply, err);

@@ -114,7 +114,9 @@ body.idle, body.idle * { cursor: none; }
 }
 .badge-warn { background: rgba(184, 92, 0, .9); }
 .badge-control { background: rgba(47, 111, 223, .85); }
-body.idle .badge-control { opacity: 0; }
+body.idle .badge-control, body.idle .control-toggle { opacity: 0; }
+.control-toggle { border: 0; cursor: pointer; font-family: inherit; }
+.control-toggle:hover { background: rgba(0, 0, 0, .85); }
 .back-to-live {
   position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 9;
   background: var(--accent); color: var(--accent-ink); border-color: var(--accent);
