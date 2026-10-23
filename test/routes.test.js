@@ -127,10 +127,38 @@ test('deck pages, login page, 404 and headers', async (t) => {
   assert.equal((await app.inject({ url: '/api/nope', headers: REMOTE })).json().error, 'not-found');
   assert.equal((await app.inject({ url: '/api/decks', headers: REMOTE })).statusCode, 403);
   ctx.config.publicListing = true;
-  assert.deepEqual((await app.inject({ url: '/api/decks', headers: REMOTE })).json(), { decks: [{ slug: 'talk', title: 'talk' }] });
+  const [listed] = (await app.inject({ url: '/api/decks', headers: REMOTE })).json().decks;
+  assert.deepEqual(Object.keys(listed).sort(), ['aspect', 'cover', 'deckUrl', 'slug', 'title']);
+  assert.equal(listed.cover, null);
+  assert.match(listed.deckUrl, /^\/_deck\/talk\/\d+\.[\w-]+\/$/);
   const md = await app.inject('/_syncdeck/vendor/markdown-it.min.js');
   assert.equal(md.statusCode, 200);
   assert.match(md.body, /markdownit/);
   const bridge = await app.inject('/_syncdeck/bridge.js');
   assert.equal(bridge.statusCode, 200);
+});
+
+test('deck list: cover image and locked decks', async (t) => {
+  const { app, ctx, dirs } = await setup(t, ['talk', 'art', 'secret']);
+  const { writeFile, mkdir } = await import('node:fs/promises');
+  const { join } = await import('node:path');
+  await writeFile(join(dirs.dataDir, 'talk', 'cover.png'), 'png');
+  await mkdir(join(dirs.dataDir, 'art', 'img'));
+  await writeFile(join(dirs.dataDir, 'art', 'img', 'first #1.jpg'), 'jpg');
+  await writeFile(join(dirs.dataDir, 'art', 'deck.json'), JSON.stringify({ cover: 'img/first #1.jpg' }));
+  await writeFile(join(dirs.dataDir, 'secret', 'cover.png'), 'png');
+  await writeFile(join(dirs.dataDir, 'secret', 'deck.json'), JSON.stringify({ cover: '../talk/cover.png' }));
+  await ctx.auth.setPassword('deckViewer', 'secret', 'viewer-pass');
+  ctx.config.publicListing = true;
+  const decks = Object.fromEntries((await app.inject({ url: '/api/decks', headers: REMOTE })).json().decks
+    .map((d) => [d.slug, d]));
+  assert.equal(decks.talk.cover, `${decks.talk.deckUrl}cover.png`);
+  assert.equal(decks.art.cover, `${decks.art.deckUrl}img/first%20%231.jpg`);
+  assert.deepEqual(decks.secret, { slug: 'secret', title: 'secret', locked: true });
+  assert.equal((await app.inject({ url: decks.talk.cover, headers: REMOTE })).statusCode, 200);
+  assert.equal((await app.inject({ url: decks.art.cover, headers: REMOTE })).body, 'jpg');
+  const info = (await app.inject({ url: '/api/decks/talk', headers: REMOTE })).json();
+  assert.equal(info.cover, `${info.deckUrl}cover.png`);
+  // A cover path that leaves the deck folder is ignored (falls back to cover.png).
+  assert.equal((await ctx.decks.get('secret')).cover, 'cover.png');
 });

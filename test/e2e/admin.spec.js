@@ -83,8 +83,8 @@ test('multi-deck panel: listing hint, admin password removal hint, sign out', as
   await page.fill('#password', 'admin-password');
   await page.click('button[type=submit]');
   await expect(page.locator('#public-listing')).toBeVisible();
-  await expect(page.locator('.listing .hint')).toContainText('two or more presentations');
-  await expect(page.locator('th', { hasText: 'Featured' })).toBeVisible();
+  await expect(page.locator('.listing .hint')).toContainText('only shows a note asking for the link');
+  await expect(page.locator('th', { hasText: 'Opens at /' })).toBeVisible();
   await expect(page.locator('.password-control:has(#pw-admin-all) .hint'))
     .toContainText('syncdeck passwd admin --clear');
   await expect(page.locator('#logout')).toBeVisible();

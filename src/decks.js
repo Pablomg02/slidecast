@@ -13,6 +13,9 @@ export const RESERVED_SLUGS = new Set([
 export const VIEWER_NAV = ['follow', 'back', 'free'];
 const ASPECT_RE = /^\d+:\d+$/;
 const MAX_NOTE = 100_000;
+// Looked for at the deck's root when deck.json names no `cover`.
+export const COVER_FILES = ['cover.webp', 'cover.png', 'cover.jpg', 'cover.jpeg', 'cover.avif', 'cover.svg'];
+const COVER_RE = /^(?!\/)(?!.*(^|\/)\.\.?(\/|$))[^\0\\]{1,200}\.(webp|png|jpe?g|avif|gif|svg)$/i;
 
 export class DeckError extends Error {
   constructor(code, message) {
@@ -165,10 +168,22 @@ export function createDeckStore({ dataDir, stateDir, singleDeck = null, log = ()
     return meta.title || (await htmlTitle(join(dirOf(slug), 'index.html'))) || slug;
   }
 
+  // Relative path of the deck's cover image, or null.
+  async function cover(slug, meta) {
+    const dir = dirOf(slug);
+    const names = typeof meta.cover === 'string' && COVER_RE.test(meta.cover) ? [meta.cover] : COVER_FILES;
+    for (const name of names) {
+      try {
+        if ((await stat(join(dir, name))).isFile()) return name;
+      } catch { /* next */ }
+    }
+    return null;
+  }
+
   async function get(slug) {
     if (!(await exists(slug))) return null;
     const meta = await readMeta(slug);
-    return { slug, dir: dirOf(slug), meta, title: await title(slug, meta) };
+    return { slug, dir: dirOf(slug), meta, title: await title(slug, meta), cover: await cover(slug, meta) };
   }
 
   async function list() {
@@ -177,7 +192,14 @@ export function createDeckStore({ dataDir, stateDir, singleDeck = null, log = ()
       const dir = dirOf(slug);
       const meta = await readMeta(slug);
       const st = await stat(join(dir, 'index.html'));
-      out.push({ slug, title: await title(slug, meta), size: await dirSize(dir), mtime: st.mtime.toISOString() });
+      out.push({
+        slug,
+        title: await title(slug, meta),
+        aspect: meta.aspect,
+        cover: await cover(slug, meta),
+        size: await dirSize(dir),
+        mtime: st.mtime.toISOString(),
+      });
     }
     return out;
   }

@@ -1,5 +1,5 @@
 // Password form for presenter or viewer access to one deck.
-import { t, el, api, slugFromPath, setTitle } from './shell.js';
+import { t, el, api, slugFromPath, setTitle, brand } from './shell.js';
 
 const slug = slugFromPath();
 const as = new URLSearchParams(location.search).get('as') === 'presenter' ? 'presenter' : 'viewer';
@@ -15,7 +15,7 @@ const form = el('form.card.login-form', {},
   el('h1', {}, t(as === 'presenter' ? 'signInPresenter' : 'signInViewer')),
   el('label', { htmlFor: 'password' }, t('password')),
   input, error, button);
-app.append(form);
+app.append(brand(), form);
 
 function showError(text) {
   error.textContent = text;

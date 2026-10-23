@@ -48,6 +48,67 @@ export async function api(path, { method = 'GET', body, raw, type } = {}) {
   return { status: res.status, ok: res.ok, data };
 }
 
+// ---- icons, brand, thumbnails -----------------------------------------------
+
+const ICONS = {
+  play: '<path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/>',
+  screen: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
+  presenter: '<rect x="3" y="3" width="18" height="12" rx="2"/><path d="M7 8h6M7 11h10M8 21l4-6 4 6"/>',
+  lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  deck: '<rect x="3" y="5" width="14" height="10" rx="2"/><path d="M7 19h12a2 2 0 0 0 2-2V9"/>',
+};
+
+export function icon(name, cls = 'icon') {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('class', cls);
+  svg.innerHTML = ICONS[name] ?? '';
+  return svg;
+}
+
+export function brand() {
+  return el('a.brand', { href: '/' }, el('span.brand-mark', {}, icon('deck')), 'syncdeck');
+}
+
+// A deck's thumbnail: its cover image when it has one, otherwise the deck
+// itself rendered at desktop size and scaled down (created once visible).
+export function deckThumb({ cover, deckUrl, aspect = '16:9', locked }) {
+  const [aw, ah] = String(aspect).split(':').map(Number);
+  const box = el('div.thumb', { 'aria-hidden': 'true' });
+  box.style.aspectRatio = `${aw} / ${ah}`;
+  if (locked || !deckUrl) {
+    box.classList.add('thumb-locked');
+    box.append(icon('lock'));
+    return box;
+  }
+  if (cover) {
+    const img = el('img', { src: cover, alt: '', loading: 'lazy', decoding: 'async' });
+    img.addEventListener('load', () => box.classList.add('loaded'));
+    img.addEventListener('error', () => {
+      img.remove();
+      box.classList.add('loaded');
+    });
+    box.append(img);
+    return box;
+  }
+  const W = 1280;
+  const inner = el('div.thumb-live');
+  inner.style.width = `${W}px`;
+  inner.style.height = `${Math.round((W * ah) / aw)}px`;
+  box.append(inner);
+  new ResizeObserver(() => { inner.style.transform = `scale(${box.clientWidth / W})`; }).observe(box);
+  const seen = new IntersectionObserver((entries) => {
+    if (!entries.some((e) => e.isIntersecting)) return;
+    seen.disconnect();
+    const frame = createDeckFrame(inner, deckUrl, { mode: 'preview' });
+    frame.element.addEventListener('load', () => box.classList.add('loaded'));
+  }, { rootMargin: '200px' });
+  seen.observe(box);
+  return box;
+}
+
 export function setTitle(title) {
   document.title = title ? `${title} · syncdeck` : 'syncdeck';
 }

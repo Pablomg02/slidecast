@@ -1,5 +1,5 @@
 // Admin panel: decks (upload, delete, featured, settings) and passwords.
-import { t, el, api, setTitle } from './shell.js';
+import { t, el, api, setTitle, brand } from './shell.js';
 
 setTitle(t('admin'));
 const app = document.getElementById('app');
@@ -68,7 +68,7 @@ async function load() {
 function render({ decks, single }) {
   app.replaceChildren();
   app.append(el('header.admin-header', {},
-    el('h1', {}, `syncdeck · ${t('admin')}`),
+    el('div.admin-title', {}, brand(), el('h1', {}, t('admin'))),
     el('div.row', {},
       el('a.button', { href: '/' }, t('decks')),
       // Without an admin password there is no session to sign out of.

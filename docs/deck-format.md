@@ -6,6 +6,7 @@ A syncdeck deck is a folder:
 my-talk/
 ├── index.html    required: the whole presentation
 ├── deck.json     optional: title, settings and speaker notes
+├── cover.png     optional: thumbnail shown in the deck list and selector
 └── …             optional: images, fonts, scripts it references
 ```
 
@@ -39,6 +40,7 @@ simplest deck: upload it as a `.html` file from the admin panel.
 | `title` | Shown in lists and the browser tab. | the `<title>` of `index.html`, else the folder name |
 | `aspect` | Shape of the slide in the presenter and editor views, `"W:H"`. | `"16:9"` |
 | `viewerNav` | What viewers may do: `follow` (locked to the presenter), `back` (may look back, never past the live step), `free` (anywhere). The presenter can change it live. | `"back"` |
+| `cover` | Path of the deck's thumbnail image inside the folder (png, jpg, webp, avif, gif or svg). | `cover.webp`, `cover.png`, `cover.jpg`, `cover.jpeg`, `cover.avif` or `cover.svg` if present; otherwise a live miniature of the first slide |
 | `slides` | Notes per slide id: `notes` for the whole slide, `steps` for individual steps (keys are step numbers). | `{}` |
 
 Notes are Markdown. Raw HTML in notes is shown as text, not rendered. Any other

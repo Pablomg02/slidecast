@@ -1,5 +1,5 @@
 // Admin sign-in (scope "admin").
-import { t, el, api, setTitle } from './shell.js';
+import { t, el, api, setTitle, brand } from './shell.js';
 
 setTitle(t('admin'));
 const app = document.getElementById('app');
@@ -9,7 +9,7 @@ const button = el('button.primary', { type: 'submit' }, t('signIn'));
 const form = el('form.card.login-form', {},
   el('h1', {}, t('signInAdmin')),
   el('label', { htmlFor: 'password' }, t('password')), input, error, button);
-app.append(form);
+app.append(brand(), form);
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
