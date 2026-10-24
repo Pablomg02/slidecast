@@ -157,3 +157,25 @@ test('clicking a preview does not steal the keyboard', async ({ page }) => {
   expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe('IFRAME');
   viewer.close();
 });
+
+test('? opens the keys overlay and ? or Esc closes it', async ({ page }) => {
+  await openPresenter(page);
+  const overlay = page.locator('#keys-overlay');
+  await expect(overlay).toBeHidden();
+
+  await page.keyboard.press('?');
+  await expect(overlay).toBeVisible();
+  await expect(overlay).toContainText(await overlay.locator('h2').textContent());
+
+  await page.keyboard.press('?');
+  await expect(overlay).toBeHidden();
+
+  await page.keyboard.press('?');
+  await expect(overlay).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(overlay).toBeHidden();
+
+  // the toolbar button works too
+  await page.locator('#keys-help').click();
+  await expect(overlay).toBeVisible();
+});

@@ -279,6 +279,18 @@ export function createDeckFrame(container, deckUrl, { mode = 'live', query = '' 
 
 // ---- keys ------------------------------------------------------------------
 
+// The presenter's keys, as the overlay shows them (D22: one table, so the
+// keydown switch above and the help overlay cannot drift apart).
+export const PRESENTER_KEYS = [
+  { keys: '→ ↓ PgDn Enter Space', action: 'next' },
+  { keys: '← ↑ PgUp Backspace', action: 'prev' },
+  { keys: 'Shift + Space', action: 'prev' },
+  { keys: 'Home', action: 'first' },
+  { keys: 'End', action: 'last' },
+  { keys: 'B .', action: 'blank' },
+  { keys: 'F', action: 'fullscreen' },
+];
+
 // Same table as the bridge, for when the focus is on the shell itself.
 export function keyActionFromEvent(e) {
   const tgt = e.target;

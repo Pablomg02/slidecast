@@ -3,7 +3,7 @@
 // create it at all and shows large prev/next buttons instead.
 import {
   t, el, api, slugFromPath, setTitle, connectLive, createDeckFrame, keyActionFromEvent,
-  toggleFullscreen, isOwnKey, icon,
+  toggleFullscreen, isOwnKey, icon, PRESENTER_KEYS,
 } from './shell.js';
 import { renderMarkdown } from './markdown.js';
 
@@ -38,6 +38,29 @@ const reconnecting = el('span.badge.badge-warn', { hidden: true }, t('reconnecti
 const btnPrev = el('button.p-prev', { id: 'prev', title: t('prev'), onclick: () => act('prev') }, '◀', el('span.label', {}, t('prev')));
 const btnNext = el('button.p-next-btn', { id: 'next', title: t('next'), onclick: () => act('next') }, el('span.label', {}, t('next')), '▶');
 const btnBlank = el('button', { id: 'blank', onclick: () => act('blank') }, t('blank'));
+
+// ---- keys overlay (? or the toolbar button opens it; ? or Esc closes) ------
+
+function keysOverlay() {
+  const rows = PRESENTER_KEYS.map((row) =>
+    el('tr', {},
+      el('td', {}, t(`keys_${row.action}`)),
+      el('td', {}, row.keys)));
+  return el('div.p-keys', { id: 'keys-overlay', hidden: true, role: 'dialog', 'aria-label': t('keysTitle') },
+    el('h2', {}, t('keysTitle')),
+    el('table', {},
+      el('thead', {}, el('tr', {}, el('th', {}, t('keysAction')), el('th', {}, t('keysKey')))),
+      el('tbody', {}, rows)),
+    el('p.p-keys-hint', {}, t('showKeys')));
+}
+
+const overlay = keysOverlay();
+let overlayOpen = false;
+function setOverlay(open) {
+  overlayOpen = open;
+  overlay.hidden = !open;
+}
+const btnKeys = el('button', { id: 'keys-help', title: t('showKeys'), onclick: () => setOverlay(!overlayOpen) }, '?');
 const modeSelect = el('select', { id: 'viewer-mode', title: t('viewerMode'), onchange: () => conn.send({ t: 'nav', mode: modeSelect.value }) },
   el('option', { value: 'follow' }, t('modeFollow')),
   el('option', { value: 'back' }, t('modeBack')),
@@ -85,11 +108,12 @@ const toolbar = el('div.p-toolbar', {},
   el('div.p-group.p-secondary', {}, clock),
   el('div.p-group.p-secondary', {}, modeSelect, viewers),
   el('div.p-group.p-secondary', {}, btnBlank),
+  el('div.p-group.p-secondary', {}, btnKeys),
   el('div.p-group.p-extra', {}, openViewer),
   reconnecting);
 
 const side = el('div.p-side', {}, nextBox, notesBox);
-app.append(el('div.p-main', {}, currentBox), side, toolbar);
+app.append(el('div.p-main', {}, currentBox), side, toolbar, overlay);
 
 // ---- frames ----------------------------------------------------------------
 
@@ -208,6 +232,16 @@ function act(action) {
 
 window.addEventListener('keydown', (e) => {
   if (isOwnKey(e)) return;
+  if (e.key === '?') {
+    e.preventDefault();
+    if (!e.repeat) setOverlay(!overlayOpen);
+    return;
+  }
+  if (e.key === 'Escape' && overlayOpen) {
+    e.preventDefault();
+    setOverlay(false);
+    return;
+  }
   const action = keyActionFromEvent(e);
   if (!action || action === 'live') return;
   e.preventDefault();

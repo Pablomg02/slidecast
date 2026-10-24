@@ -575,3 +575,23 @@ dialog .password-control { margin-top: 1.25rem; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before { transition: none !important; animation: none !important; }
 }
+
+/* Keys overlay (? or the toolbar ? button; #1) */
+.p-keys {
+  position: fixed;
+  inset: auto 50% 50%;
+  transform: translate(50%, 50%);
+  z-index: 60;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #ccc);
+  border-radius: 10px;
+  padding: 16px 20px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 25%);
+  max-width: min(420px, 90vw);
+}
+.p-keys h2 { margin: 0 0 10px; font-size: 1rem; }
+.p-keys table { border-collapse: collapse; width: 100%; }
+.p-keys th, .p-keys td { text-align: left; padding: 4px 12px 4px 0; font-size: 0.9rem; }
+.p-keys th { color: var(--muted, #666); font-weight: 600; }
+.p-keys td:last-child { font-family: ui-monospace, monospace; white-space: pre; }
+.p-keys-hint { margin: 10px 0 0; font-size: 0.8rem; color: var(--muted, #666); }
