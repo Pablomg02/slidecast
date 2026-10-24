@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 420" width="880" height="420" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif">
+  <defs>
+    <g id="mini-slide">
+      <rect width="56" height="32" rx="3" fill="#f5f3ee" stroke="#cbd5e1"/>
+      <rect x="7" y="7" width="26" height="4" rx="2" fill="#1f2937"/>
+      <rect x="7" y="15" width="40" height="3" rx="1.5" fill="#94a3b8"/>
+      <rect x="7" y="21" width="32" height="3" rx="1.5" fill="#94a3b8"/>
+    </g>
+  </defs>
+
+  <rect x="1" y="1" width="878" height="418" rx="18" fill="#f8fafc" stroke="#e2e8f0" stroke-width="2"/>
+
+  <!-- Presenter: laptop with the presenter view -->
+  <g transform="translate(40 120)">
+    <rect width="200" height="128" rx="8" fill="#1e293b"/>
+    <rect x="8" y="8" width="184" height="112" rx="3" fill="#ffffff"/>
+    <rect x="16" y="18" width="104" height="60" rx="3" fill="#f5f3ee" stroke="#cbd5e1"/>
+    <rect x="26" y="30" width="46" height="7" rx="3" fill="#1f2937"/>
+    <rect x="26" y="45" width="78" height="4" rx="2" fill="#94a3b8"/>
+    <rect x="26" y="55" width="62" height="4" rx="2" fill="#94a3b8"/>
+    <rect x="128" y="18" width="56" height="30" rx="3" fill="#f5f3ee" stroke="#cbd5e1"/>
+    <rect x="128" y="54" width="56" height="4" rx="2" fill="#cbd5e1"/>
+    <rect x="128" y="63" width="48" height="4" rx="2" fill="#cbd5e1"/>
+    <rect x="128" y="72" width="52" height="4" rx="2" fill="#cbd5e1"/>
+    <rect x="16" y="88" width="168" height="22" rx="4" fill="#eef2ff"/>
+    <text x="28" y="104" font-size="12" font-weight="700" fill="#4338ca">◀ 5/7 ▶</text>
+    <text x="118" y="104" font-size="12" font-weight="700" fill="#4338ca">12:04</text>
+    <path d="M-14 128 h228 l-12 14 h-204 z" fill="#334155"/>
+    <text x="100" y="176" text-anchor="middle" font-size="17" font-weight="700" fill="#0f172a">Presenter</text>
+    <text x="100" y="197" text-anchor="middle" font-size="13" fill="#475569">your screen: notes, next slide, timer</text>
+  </g>
+
+  <!-- slidecast in the middle -->
+  <g transform="translate(340 160)">
+    <rect width="150" height="70" rx="14" fill="#6366f1"/>
+    <text x="75" y="33" text-anchor="middle" font-size="18" font-weight="700" fill="#ffffff">slidecast</text>
+    <text x="75" y="53" text-anchor="middle" font-size="12" fill="#e0e7ff">holds the live slide</text>
+  </g>
+
+  <!-- presenter -> slidecast -->
+  <line x1="262" y1="195" x2="318" y2="195" stroke="#6366f1" stroke-width="3"/>
+  <path d="M318 187 L332 195 L318 203 z" fill="#6366f1"/>
+
+  <!-- slidecast -> viewers: each curve ends in a straight run into its arrowhead -->
+  <path d="M498 182 C 540 160, 545 82, 580 82 L 604 82" fill="none" stroke="#6366f1" stroke-width="3"/>
+  <path d="M604 74 L618 82 L604 90 z" fill="#6366f1"/>
+  <path d="M498 195 C 535 195, 545 205, 580 205 L 604 205" fill="none" stroke="#6366f1" stroke-width="3"/>
+  <path d="M604 197 L618 205 L604 213 z" fill="#6366f1"/>
+  <path d="M498 208 C 540 230, 545 326, 580 326 L 604 326" fill="none" stroke="#6366f1" stroke-width="3"/>
+  <path d="M604 318 L618 326 L604 334 z" fill="#6366f1"/>
+
+  <!-- Viewer 1: projector -->
+  <g transform="translate(630 40)">
+    <rect width="96" height="58" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+    <use href="#mini-slide" x="20" y="13"/>
+    <line x1="48" y1="58" x2="48" y2="68" stroke="#94a3b8" stroke-width="2"/>
+    <text x="110" y="26" font-size="15" font-weight="700" fill="#0f172a">Projector</text>
+    <text x="110" y="44" font-size="12" fill="#475569">viewer tab, full screen</text>
+  </g>
+
+  <!-- Viewer 2: audience laptops -->
+  <g transform="translate(630 172)">
+    <rect width="64" height="42" rx="4" fill="#1e293b"/>
+    <use href="#mini-slide" x="4" y="5"/>
+    <path d="M-6 42 h76 l-6 6 h-64 z" fill="#334155"/>
+    <text x="110" y="26" font-size="15" font-weight="700" fill="#0f172a">Audience laptops</text>
+    <text x="110" y="44" font-size="12" fill="#475569">viewers, may look back</text>
+  </g>
+
+  <!-- Viewer 3: phones -->
+  <g transform="translate(630 300)">
+    <rect width="26" height="48" rx="5" fill="#1e293b"/>
+    <rect x="3" y="7" width="20" height="32" rx="2" fill="#f5f3ee"/>
+    <rect x="6" y="12" width="12" height="3" rx="1.5" fill="#1f2937"/>
+    <rect x="6" y="19" width="14" height="2" rx="1" fill="#94a3b8"/>
+    <rect x="34" y="4" width="26" height="48" rx="5" fill="#1e293b"/>
+    <rect x="37" y="11" width="20" height="32" rx="2" fill="#f5f3ee"/>
+    <rect x="40" y="16" width="12" height="3" rx="1.5" fill="#1f2937"/>
+    <rect x="40" y="23" width="14" height="2" rx="1" fill="#94a3b8"/>
+    <text x="110" y="22" font-size="15" font-weight="700" fill="#0f172a">Phones</text>
+    <text x="110" y="40" font-size="12" fill="#475569">anyone with the link</text>
+  </g>
+</svg>
