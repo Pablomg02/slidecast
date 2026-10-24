@@ -19,9 +19,7 @@ on a small server), open the **presenter view** on your screen and the
 **viewer** on the projector, and from then on every screen showing the deck
 moves with you: the projector, your phone, your audience's laptops.
 
-<p align="center"><img src="docs/assets/how-it-works.svg" alt="Diagram: the presenter view on your screen sends the next slide to slidecast, which shows the same slide live on the projector, the audience's laptops and phones" width="760"></p>
-
-<p align="center"><img src="docs/assets/presenter.png" alt="The presenter view: the current slide, the next one, speaker notes, timer, clock and controls" width="640"><br><sub>The presenter view</sub></p>
+<p align="center"><img src="docs/assets/how-it-works.svg" alt="Diagram: the presenter view on your screen sends the next slide to slidecast, which shows the same slide live on the projector, the audience's laptops and phones" width="760"><br><sub>How it works</sub></p>
 
 - **Presenter view**: current and next slide, speaker notes, timer, clock,
   and a button to black out every screen. It also works on a phone.
@@ -34,6 +32,8 @@ moves with you: the projector, your phone, your audience's laptops.
   assistant.
 - **Yours**: it runs on your computer, your network or your own server. No
   account, no cloud service, no tracking. English and Spanish interface.
+
+<p align="center"><img src="docs/assets/presenter.png" alt="The presenter view: the current slide, the next one, speaker notes, timer, clock and controls" width="640"><br><sub>The presenter view</sub></p>
 
 ## What you can do with it
 

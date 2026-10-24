@@ -31,7 +31,6 @@
     <path d="M-14 128 h228 l-12 14 h-204 z" fill="#334155"/>
     <text x="100" y="176" text-anchor="middle" font-size="17" font-weight="700" fill="#0f172a">Presenter</text>
     <text x="100" y="197" text-anchor="middle" font-size="13" fill="#475569">your screen: notes, next slide, timer</text>
-    <text x="100" y="217" text-anchor="middle" font-size="12" fill="#6366f1" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">/talk/present</text>
   </g>
 
   <!-- slidecast in the middle -->
@@ -43,14 +42,13 @@
 
   <!-- presenter -> slidecast -->
   <line x1="262" y1="195" x2="332" y2="195" stroke="#6366f1" stroke-width="3" marker-end="url(#arrow)"/>
-  <text x="297" y="184" text-anchor="middle" font-size="12" fill="#475569">next slide</text>
 
   <!-- slidecast -> viewers -->
-  <path d="M498 182 C 560 150, 580 90, 618 82" fill="none" stroke="#6366f1" stroke-width="3" marker-end="url(#arrow)"/>
-  <path d="M498 195 C 560 195, 580 205, 618 205" fill="none" stroke="#6366f1" stroke-width="3" marker-end="url(#arrow)"/>
-  <path d="M498 208 C 560 240, 580 318, 618 326" fill="none" stroke="#6366f1" stroke-width="3" marker-end="url(#arrow)"/>
-  <text x="566" y="176" text-anchor="middle" font-size="12" fill="#475569">same slide,</text>
-  <text x="566" y="191" text-anchor="middle" font-size="12" fill="#475569">live</text>
+  <path d="M498 182 C 555 150, 560 82, 600 82 L 618 82" fill="none" stroke="#6366f1" stroke-width="3" marker-end="url(#arrow)"/>
+  <path d="M498 195 C 550 195, 560 205, 600 205 L 618 205" fill="none" stroke="#6366f1" stroke-width="3" marker-end="url(#arrow)"/>
+  <path d="M498 208 C 555 240, 560 326, 600 326 L 618 326" fill="none" stroke="#6366f1" stroke-width="3" marker-end="url(#arrow)"/>
+  <text x="415" y="262" text-anchor="middle" font-size="13" font-weight="600" fill="#4338ca">Every screen shows</text>
+  <text x="415" y="280" text-anchor="middle" font-size="13" font-weight="600" fill="#4338ca">the same slide, live</text>
 
   <!-- Viewer 1: projector -->
   <g transform="translate(630 40)">
@@ -66,9 +64,8 @@
     <rect width="64" height="42" rx="4" fill="#1e293b"/>
     <use href="#mini-slide" x="4" y="5"/>
     <path d="M-6 42 h76 l-6 6 h-64 z" fill="#334155"/>
-    <text x="110" y="22" font-size="15" font-weight="700" fill="#0f172a">Audience laptops</text>
-    <text x="110" y="40" font-size="12" fill="#475569">viewers, may look back</text>
-    <text x="110" y="56" font-size="12" fill="#6366f1" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">/talk/view</text>
+    <text x="110" y="26" font-size="15" font-weight="700" fill="#0f172a">Audience laptops</text>
+    <text x="110" y="44" font-size="12" fill="#475569">viewers, may look back</text>
   </g>
 
   <!-- Viewer 3: phones -->
