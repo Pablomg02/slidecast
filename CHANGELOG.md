@@ -9,6 +9,8 @@ include breaking changes, always listed here.
 - markdown-it 15 for speaker notes (fixes several slow-parsing cases); links
   without a scheme, like `example.com`, are still turned into links.
 - Fix two viewer tests that could fail on slow CI machines.
+- CI builds the Docker image and checks it the way the Raspberry Pi guide
+  uses it.
 
 ## [0.1.0] - 2026-10-24
 

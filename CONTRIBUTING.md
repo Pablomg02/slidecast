@@ -80,7 +80,9 @@ npx playwright install chromium   # once (on Linux add --with-deps if it asks fo
 npm run test:e2e                  # browser tests, start their own server
 ```
 
-CI runs all of them on every pull request (unit tests on Node 20 and 22).
+CI runs all of them on every pull request (unit tests on Node 20 and 22),
+and also builds the Docker image and runs it as `docs/deploy-raspberry.md`
+describes. If you change `Dockerfile` or `deploy/`, that job is your test.
 Please add or update tests with your change: a bug fix comes with a test that
 fails without it.
 

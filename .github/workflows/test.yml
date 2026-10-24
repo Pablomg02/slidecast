@@ -35,3 +35,36 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
+
+  # Option A of docs/deploy-raspberry.md, step by step (amd64 only; the image
+  # has no native modules, so arm64 runs the same code).
+  docker:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: deploy
+    steps:
+      - uses: actions/checkout@v4
+      - run: TUNNEL_TOKEN=dummy docker compose --profile tunnel config --quiet
+      - name: Build and start
+        run: |
+          mkdir -p data/decks data/state
+          sudo chown -R 1000:1000 data
+          docker compose up -d --build
+      - name: Wait for the healthcheck
+        run: |
+          id=$(docker compose ps -q slidecast)
+          timeout 90 sh -c "until [ \"\$(docker inspect -f '{{.State.Health.Status}}' $id)\" = healthy ]; do sleep 2; done"
+      - name: Create a deck, set passwords, serve the pages
+        run: |
+          docker compose exec -T slidecast node bin/slidecast.js new demo
+          echo 'Docker1234' | docker compose exec -T slidecast node bin/slidecast.js passwd admin
+          echo 'Docker1234' | docker compose exec -T slidecast node bin/slidecast.js passwd presenter
+          for path in /demo /demo/view /demo/present /admin; do
+            docker compose exec -T slidecast wget -qO /dev/null "http://127.0.0.1:4321$path"
+          done
+          # Decks and state land in the volumes, owned by the container user.
+          test -f data/decks/demo/index.html
+          sudo test -f data/state/config.json
+      - if: failure()
+        run: docker compose logs
