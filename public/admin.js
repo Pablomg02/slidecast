@@ -3,6 +3,8 @@ import { t, el, api, setTitle, brand } from './shell.js';
 
 setTitle(t('admin'));
 const app = document.getElementById('app');
+// The address people type to reach this server, shown instead of a bare "/".
+const site = location.host;
 
 function fmtSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -82,13 +84,15 @@ function render({ decks, single }) {
       el('th', {}, t('title')), el('th', {}, t('slug')), el('th', {}, t('size')),
       single ? null : el('th', {}, t('featured')), el('th', {}, t('actions')))),
     el('tbody', {}, decks.map((d) => el('tr', { dataset: { slug: d.slug } },
-      el('td', {}, el('a', { href: `/${d.slug}` }, d.title)),
-      el('td', {}, el('code', {}, d.slug)),
-      el('td', {}, fmtSize(d.size)),
-      single ? null : el('td', {}, el('input', {
+      el('td.deck-title', {}, el('a', { href: `/${d.slug}` }, d.title)),
+      el('td.deck-slug', {}, el('code', {}, d.slug)),
+      el('td.deck-size', {}, fmtSize(d.size)),
+      // On phones the table becomes cards with no header row, so the radio
+      // carries its own label there.
+      single ? null : el('td.deck-featured', {}, el('label.inline', {}, el('input', {
         type: 'radio', name: 'featured', value: d.slug, checked: settings.featured === d.slug,
         title: t('featured'), onchange: () => setFeatured(d.slug),
-      })),
+      }), el('span.phone-only', {}, t('featured')))),
       el('td.actions', {},
         el('a', { href: `/${d.slug}/view` }, t('viewer')),
         el('a', { href: `/${d.slug}/present` }, t('presenter')),
@@ -97,11 +101,12 @@ function render({ decks, single }) {
         single ? null : el('button.small.danger', { onclick: () => confirmDelete(d.slug) }, t('delete')))))),
     single ? null : el('tfoot', {}, el('tr', {},
       el('td', { colSpan: 3 }),
-      el('td', {}, el('label.inline', {}, el('input', {
+      el('td', {}, el('label.inline', {}, el('span.phone-only', {}, `${t('featured')}:`), el('input', {
         type: 'radio', name: 'featured', value: '', checked: !settings.featured, onchange: () => setFeatured(null),
       }), ` ${t('none')}`)),
       el('td'))));
   app.append(el('h2', {}, t('decks')), decks.length ? el('div.table-wrap', {}, table) : el('p.muted', {}, t('noDecks')));
+  if (decks.length && !single) app.append(el('p.hint.muted.featured-hint', {}, t('featuredHint', { site })));
 
   if (!single) app.append(uploadForm());
 
@@ -116,8 +121,8 @@ function render({ decks, single }) {
   const listingMsg = el('span.status');
   // With a single deck, / always goes straight to it (D7): no list to show.
   const listingBlock = single ? null : el('div.listing', {},
-    el('label.inline', { htmlFor: 'public-listing' }, listing, ` ${t('publicListing')}`), listingMsg,
-    el('p.hint.muted', {}, t('publicListingHint')));
+    el('label.inline', { htmlFor: 'public-listing' }, listing, ` ${t('publicListing', { site })}`), listingMsg,
+    el('p.hint.muted', {}, t('publicListingHint', { site })));
   app.append(el('h2', {}, t('generalSettings')),
     el('section.card.settings', {},
       listingBlock,

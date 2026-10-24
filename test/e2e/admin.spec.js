@@ -84,10 +84,32 @@ test('multi-deck panel: listing hint, admin password removal hint, sign out', as
   await page.click('button[type=submit]');
   await expect(page.locator('#public-listing')).toBeVisible();
   await expect(page.locator('.listing .hint')).toContainText('only shows a note asking for the link');
-  await expect(page.locator('th', { hasText: 'Opens at /' })).toBeVisible();
+  const site = new URL(srv.url).host;
+  await expect(page.locator('.featured-hint')).toContainText(`goes to ${site} with nothing after it`);
+  await expect(page.locator('label[for=public-listing]')).toContainText(`list of presentations at ${site}`);
+  await expect(page.locator('.page-admin')).not.toContainText(' / ');
+  await expect(page.locator('th', { hasText: 'Home page' })).toBeVisible();
   await expect(page.locator('.password-control:has(#pw-admin-all) .hint'))
     .toContainText('syncdeck passwd admin --clear');
   await expect(page.locator('#logout')).toBeVisible();
+});
+
+test('phone panel: decks as cards, nothing wider than the screen', async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 320, height: 640 }, isMobile: true, hasTouch: true });
+  const page = await context.newPage();
+  await page.goto(`${srv.url}/admin`);
+  await page.fill('#password', 'admin-password');
+  await page.click('button[type=submit]');
+  const card = page.locator('tr[data-slug=demo]');
+  await expect(card).toBeVisible();
+  await expect(page.locator('.deck-table thead')).toBeHidden();
+  await expect(card.locator('.deck-featured')).toContainText('Home page');
+  for (const name of ['Viewer', 'Presenter', 'Edit notes', 'Settings', 'Delete']) {
+    const box = await card.getByText(name, { exact: true }).boundingBox();
+    expect(box.x + box.width).toBeLessThanOrEqual(320);
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+  await context.close();
 });
 
 test('single-deck panel hides featured and the public list; no sign out without a password', async ({ browser }) => {
