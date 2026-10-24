@@ -16,6 +16,9 @@
     'Homework: find the year of three planets.',
   ];
 
+  const ADMIN_NOTE = 'Ask first: how long is a year on Neptune? Let them guess.';
+  const ACCENTS = ['#818cf8', '#f472b6', '#34d399', '#fbbf24'];
+
   // ----------------------------------------------------------- A stage
   // Devices drawn in CSS that show the mini deck. scenes maps a name to
   // { layout: { device: [x, y, width, 'dim'?] }, wires: [device], source,
@@ -52,7 +55,7 @@
       }
       for (const screen of el.querySelectorAll('.screen')) {
         const role = screen.dataset.deck;
-        showStep(screen, role === 'next' ? state.live + 1 : away ? own : state.live);
+        showStep(screen, role === 'next' ? state.live + 1 : role === 'edit' ? 0 : away ? own : state.live);
         screen.classList.toggle('black', role === 'view' && state.black);
         const v = state.slider[el.dataset.dev] ?? 0.02;
         screen.style.setProperty('--v', v);
@@ -226,6 +229,16 @@
       for (const m of root.querySelectorAll('[data-mode]')) m.classList.toggle('on', m.dataset.mode === t.mode);
       root.classList.toggle('show-hint', !!t.hint);
       if (t.hint) q('.hint').textContent = t.hint;
+
+      // The admin page: which tab is open and what has been filled in.
+      const ad = t.admin ?? { tab: 'notes', typed: 0 };
+      const page = dev.admin;
+      page.dataset.tab = ad.tab;
+      page.querySelector('.typed-notes').textContent = ADMIN_NOTE.slice(0, Math.round(ADMIN_NOTE.length * (ad.typed ?? 1)));
+      for (const row of page.querySelectorAll('[data-toggle]')) row.classList.toggle('on', !!ad[row.dataset.toggle]);
+      page.style.setProperty('--pick', ACCENTS[ad.accent ?? 0]);
+      for (const sw of page.querySelectorAll('[data-c]')) sw.classList.toggle('on', Number(sw.dataset.c) === (ad.accent ?? 0));
+      for (const n of page.querySelectorAll('.site-name')) n.textContent = ad.name ?? 'slidecast';
     }
 
     renderAll();
@@ -246,6 +259,7 @@
       layout: { browser: [3, 12, 32], hub: [56, 10, 22], place1: [8, 54, 34], place2: [58, 54, 34] },
       wires: ['browser', 'place1', 'place2'],
     },
+    admin: { layout: { admin: [5, 6, 90], hub: [44, 80, 12] }, wires: ['admin'] },
     presenter: { layout: { laptop: [6, 4, 64], hub: [44, 64, 12] }, wires: ['laptop'] },
     projector: { layout: { laptop: [4, 2, 52], hub: [44, 46, 12], projector: [48, 68, 46] }, wires: ['laptop', 'projector'], viewers: 1 },
     sync: { same: 'projector' },
@@ -270,6 +284,12 @@
   // What each scene shows for a scroll progress p (0..1).
   const TARGETS = {
     deck: (p) => ({ chat: p }),
+    // Notes being typed, then passwords switched on, then a new look.
+    admin: (p) => ({
+      admin: p < 0.36 ? { tab: 'notes', typed: clamp(p / 0.3) }
+        : p < 0.7 ? { tab: 'access', presenter: p > 0.45, viewer: p > 0.57 }
+          : { tab: 'look', accent: p > 0.8 ? 1 : 0, name: p > 0.88 ? 'Physics · Year 9' : 'slidecast' },
+    }),
     sync: (p) => ({ live: Math.min(3, Math.floor(p * 4.5)) }),
     remote: (p) => ({ live: p < 0.45 ? 3 : 4 }),
     audience: () => ({ live: 4 }),
@@ -528,16 +548,48 @@
   }
 
   for (const btn of document.querySelectorAll('[data-copy]')) {
+    const label = btn.textContent;
     btn.addEventListener('click', async () => {
       try {
-        await navigator.clipboard.writeText(btn.previousElementSibling.textContent);
+        const source = btn.dataset.copy ? document.querySelector(btn.dataset.copy) : btn.previousElementSibling;
+        await navigator.clipboard.writeText(source.textContent);
         btn.textContent = 'Copied';
       } catch {
         btn.textContent = 'Select it';
       }
-      setTimeout(() => { btn.textContent = 'Copy'; }, 1600);
+      setTimeout(() => { btn.textContent = label; }, 1600);
     });
   }
+
+  // The AI section: one step at a time, picked on the left.
+  const aiSteps = [...document.querySelectorAll('.ai-step')];
+  const aiPanels = [...document.querySelectorAll('.ai-panel')];
+  const upload = document.querySelector('.up-scene');
+  function showAiStep(n) {
+    for (const b of aiSteps) {
+      const on = b.dataset.step === n;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-selected', on);
+    }
+    for (const p of aiPanels) p.hidden = p.dataset.step !== n;
+    // The upload animation starts from the beginning each time it is shown.
+    upload?.classList.remove('play');
+    if (n === '3' && !reduced) { void upload.offsetWidth; upload.classList.add('play'); }
+  }
+  aiSteps.forEach((b) => b.addEventListener('click', () => showAiStep(b.dataset.step)));
+  document.querySelectorAll('.ai-next[data-goto]').forEach((b) => b.addEventListener('click', () => {
+    showAiStep(b.dataset.goto);
+    if (mobile.matches) document.querySelector('.ai-steps').scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }));
+  if (aiSteps.length) showAiStep('1');
+
+  // The AI prompt shows its first lines until someone asks for all of it.
+  const promptToggle = document.querySelector('.prompt-toggle');
+  promptToggle?.addEventListener('click', () => {
+    const open = document.getElementById('prompt-text').classList.toggle('open');
+    promptToggle.setAttribute('aria-expanded', open);
+    promptToggle.textContent = open ? 'Show less' : 'Read the full prompt';
+  });
 
   // The demo video plays muted while on screen.
   const video = document.getElementById('demo-video');

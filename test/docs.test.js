@@ -16,3 +16,14 @@ test('the native API example in docs/deck-format.md is the demo deck code', asyn
   assert.ok(m, 'doc has the demo-api block');
   assert.equal(m[1], fromDemo);
 });
+
+test('the AI prompt on the website is the one in docs/deck-format.md', async () => {
+  const doc = await readFile(join(repo, 'docs', 'deck-format.md'), 'utf8');
+  const site = await readFile(join(repo, 'site', 'index.html'), 'utf8');
+  const fromDoc = /Paste this when asking an AI to write a deck:\n\n```text\n([\s\S]*?)\n```/.exec(doc);
+  const fromSite = /<pre id="ai-prompt">([\s\S]*?)<\/pre>/.exec(site);
+  assert.ok(fromDoc, 'doc has the prompt block');
+  assert.ok(fromSite, 'site has the prompt block');
+  const unescape = (s) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+  assert.equal(unescape(fromSite[1]), fromDoc[1]);
+});

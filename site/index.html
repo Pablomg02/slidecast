@@ -53,6 +53,7 @@
     <a href="#how">How it works</a>
     <a href="#cases">Use cases</a>
     <a href="#features">Features</a>
+    <a href="#ai">AI decks</a>
     <a href="#start">Get started</a>
   </nav>
   <a class="btn btn-small" href="https://github.com/Pablomg02/slidecast">
@@ -97,51 +98,59 @@
         <p>It lives on your own computer or on a server, depending on how you use it: on your laptop just for today's class, or on an always-on machine that your audience can reach at any time.</p>
         </div>
       </article>
-      <article class="step" data-scene="presenter">
+      <article class="step tall" data-scene="admin">
         <div class="step-in">
         <span class="num">03</span>
+        <h2>Set it up in the browser</h2>
+        <p>slidecast has an admin page where you upload your decks and write the speaker notes, slide by slide. They are saved next to the deck, so they travel with it.</p>
+        <p>There you also choose who needs a password: the presenter, the viewers of a private deck, or the admin. And you can make the site yours, with your own name and colour.</p>
+        </div>
+      </article>
+      <article class="step" data-scene="presenter">
+        <div class="step-in">
+        <span class="num">04</span>
         <h2>Your laptop becomes the presenter view</h2>
         <p>The current slide, the next one, your speaker notes, a timer and a clock. Only you can see it.</p>
         </div>
       </article>
       <article class="step" data-scene="projector">
         <div class="step-in">
-        <span class="num">04</span>
+        <span class="num">05</span>
         <h2>The projector shows only the slides</h2>
         <p>Your notes stay with you; the projector gets nothing but the slides. Open the viewer on it, press <kbd>F</kbd> for full screen, and you are ready.</p>
         </div>
       </article>
       <article class="step tall" data-scene="sync">
         <div class="step-in">
-        <span class="num">05</span>
+        <span class="num">06</span>
         <h2>Press <kbd>→</kbd> and every screen moves</h2>
         <p>Arrow keys, space or any presentation clicker. Each press travels through slidecast to every screen showing the deck, in well under a second.</p>
         </div>
       </article>
       <article class="step" data-scene="remote">
         <div class="step-in">
-        <span class="num">06</span>
+        <span class="num">07</span>
         <h2>Walk around with your phone</h2>
         <p>Leave the laptop on the lectern. The presenter view also works on a phone: your notes in your hand, and a big button to move on.</p>
         </div>
       </article>
       <article class="step" data-scene="audience">
         <div class="step-in">
-        <span class="num">07</span>
+        <span class="num">08</span>
         <h2>The audience follows on their own devices</h2>
         <p>Students or colleagues open a link and see the slides on their laptop or phone, in step with you. Handy for the back of a big room, or for anyone joining from home.</p>
         </div>
       </article>
       <article class="step tall" data-scene="interactive">
         <div class="step-in">
-        <span class="num">08</span>
+        <span class="num">09</span>
         <h2>Slides you can play with</h2>
         <p>A slide is a web page, so it can hold simulations, sliders, quizzes or live charts. Each person plays with them on their own screen while you keep presenting.</p>
         </div>
       </article>
       <article class="step tall" data-scene="pace">
         <div class="step-in">
-        <span class="num">09</span>
+        <span class="num">10</span>
         <h2>Everyone at their own pace</h2>
         <p>Someone missed a point? With <b>May go back</b>, viewers can look at earlier slides on their own screen, never ahead of you, while you keep presenting. A <i>Back to live</i> button takes them back to your slide.</p>
         <p class="soft">You can also lock everyone to your slide, or let them browse freely, and switch in the middle of the talk.</p>
@@ -149,14 +158,14 @@
       </article>
       <article class="step" data-scene="blackout">
         <div class="step-in">
-        <span class="num">10</span>
+        <span class="num">11</span>
         <h2>All eyes on you</h2>
         <p>Press <kbd>B</kbd> and every screen in the room goes black. Press it again to come back.</p>
         </div>
       </article>
       <article class="step" data-scene="anywhere">
         <div class="step-in">
-        <span class="num">11</span>
+        <span class="num">12</span>
         <h2>It runs on your own machines</h2>
         <p>slidecast lives on a computer you control: the laptop you present from, another computer at home or at work, or a small always-on server such as a Raspberry Pi.</p>
         <p>Reach it from anywhere through Tailscale or Cloudflare Tunnel. No account, no cloud service, no tracking.</p>
@@ -272,27 +281,111 @@
     </div>
   </section>
 
-  <section class="section split" id="ai">
-    <div class="reveal">
+  <section class="section" id="ai">
+    <div class="head reveal">
       <p class="eyebrow">Made for AI decks</p>
-      <h2>Ask for a deck. Present it in minutes.</h2>
-      <p>Copy the prompt from the docs, add what your talk is about, and upload the <code>index.html</code> your assistant gives you. slidecast learns where the slides are, and you write the notes in the browser.</p>
-      <a class="btn" href="https://github.com/Pablomg02/slidecast/blob/main/docs/deck-format.md#instructions-for-your-ai-assistant">Read the deck format</a>
+      <h2>Let your AI write the deck</h2>
+      <p>Three steps from an idea to a deck that works in slidecast from the first try, speaker notes included.</p>
     </div>
-    <div class="code reveal" aria-label="The files of a deck">
-      <div class="code-bar"><i></i><i></i><i></i><span>decks/planets/</span></div>
-<pre><span class="c-dir">planets/</span>
-├── <span class="c-file">index.html</span>   <span class="c-com">← your deck, from any AI</span>
-└── <span class="c-file">deck.json</span>    <span class="c-com">← notes, written in the browser</span>
+    <div class="ai-flow reveal">
+      <div class="ai-steps" role="tablist" aria-label="Steps">
+        <button type="button" role="tab" class="ai-step" data-step="1"><span class="n">1</span><span><b>Copy the prompt</b><small>so the AI knows how slidecast works</small></span></button>
+        <button type="button" role="tab" class="ai-step" data-step="2"><span class="n">2</span><span><b>Add your topic</b><small>what your talk is about</small></span></button>
+        <button type="button" role="tab" class="ai-step" data-step="3"><span class="n">3</span><span><b>Upload and present</b><small>one zip and you're on</small></span></button>
+      </div>
 
-<span class="c-com">// deck.json</span>
-{
-  <span class="c-key">"title"</span>: <span class="c-str">"Planets in motion"</span>,
-  <span class="c-key">"slides"</span>: {
-    <span class="c-key">"intro"</span>: { <span class="c-key">"notes"</span>: <span class="c-str">"Ask: how long is a year on Neptune?"</span> }
-  }
-}</pre>
+      <div class="ai-panels">
+        <div class="ai-panel" role="tabpanel" data-step="1">
+          <div class="prompt">
+            <div class="prompt-bar">
+              <span class="prompt-title"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/></svg>Prompt for your AI assistant</span>
+              <button type="button" class="btn btn-small btn-primary" data-copy="#ai-prompt">Copy prompt</button>
+            </div>
+            <ul class="prompt-gets">
+              <li><b>One file</b><span>a self-contained <code>index.html</code></span></li>
+              <li><b>Steps</b><span>slides and reveals slidecast can drive</span></li>
+              <li><b>Speaker notes</b><span>ready in <code>deck.json</code></span></li>
+              <li><b>Interactive</b><span>sliders and widgets that keep working</span></li>
+            </ul>
+            <div class="prompt-text" id="prompt-text">
+            <pre id="ai-prompt">Write a presentation as ONE self-contained index.html file for slidecast.
+- A fixed 1600×900 stage scaled to the window (transform: scale), one
+  &lt;section class="slide" id="…"&gt; per slide with a short, unique, stable id.
+- Reveal content in steps inside a slide with data-step="1", data-step="2"…;
+  a slide's step count is its highest data-step + 1 (set data-steps="N" on the
+  section).
+- Expose the slidecast native API, defined before the load event:
+    window.SLIDECAST_DECK = { version: 1, steps: [{slide, step}, …],
+      go(index) {…}, current() {…} };
+  and after every change dispatch
+    window.dispatchEvent(new CustomEvent('slidecast:change', {detail: {index}})).
+- If window.__SLIDECAST__ exists, do not bind any keyboard, click or swipe
+  navigation; otherwise ArrowRight/Space/PageDown go forward and
+  ArrowLeft/PageUp go back.
+- No external network requests, no localStorage, no cookies, no fetch.
+  Inline images as data: URLs or reference files next to index.html.
+- Interactive widgets (buttons, sliders, canvases) go inside an element with
+  the data-interactive attribute.
+- Also write deck.json with {"slidecast": 1, "title": "…", "slides": {"&lt;slide id&gt;":
+  {"notes": "speaker notes in Markdown", "steps": {"1": "note for step 1"}}}}.</pre>
+            </div>
+            <button type="button" class="prompt-toggle" aria-expanded="false" aria-controls="prompt-text">Read the full prompt</button>
+          </div>
+          <button type="button" class="ai-next" data-goto="2">Next: add your topic →</button>
+        </div>
+
+        <div class="ai-panel" role="tabpanel" data-step="2" hidden>
+          <p class="ai-lead">Right after the prompt, describe your talk. A line is enough to start; the more you tell it, the closer the first draft.</p>
+          <div class="examples">
+            <article class="example">
+              <span class="tag-pill">Quick</span>
+              <p>A 10-minute talk on photosynthesis for 12-year-olds.</p>
+              <button type="button" data-copy>Copy</button>
+            </article>
+            <article class="example">
+              <span class="tag-pill">Detailed</span>
+              <p>A 20-minute lesson on planetary orbits for a Year 9 physics class. About 10 slides: open with a question, explain Kepler's third law step by step, add a slider to explore how distance changes the length of a year, and end with a four-option quiz. Clean, dark design. Speaker notes for every slide.</p>
+              <button type="button" data-copy>Copy</button>
+            </article>
+            <article class="example">
+              <span class="tag-pill">From your notes</span>
+              <p>Turn these notes into a deck for a conference talk, one idea per slide, with speaker notes for me: [paste your outline here]</p>
+              <button type="button" data-copy>Copy</button>
+            </article>
+            <article class="example">
+              <span class="tag-pill">In any language</span>
+              <p>Una clase de 15 minutos sobre la Revolución Francesa para 4.º de ESO, con una línea del tiempo interactiva y notas para el profesor.</p>
+              <button type="button" data-copy>Copy</button>
+            </article>
+          </div>
+          <ul class="ticks tips">
+            <li>Say who it's for and how long it should be</li>
+            <li>Ask for something to play with: sliders, quizzes, live charts</li>
+            <li>Not quite right? Ask for changes, slide by slide</li>
+          </ul>
+          <button type="button" class="ai-next" data-goto="3">Next: upload and present →</button>
+        </div>
+
+        <div class="ai-panel" role="tabpanel" data-step="3" hidden>
+          <p class="ai-lead">Put the <code>index.html</code> and <code>deck.json</code> your AI wrote in a folder, zip it and drop it in slidecast's admin page. It's ready to present, notes and all.</p>
+          <div class="up-scene" aria-hidden="true">
+            <span class="file f1"><i></i>index.html</span>
+            <span class="file f2"><i></i>deck.json</span>
+            <span class="zip"><i></i>planets.zip</span>
+            <div class="up-window">
+              <div class="bw-bar"><i></i><i></i><i></i><span>slidecast · admin</span></div>
+              <div class="up-body">
+                <div class="drop"><span>Drop a deck here</span><span class="bar"><i></i></span></div>
+                <div class="deck-row"><span class="cover"><b>Planets<br>in motion</b></span><span class="meta"><b>Planets in motion</b><small>5 slides · notes</small></span><span class="pbtn">Presenter</span></div>
+              </div>
+            </div>
+          </div>
+          <p class="soft">Only have the <code>.html</code>? Upload it on its own and write the notes in the browser.</p>
+          <a class="ai-next" href="#start">How to start slidecast →</a>
+        </div>
+      </div>
     </div>
+    <p class="more reveal">More about the format in the <a href="https://github.com/Pablomg02/slidecast/blob/main/docs/deck-format.md">deck format guide</a>.</p>
   </section>
 
   <section class="section" id="start">
@@ -427,6 +520,29 @@
         <div class="base"></div>
       </div>
       <span class="keycap">→</span>
+    </div>
+
+    <div class="dev admin" data-dev="admin" data-label="The admin page, in your browser">
+      <div class="body">
+        <div class="bw-bar"><i></i><i></i><i></i><span>127.0.0.1:4321/admin</span></div>
+        <div class="ad">
+          <div class="ad-tabs"><span data-tab="notes">Notes</span><span data-tab="access">Passwords</span><span data-tab="look">Appearance</span></div>
+          <div class="ad-pane" data-pane="notes">
+            <div class="screen" data-deck="edit"></div>
+            <div class="ad-notes"><small>intro · speaker notes</small><p><span class="typed-notes"></span><i class="caret"></i></p></div>
+          </div>
+          <div class="ad-pane" data-pane="access">
+            <div class="ad-row" data-toggle="presenter"><span><b>Presenter</b><small>to move the slides</small></span><code>••••••••</code><i class="sw"></i></div>
+            <div class="ad-row" data-toggle="viewer"><span><b>Viewer</b><small>to watch a private deck</small></span><code>••••••••</code><i class="sw"></i></div>
+            <div class="ad-row" data-toggle="admin"><span><b>Admin</b><small>to manage decks from elsewhere</small></span><code>••••••••</code><i class="sw"></i></div>
+          </div>
+          <div class="ad-pane" data-pane="look">
+            <div class="ad-field"><small>Site name</small><span class="ad-input site-name">slidecast</span></div>
+            <div class="ad-field"><small>Accent colour</small><span class="swatches"><i data-c="0"></i><i data-c="1"></i><i data-c="2"></i><i data-c="3"></i></span></div>
+            <div class="ad-preview"><span class="ad-brand"><i></i><b class="site-name">slidecast</b></span><span class="ad-btn">Watch</span></div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="dev hub" data-dev="hub" data-label="slidecast">
