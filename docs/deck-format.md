@@ -149,9 +149,10 @@ admin. Consequences:
 - links that open new tabs work; the deck cannot navigate the presenter's page;
 - full screen is handled by slidecast (`F`), not by the deck.
 
-Clicks anywhere on a slide mean "next". Clicks on links, buttons, form fields,
-`<summary>`, or any element inside one marked `data-interactive`, reach the
-deck normally:
+Clicks anywhere on a slide mean "next", and horizontal swipes move forward or
+back. Clicks and swipes that start on links, buttons, form fields, `<summary>`,
+or any element inside one marked `data-interactive`, reach the deck normally
+(so a slider can be dragged without changing slides):
 
 ```html
 <div class="simulation" data-interactive> … sliders and canvases … </div>

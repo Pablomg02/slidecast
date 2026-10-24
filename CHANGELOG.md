@@ -6,6 +6,8 @@ include breaking changes, always listed here.
 
 ## [Unreleased]
 
+- Swiping on a slider or inside `data-interactive` no longer changes slides on
+  touch screens; swipes elsewhere on the slide still do.
 - markdown-it 15 for speaker notes (fixes several slow-parsing cases); links
   without a scheme, like `example.com`, are still turned into links.
 - Fix two viewer tests that could fail on slow CI machines.

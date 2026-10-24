@@ -146,6 +146,35 @@ test('legacy: a horizontal swipe is forwarded, not applied', async ({ page }) =>
   expect(await frame.evaluate(() => window.PRES.actual())).toBe(0);
 });
 
+test('legacy: a swipe that starts on a slider or inside data-interactive is left to the deck', async ({ page }) => {
+  const frame = await openHarness(page, 'legacy-pres');
+  await clearMsgs(page);
+  const sent = await frame.evaluate(() => {
+    const stage = document.getElementById('stage');
+    const slider = Object.assign(document.createElement('input'), { type: 'range' });
+    const widget = document.createElement('div');
+    widget.setAttribute('data-interactive', '');
+    widget.append(document.createElement('canvas'));
+    stage.append(slider, widget);
+    const swipe = (target) => {
+      const touch = (x) => new Touch({ identifier: 1, target, clientX: x, clientY: 200 });
+      target.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, cancelable: true, touches: [touch(400)], changedTouches: [touch(400)] }));
+      return target.dispatchEvent(new TouchEvent('touchend', { bubbles: true, cancelable: true, touches: [], changedTouches: [touch(250)] }));
+    };
+    return [swipe(slider), swipe(widget.firstChild)];
+  });
+  expect(sent).toEqual([true, true]); // not cancelled: the deck gets the gesture
+  // A later swipe on the slide itself still navigates.
+  await frame.evaluate(() => {
+    const stage = document.getElementById('stage');
+    const touch = (x) => new Touch({ identifier: 1, target: stage, clientX: x, clientY: 200 });
+    stage.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, cancelable: true, touches: [touch(400)], changedTouches: [touch(400)] }));
+    stage.dispatchEvent(new TouchEvent('touchend', { bubbles: true, cancelable: true, touches: [], changedTouches: [touch(250)] }));
+  });
+  await expect.poll(async () => (await msgs(page)).filter((m) => m.t === 'input').map((m) => m.action))
+    .toEqual(['next']);
+});
+
 test('a page without a deck API reports no-deck-api', async ({ page }) => {
   await openHarness(page, 'noapi');
   expect((await msgs(page)).find((m) => m.t === 'error')).toEqual({ sd: 1, t: 'error', code: 'no-deck-api' });

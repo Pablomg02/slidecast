@@ -173,11 +173,16 @@
 
   var INTERACTIVE = 'a, button, input, select, textarea, label, summary, [data-interactive], [contenteditable]';
 
+  function elementOf(target) {
+    var el = target && target.nodeType === 1 ? target : target && target.parentElement;
+    return el && el.closest ? el : null;
+  }
+
   function onClick(e) {
     if (mode === 'preview') { swallow(e); return; }
     if (e.button !== 0) return;
-    var el = e.target && e.target.nodeType === 1 ? e.target : e.target && e.target.parentElement;
-    if (!el || !el.closest) return;
+    var el = elementOf(e.target);
+    if (!el) return;
     var nav = el.closest('#prev, #next');
     if (nav) {
       swallow(e);
@@ -191,10 +196,13 @@
 
   var touchStart = null;
 
+  // A swipe that starts on an interactive element (dragging a slider, panning a
+  // canvas) belongs to the deck, as a click on one does.
   function onTouchStart(e) {
     if (mode === 'preview') { swallow(e); return; }
     var t = e.touches && e.touches[0];
-    touchStart = t ? { x: t.clientX, y: t.clientY } : null;
+    var el = elementOf(e.target);
+    touchStart = t && !(el && el.closest(INTERACTIVE)) ? { x: t.clientX, y: t.clientY } : null;
   }
 
   function onTouchEnd(e) {
