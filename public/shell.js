@@ -6,6 +6,16 @@ export { t, lang };
 
 document.documentElement.lang = lang;
 
+// Cosmetic settings from /admin, put in a <meta> by the server.
+export const appearance = (() => {
+  try {
+    return JSON.parse(document.querySelector('meta[name="slidecast-appearance"]')?.content ?? '{}');
+  } catch {
+    return {};
+  }
+})();
+export const siteName = appearance.siteName || 'Slidecast';
+
 // Small DOM helper: el('button.big', {onclick}, 'text', child…)
 export function el(spec, props = {}, ...children) {
   const [tag, ...classes] = spec.split('.');
@@ -70,7 +80,15 @@ export function icon(name, cls = 'icon') {
 }
 
 export function brand() {
-  return el('a.brand', { href: '/' }, logo('brand-logo'), 'slidecast');
+  return el('a.brand', { href: '/' }, logo('brand-logo'), siteName);
+}
+
+// "Made with Slidecast" at the foot of the public pages, unless turned off.
+export function credit() {
+  if (appearance.showCredit === false) return null;
+  return el('footer.credit', {}, el('a', {
+    href: 'https://github.com/Pablomg02/slidecast', target: '_blank', rel: 'noopener',
+  }, t('madeWith', { name: 'Slidecast' })));
 }
 
 export function logo(cls) {
@@ -115,7 +133,7 @@ export function deckThumb({ cover, deckUrl, aspect = '16:9', locked }) {
 }
 
 export function setTitle(title) {
-  document.title = title ? `${title} · slidecast` : 'slidecast';
+  document.title = title ? `${title} · ${siteName}` : siteName;
 }
 
 // ---- live connection -------------------------------------------------------

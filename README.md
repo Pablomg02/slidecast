@@ -19,7 +19,7 @@ on a small server), open the **presenter view** on your screen and the
 **viewer** on the projector, and from then on every screen showing the deck
 moves with you: the projector, your phone, your audience's laptops.
 
-<p align="center"><img src="docs/assets/how-it-works.svg" alt="Diagram: the presenter view on your screen sends the next slide to slidecast, which shows the same slide live on the projector, the audience's laptops and phones" width="760"><br><sub>How it works</sub></p>
+<p align="center"><img src="docs/assets/diagram.svg" alt="Diagram: the presenter view on your screen sends the next slide to slidecast, which shows the same slide live on the projector, the audience's laptops and phones" width="760"><br><sub>How it works</sub></p>
 
 - **Presenter view**: current and next slide, speaker notes, timer, clock,
   and a button to black out every screen. It also works on a phone.
@@ -202,6 +202,11 @@ delete them (they go to a trash folder, never erased), edit notes, set
 passwords, rename decks, choose each deck's viewer mode, and choose what
 visitors see at the main address: one deck, the list of decks, or a page
 asking for the link.
+
+Under **Appearance** you can give the site your own name (browser tab, top of
+each page, home page), change the home page message and the accent colour,
+and hide the "Made with Slidecast" link at the foot of the public pages. These
+only change how the pages look, never how they work.
 
 ## Passwords and privacy
 

@@ -124,7 +124,7 @@ test('single-deck panel hides featured and the public list; no sign out without 
     await expect(page.locator('th', { hasText: 'Destacada' })).toHaveCount(0);
     await expect(page.locator('#logout')).toHaveCount(0);
     await expect(page.locator('.password-control:has(#pw-admin-all) .hint'))
-      .toHaveText('Sin ella, el panel de administración solo funciona en el ordenador donde corre slidecast.');
+      .toHaveText('Sin ella, el panel de administración solo funciona en el ordenador donde corre Slidecast.');
     await context.close();
   } finally {
     await single.close();
@@ -141,4 +141,35 @@ test('Spanish sign-in headings', async ({ browser }) => {
   await page.goto(`${srv.url}/demo/login?as=viewer`);
   await expect(page.locator('h1')).toHaveText('Entrar como espectador');
   await context.close();
+});
+
+test('appearance: site name, home message, accent and credit', async ({ browser }) => {
+  const own = await startServer();
+  try {
+    const context = await browser.newContext({ locale: 'es-ES' });
+    const page = await context.newPage();
+    await page.goto(`${own.url}/demo`);
+    await expect(page.locator('.brand')).toHaveText('Slidecast');
+    await expect(page.locator('.credit a')).toHaveAttribute('href', 'https://github.com/Pablomg02/slidecast');
+
+    await page.goto(`${own.url}/admin`); // local direct, no admin password
+    await page.fill('#site-name', 'Charlas de Pablo');
+    await page.fill('#landing-text', 'Pide el enlace en clase.');
+    await page.locator('#accent-color').fill('#e11d48');
+    await page.uncheck('#show-credit');
+    await page.click('.appearance-form button[type=submit]');
+    await expect(page.locator('.appearance-form .status')).toHaveText('Guardado');
+    await expect(page).toHaveTitle('Administración · Charlas de Pablo');
+    await expect(page.locator('#site-name')).toHaveValue('Charlas de Pablo');
+
+    await page.goto(`${own.url}/demo`);
+    await expect(page).toHaveTitle(/· Charlas de Pablo$/);
+    await expect(page.locator('.brand')).toHaveText('Charlas de Pablo');
+    await expect(page.locator('.credit')).toHaveCount(0);
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()))
+      .toBe('#e11d48');
+    await context.close();
+  } finally {
+    await own.close();
+  }
 });

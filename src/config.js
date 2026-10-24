@@ -2,6 +2,7 @@ import { mkdir, chmod } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { readJson, writeJsonAtomic } from './store.js';
+import { defaultAppearance } from './appearance.js';
 
 export function defaultConfig() {
   return {
@@ -11,6 +12,7 @@ export function defaultConfig() {
     presenterHash: null,
     featured: null,
     publicListing: false,
+    appearance: defaultAppearance(),
     decks: {},
   };
 }
@@ -20,7 +22,14 @@ export async function loadConfig(stateDir) {
   await chmod(stateDir, 0o700).catch(() => {});
   const path = join(stateDir, 'config.json');
   const stored = await readJson(path, null);
-  if (stored) return { ...defaultConfig(), ...stored, decks: stored.decks ?? {} };
+  if (stored) {
+    return {
+      ...defaultConfig(),
+      ...stored,
+      appearance: { ...defaultAppearance(), ...stored.appearance },
+      decks: stored.decks ?? {},
+    };
+  }
   const config = defaultConfig();
   await writeJsonAtomic(path, config);
   return config;

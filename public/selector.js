@@ -1,5 +1,5 @@
 // Deck selector: watching is the main action; presenting is the quiet one below.
-import { t, el, api, slugFromPath, setTitle, brand, icon, deckThumb } from './shell.js';
+import { t, el, api, slugFromPath, setTitle, brand, credit, icon, deckThumb } from './shell.js';
 
 const slug = slugFromPath();
 const app = document.getElementById('app');
@@ -23,4 +23,5 @@ app.append(
     icon('presenter'),
     el('span.mode-text', {}, el('span.mode-name', {}, t('presenter'))),
     icon('arrow')),
+  credit(),
 );

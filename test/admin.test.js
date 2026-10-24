@@ -122,7 +122,11 @@ test('settings, featured, PATCH and DELETE', async (t) => {
   const { as, dirs, app } = await setup(t);
   assert.equal((await as({ method: 'PUT', url: '/api/admin/settings', payload: { featured: 'nope' } })).statusCode, 400);
   const s = await as({ method: 'PUT', url: '/api/admin/settings', payload: { featured: 'talk', publicListing: true } });
-  assert.deepEqual(s.json(), { featured: 'talk', publicListing: true });
+  assert.deepEqual(s.json(), {
+    featured: 'talk',
+    publicListing: true,
+    appearance: { siteName: null, landingText: null, accent: null, showCredit: true },
+  });
   const patch = await as({ method: 'PATCH', url: '/api/admin/decks/talk', payload: { title: 'New title', viewerNav: 'follow' } });
   assert.deepEqual(patch.json(), { title: 'New title', viewerNav: 'follow', aspect: '16:9' });
   assert.equal((await as({ method: 'PATCH', url: '/api/admin/decks/talk', payload: { viewerNav: 'x' } })).statusCode, 400);
@@ -132,6 +136,40 @@ test('settings, featured, PATCH and DELETE', async (t) => {
   assert.match((await readdir(join(dirs.stateDir, 'trash')))[0], /^talk-/);
   assert.equal(app.slidecast.config.featured, null);
   assert.equal((await as({ method: 'DELETE', url: '/api/admin/decks/talk' })).statusCode, 404);
+});
+
+test('appearance: validated, saved, and shown on the pages', async (t) => {
+  const { as, app, dirs } = await setup(t);
+  for (const bad of [
+    { siteName: 'x'.repeat(61) }, { landingText: 3 }, { accent: 'red' }, { accent: '#12345' },
+    { showCredit: 'no' }, { other: 1 }, 'text',
+  ]) {
+    assert.equal((await as({ method: 'PUT', url: '/api/admin/settings', payload: { appearance: bad } })).statusCode, 400, JSON.stringify(bad));
+  }
+  const s = await as({
+    method: 'PUT', url: '/api/admin/settings',
+    payload: { appearance: { siteName: ' Charlas <b>&</b> "Pablo" ', landingText: 'Hola', accent: '#E11D48', showCredit: false } },
+  });
+  assert.equal(s.statusCode, 200);
+  assert.deepEqual(s.json().appearance, { siteName: 'Charlas <b>&</b> "Pablo"', landingText: 'Hola', accent: '#e11d48', showCredit: false });
+  const saved = JSON.parse(await readFile(join(dirs.stateDir, 'config.json'), 'utf8'));
+  assert.equal(saved.appearance.accent, '#e11d48');
+
+  const page = await app.inject({ url: '/talk', headers: REMOTE });
+  assert.match(page.body, /<title>Charlas &#60;b&#62;&#38;&#60;\/b&#62; &#34;Pablo&#34;<\/title>/);
+  assert.match(page.body, /<meta name="slidecast-appearance" content="[^"<>]*">/);
+  assert.match(page.body, /<link rel="stylesheet" href="\/_slidecast\/theme.css">/);
+  const css = await app.inject({ url: '/_slidecast/theme.css', headers: REMOTE });
+  assert.match(css.headers['content-type'], /^text\/css/);
+  assert.match(css.body, /--accent: #e11d48;/);
+
+  // A partial update keeps the other fields; empty strings and null reset.
+  const r = await as({ method: 'PUT', url: '/api/admin/settings', payload: { appearance: { siteName: '', accent: null } } });
+  assert.deepEqual(r.json().appearance, { siteName: null, landingText: 'Hola', accent: null, showCredit: false });
+  const plain = await app.inject({ url: '/talk', headers: REMOTE });
+  assert.match(plain.body, /<title>Slidecast<\/title>/);
+  assert.doesNotMatch(plain.body, /theme\.css/);
+  assert.equal((await app.inject({ url: '/_slidecast/theme.css', headers: REMOTE })).body, '');
 });
 
 test('/admin serves the panel to admins and the login page otherwise, never framed', async (t) => {

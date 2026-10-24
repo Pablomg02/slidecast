@@ -1,5 +1,5 @@
 // List of decks: shown to the admin, or to everyone when publicListing is on.
-import { t, el, api, setTitle, brand, icon, deckThumb } from './shell.js';
+import { t, el, api, setTitle, brand, credit, icon, deckThumb } from './shell.js';
 
 const app = document.getElementById('app');
 setTitle(t('decks'));
@@ -17,3 +17,5 @@ app.append(el('ul.deck-grid', {}, decks.map((d) => el('li.deck-card', {},
     el('span.deck-actions', {},
       el('a', { href: `/${d.slug}/view` }, t('viewer')),
       el('a.quiet', { href: `/${d.slug}/present` }, t('presenter'))))))));
+const foot = credit();
+if (foot) app.append(foot);

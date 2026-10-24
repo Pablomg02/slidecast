@@ -132,6 +132,11 @@ label { display: block; font-weight: 600; font-size: .92rem; margin: 1rem 0 .4re
 .brand:hover { color: var(--ink); }
 .brand-logo { width: 2.6rem; height: 2.6rem; margin: -.35rem -.2rem; }
 
+/* "Made with Slidecast" */
+.credit { margin-top: 4rem; text-align: center; font-size: .82rem; }
+.credit a { color: var(--muted); text-decoration: none; }
+.credit a:hover { color: var(--ink); text-decoration: underline; }
+
 /* simple pages */
 .page-landing, .page-list, .page-selector, .page-login, .page-notfound, .page-admin-login {
   background:
@@ -559,6 +564,10 @@ dialog .password-control { margin-top: 1.25rem; }
 .e-status[data-state=error] { color: var(--danger); border-color: var(--danger); }
 .e-status:disabled { opacity: 1; cursor: default; }
 .hint { font-size: .88rem; margin: .45rem 0 0; }
+.appearance-form textarea { resize: vertical; }
+.appearance-form .accent-row input[type=color] { width: 3.2rem; height: 2.4rem; padding: .15rem; cursor: pointer; }
+.appearance-form .credit-toggle { margin-top: 1.25rem; }
+.appearance-form > .row:last-child { margin-top: 1.25rem; }
 .settings > .password-control:first-child, .settings > .listing + .password-control { margin-top: 1.5rem; }
 .settings > .password-control:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
 .settings > .password-control:first-child label { margin-top: 0; }

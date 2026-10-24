@@ -56,6 +56,8 @@ function passwordControl({ label, scope, deck, isSet, canClear = true, hint, onD
 }
 
 let settings = null;
+// --accent in style.css, shown by the colour input while no accent is set.
+const DEFAULT_ACCENT = '#4f46e5';
 
 async function load() {
   const [decksRes, settingsRes] = await Promise.all([api('/api/admin/decks'), api('/api/admin/settings')]);
@@ -144,6 +146,51 @@ function render({ decks, single }) {
           : t('adminPasswordUnsetHint'),
         onDone: load,
       })));
+
+  app.append(el('h2', {}, t('appearance')), appearanceForm());
+}
+
+// Site name, home page message, accent colour and the credit (all cosmetic).
+function appearanceForm() {
+  const look = settings.appearance;
+  const name = el('input', { type: 'text', id: 'site-name', value: look.siteName ?? '', placeholder: 'Slidecast', maxLength: 60 });
+  const text = el('textarea', { id: 'landing-text', rows: 2, maxLength: 300, placeholder: t('landingText') });
+  text.value = look.landingText ?? '';
+  // A colour input always holds a colour: only send it once it was touched.
+  let accent = look.accent;
+  const color = el('input', {
+    type: 'color', id: 'accent-color', value: look.accent ?? DEFAULT_ACCENT,
+    oninput: () => { accent = color.value; },
+  });
+  const reset = el('button.small', {
+    type: 'button',
+    onclick: () => {
+      accent = null;
+      color.value = DEFAULT_ACCENT;
+    },
+  }, t('resetDefault'));
+  const showCredit = el('input', { type: 'checkbox', id: 'show-credit', checked: look.showCredit !== false });
+  const msg = el('span.status');
+  const form = el('form.card.appearance-form', {},
+    el('label', { htmlFor: 'site-name' }, t('siteName')), name,
+    el('p.hint.muted', {}, t('siteNameHint')),
+    el('label', { htmlFor: 'landing-text' }, t('landingTextLabel')), text,
+    el('p.hint.muted', {}, t('landingTextHint', { site })),
+    el('label', { htmlFor: 'accent-color' }, t('accentColor')),
+    el('div.row.accent-row', {}, color, reset),
+    el('label.inline.credit-toggle', { htmlFor: 'show-credit' }, showCredit, ` ${t('showCredit')}`),
+    el('div.row', {}, el('button.primary', { type: 'submit' }, t('save')), msg));
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const res = await api('/api/admin/settings', {
+      method: 'PUT',
+      body: { appearance: { siteName: name.value, landingText: text.value, accent, showCredit: showCredit.checked } },
+    });
+    status(msg, res.ok ? t('saved') : errorText(res), res.ok ? 'ok' : 'error');
+    // The name and colour belong to the page itself: reload to show them.
+    if (res.ok) setTimeout(() => location.reload(), 600);
+  });
+  return form;
 }
 
 function uploadForm() {

@@ -2,6 +2,7 @@ import { DeckError, isValidSlug } from '../decks.js';
 import { saveConfig } from '../config.js';
 import { checkPasswordInput } from '../auth.js';
 import { sendPage } from './pages.js';
+import { parseAppearance } from '../appearance.js';
 
 const UPLOAD_LIMIT = 100 * 1024 * 1024;
 const PASSWORD_SCOPES = new Set(['admin', 'presenter', 'deckPresenter', 'deckViewer']);
@@ -26,13 +27,13 @@ export function registerAdmin(app, ctx) {
   const { auth, decks, config, live } = ctx;
 
   // ---- pages ---------------------------------------------------------------
-  const adminPage = (req, reply) => sendPage(reply, auth.canAdmin(req) ? 'admin' : 'admin-login', { admin: true });
+  const adminPage = (req, reply) => sendPage(ctx, reply, auth.canAdmin(req) ? 'admin' : 'admin-login', { admin: true });
   app.get('/admin', adminPage);
   app.get('/admin/', adminPage);
   app.get('/admin/edit/:slug', async (req, reply) => {
     if (!auth.canAdmin(req)) return reply.redirect('/admin', 302);
-    if (!(await decks.exists(req.params.slug))) return sendPage(reply, 'notfound', { status: 404 });
-    return sendPage(reply, 'editor', { admin: true });
+    if (!(await decks.exists(req.params.slug))) return sendPage(ctx, reply, 'notfound', { status: 404 });
+    return sendPage(ctx, reply, 'editor', { admin: true });
   });
 
   // ---- API -----------------------------------------------------------------
@@ -116,23 +117,27 @@ export function registerAdmin(app, ctx) {
     scope.get('/api/admin/settings', async () => ({
       featured: config.featured,
       publicListing: config.publicListing,
+      appearance: config.appearance,
       hasAdminPassword: Boolean(config.adminHash),
       hasPresenterPassword: Boolean(config.presenterHash),
       single: Boolean(decks.single),
     }));
 
     scope.put('/api/admin/settings', async (req, reply) => {
-      const { featured, publicListing } = req.body ?? {};
+      const { featured, publicListing, appearance } = req.body ?? {};
       if (featured !== undefined && featured !== null && !(await decks.exists(featured))) {
         return reply.code(400).send({ error: 'no-deck' });
       }
       if (publicListing !== undefined && typeof publicListing !== 'boolean') {
         return reply.code(400).send({ error: 'bad-request' });
       }
+      const look = appearance === undefined ? {} : parseAppearance(appearance);
+      if (!look) return reply.code(400).send({ error: 'bad-request' });
       if (featured !== undefined) config.featured = featured;
       if (publicListing !== undefined) config.publicListing = publicListing;
+      config.appearance = { ...config.appearance, ...look };
       await saveConfig(ctx.stateDir, config);
-      return { featured: config.featured, publicListing: config.publicListing };
+      return { featured: config.featured, publicListing: config.publicListing, appearance: config.appearance };
     });
 
     scope.put('/api/admin/passwords', async (req, reply) => {
