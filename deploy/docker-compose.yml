@@ -21,7 +21,9 @@ services:
     profiles: ["tunnel"]
     restart: unless-stopped
     command: tunnel --no-autoupdate run
+    # Taken from deploy/.env. Not interpolated with ${…:?} on purpose: that
+    # would make `docker compose up` fail without .env even for slidecast alone.
     environment:
-      - TUNNEL_TOKEN=${TUNNEL_TOKEN:?set TUNNEL_TOKEN in deploy/.env}
+      - TUNNEL_TOKEN
     depends_on:
       - slidecast

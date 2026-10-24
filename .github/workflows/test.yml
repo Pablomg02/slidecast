@@ -45,7 +45,11 @@ jobs:
         working-directory: deploy
     steps:
       - uses: actions/checkout@v4
-      - run: TUNNEL_TOKEN=dummy docker compose --profile tunnel config --quiet
+      - name: The tunnel token in deploy/.env reaches cloudflared
+        run: |
+          echo 'TUNNEL_TOKEN=dummy-token' > .env
+          docker compose --profile tunnel config | grep -q 'TUNNEL_TOKEN: dummy-token'
+          rm .env
       - name: Build and start
         run: |
           mkdir -p data/decks data/state
