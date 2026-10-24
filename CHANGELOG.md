@@ -4,6 +4,12 @@ All notable changes to slidecast. Versions follow
 [Semantic Versioning](https://semver.org); before 1.0, a minor version may
 include breaking changes, always listed here.
 
+## [Unreleased]
+
+- markdown-it 15 for speaker notes (fixes several slow-parsing cases); links
+  without a scheme, like `example.com`, are still turned into links.
+- Fix two viewer tests that could fail on slow CI machines.
+
 ## [0.1.0] - 2026-10-24
 
 First public release.
@@ -23,4 +29,5 @@ First public release.
   Compose.
 - English and Spanish interface.
 
+[Unreleased]: https://github.com/Pablomg02/slidecast/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/Pablomg02/slidecast/releases/tag/v0.1.0

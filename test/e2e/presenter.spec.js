@@ -61,9 +61,10 @@ test('notes for the slide and the step, updated by a notes message', async ({ pa
   await expect(page.locator('#notes')).toContainText('Three steps on this slide');
   await expect(page.locator('.p-note-step')).toContainText('PageDown');
   const slides = (await srv.app.slidecast.decks.readMeta('demo')).slides;
-  srv.app.slidecast.live.notifyNotes('demo', { ...slides, how: { notes: 'Fresh <b>note</b>', steps: { 1: 'Fresh step' } } });
+  srv.app.slidecast.live.notifyNotes('demo', { ...slides, how: { notes: 'Fresh <b>note</b>, see example.com', steps: { 1: 'Fresh step' } } });
   await expect(page.locator('#notes')).toContainText('Fresh <b>note</b>');
   await expect(page.locator('#notes b')).toHaveCount(0); // raw HTML is escaped
+  await expect(page.locator('#notes a')).toHaveAttribute('href', 'http://example.com'); // linkify, no scheme needed
   await expect(page.locator('.p-note-step')).toHaveText('Fresh step');
 });
 
