@@ -79,7 +79,7 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
       locked: false,
       roomTimer: null,
     };
-    s.people = createPeople({ graceMs, onExpire: () => roomChanged(s) });
+    s.people = createPeople({ graceMs, onExpire: () => handsChanged(s) });
     decks.set(slug, s);
     return s;
   }
@@ -118,7 +118,7 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
     for (const c of s.clients) {
       if (c.kind !== 'presenter') continue;
       const d = devices.get(c.device) ?? { id: deviceId(c.device), owner: false, windows: 0 };
-      d.owner ||= c.owner;
+      d.owner ||= ctx.auth.canAdmin(c.req);
       d.windows++;
       devices.set(c.device, d);
     }
@@ -146,8 +146,14 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
     const list = [...devices.values()];
     for (const c of only ? [only] : s.clients) {
       if (c.kind !== 'presenter') continue;
+      // Names and notes go only to sockets that may still present (signed
+      // out, session expired, password changed, removed by the admin).
+      if (!ctx.auth.canPresent(c.req, s.slug)) {
+        c.socket.close(CLOSE.unauthorized, 'unauthorized');
+        continue;
+      }
       const mine = devices.get(c.device)?.id;
-      send(c, { ...msg, admin: c.owner, presenters: list.map((d) => ({ ...d, you: d.id === mine })) });
+      send(c, { ...msg, admin: ctx.auth.canAdmin(c.req), presenters: list.map((d) => ({ ...d, you: d.id === mine })) });
     }
   }
 
@@ -450,12 +456,23 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
       }
       const targets = [...s.clients].filter((c) => isPresenterKind(c) && deviceId(c.device) === msg.id);
       if (!targets.length) return true;
-      if (targets.some((c) => c.owner) || targets[0].device === 'local') {
+      if (targets.some((c) => ctx.auth.canAdmin(c.req)) || targets[0].device === 'local') {
         send(client, { t: 'error', code: 'cannot-kick-owner' });
         return true;
       }
-      ctx.auth.dropPresent(targets[0].device, s.slug)?.catch(() => {});
+      const { device } = targets[0];
+      ctx.auth.dropPresent(device, s.slug)?.catch(() => {});
       for (const c of targets) c.socket.close(CLOSE.unauthorized, 'unauthorized');
+      // The global grant is gone too: that device's windows in other rooms
+      // lose what they no longer may see.
+      for (const other of decks.values()) {
+        if (other === s) continue;
+        for (const c of other.clients) {
+          if (isPresenterKind(c) && c.device === device && !ctx.auth.canPresent(c.req, other.slug)) {
+            c.socket.close(CLOSE.unauthorized, 'unauthorized');
+          }
+        }
+      }
       return true;
     }
     return false;
@@ -463,6 +480,7 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
 
   function onMessage(client, data) {
     const s = decks.get(client.slug);
+    if (!s) return undefined; // the deck was deleted; its sockets are closing
     let msg;
     try {
       msg = JSON.parse(data.toString());
@@ -556,6 +574,14 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
       if (before.open && !now.open) return closeRoom(s);
       if (!before.open && now.open) unpark(s);
       if (before.hands !== now.hands) s.hands = now.hands;
+      // Names off: everyone becomes anonymous, as if they had never given one (D16).
+      if (before.askNames && !now.askNames) {
+        for (const p of s.people.all()) {
+          if (p.name === null) continue;
+          p.name = null;
+          you(s, p);
+        }
+      }
       if (before.hands !== now.hands || before.askNames !== now.askNames) {
         s.rev++;
         broadcast(s);

@@ -178,3 +178,24 @@ test('a device over the presenter limit is offered to watch; a projector stops c
     await patchRoom('demo', { maxPresenters: 20 });
   }
 });
+
+test('a viewer that waited in a closed room and lost its connection still gets the deck', async ({ browser }) => {
+  await patchRoom('demo', { open: false });
+  const context = await browser.newContext();
+  const v = await context.newPage();
+  // Every live connection goes through the test, so it can cut one.
+  let cut = null;
+  await v.routeWebSocket(/\/ws\//, (ws) => {
+    const server = ws.connectToServer();
+    cut = () => { ws.close(); server.close(); };
+  });
+  await v.goto(`${srv.url}/demo/view`);
+  await expect(v.locator('.room-notice')).toContainText('This room is closed');
+  await expect.poll(() => Boolean(cut)).toBe(true);
+  // The room opens while this viewer's connection is down: it never hears "reload".
+  cut();
+  await srv.app.slidecast.rooms.update('demo', { open: true });
+  await expect(v.locator('iframe.deck-frame')).toBeVisible({ timeout: 15_000 });
+  await expect(v.locator('.join-dialog')).toBeVisible();
+  await context.close();
+});

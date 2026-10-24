@@ -17,7 +17,6 @@ export function createPeople({ graceMs, onExpire = () => {} }) {
     clearTimeout(p.timer);
     byId.delete(p.id);
     byHash.delete(p.hash);
-    if (!byId.size) nextN = 1;
   }
 
   // Queued hands in queue order.
@@ -58,6 +57,9 @@ export function createPeople({ graceMs, onExpire = () => {} }) {
       if (p.sockets.size || !byId.has(p.id)) return;
       p.timer = setTimeout(() => {
         remove(p);
+        // The room emptied by itself: numbering starts again. A kick never
+        // resets it, so a newcomer is not mistaken for who was removed.
+        if (!byId.size) nextN = 1;
         onExpire(p);
       }, graceMs);
       p.timer.unref?.();

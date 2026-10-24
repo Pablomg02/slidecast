@@ -334,3 +334,85 @@ test('new participants per address are limited', async (t) => {
   await viewer().next(isYou());
   assert.equal((await viewer().closed).code, 4429);
 });
+
+// ---- regressions from review ---------------------------------------------------
+
+test('names stop reaching a presenter socket once it may no longer present', async (t) => {
+  const { app, viewer, ws } = await setup(t);
+  await app.slidecast.auth.setPassword('presenter', null, 'presenter-pass1');
+  const cookie = await loginCookie(app, 'presenter', 'presenter-pass1');
+  const p = ws('presenter', { cookie, headers: PROXIED });
+  await p.next(isRoom());
+  await app.inject({ method: 'POST', url: '/api/logout', headers: { ...LOCAL, cookie } });
+  const a = viewer();
+  await a.next(isYou());
+  a.send({ t: 'name', name: 'Secret Name' });
+  assert.equal((await p.closed).code, 4401);
+  assert.ok(!p.messages.some((m) => JSON.stringify(m).includes('Secret Name')));
+});
+
+test('owner status is checked live: an admin whose session was revoked can be removed', async (t) => {
+  const { app, ws } = await setup(t);
+  await app.slidecast.auth.setPassword('admin', null, 'admin-pass1');
+  await app.slidecast.auth.setPassword('presenter', null, 'presenter-pass1');
+  const oldAdmin = await loginCookie(app, 'admin', 'admin-pass1');
+  // The old admin also holds presenter rights in the same session.
+  const res = await app.inject({ method: 'POST', url: '/api/login', headers: { ...LOCAL, cookie: oldAdmin }, payload: { scope: 'presenter', password: 'presenter-pass1' } });
+  const both = `sc_session=${res.cookies.find((c) => c.name === 'sc_session').value}`;
+  const target = ws('presenter', { cookie: both, headers: PROXIED });
+  await target.next(isRoom((m) => m.admin === true));
+  await app.slidecast.auth.setPassword('admin', null, 'admin-pass2'); // revokes every admin session
+  const owner = ws('presenter', { cookie: await loginCookie(app, 'admin', 'admin-pass2'), headers: PROXIED });
+  const room = await owner.next(isRoom((m) => m.presenters.length === 2));
+  const victim = room.presenters.find((d) => !d.you);
+  assert.equal(victim.owner, false);
+  owner.send({ t: 'kick-presenter', id: victim.id });
+  assert.equal((await target.closed).code, 4401);
+});
+
+test('queue positions move up when someone ahead is forgotten; a kick never reuses a number', async (t) => {
+  const { viewer, ws } = await setup(t, { opts: { graceMs: 200 } });
+  const a = viewer();
+  const b = viewer();
+  await a.next(isYou());
+  await b.next(isYou());
+  const p = ws('presenter');
+  a.send({ t: 'hand', up: true });
+  b.send({ t: 'hand', up: true });
+  const room = await p.next(isRoom((m) => m.people.filter((x) => x.hand).length === 2));
+  const [first, second] = room.people.sort((x, y) => x.n - y.n);
+  p.send({ t: 'hand', id: first.id, action: 'queue' });
+  await a.next(isYou((m) => m.hand?.pos === 1));
+  p.send({ t: 'hand', id: second.id, action: 'queue' });
+  await b.next(isYou((m) => m.hand?.pos === 2));
+  a.close();
+  assert.equal((await b.next(isYou((m) => m.hand?.pos === 1), 3000)).hand.state, 'queued');
+  // B is now alone; removing B must not make the next newcomer "001" again.
+  const after = await p.next(isRoom((m) => m.people.length === 1));
+  p.send({ t: 'kick', id: after.people[0].id });
+  await b.closed;
+  assert.equal((await viewer().next(isYou())).n, 3);
+});
+
+test('turning names off makes everyone anonymous', async (t) => {
+  const { viewer, ws, admin } = await setup(t);
+  const a = viewer();
+  await a.next(isYou());
+  a.send({ t: 'name', name: 'Ana' });
+  await a.next(isYou((m) => m.name === 'Ana'));
+  const p = ws('presenter');
+  await p.next(isRoom((m) => m.people[0]?.name === 'Ana'));
+  await admin({ askNames: false });
+  await a.next(isYou((m) => m.name === null));
+  await p.next(isRoom((m) => m.people[0]?.name === null));
+});
+
+test('messages from a deleted deck\'s sockets do not crash the server', async (t) => {
+  const { app, viewer } = await setup(t);
+  const a = viewer();
+  await a.next(isYou());
+  app.slidecast.live.resetDeck('talk', { removed: true });
+  a.send({ t: 'name', name: 'late' });
+  await a.closed;
+  assert.equal((await app.inject({ url: '/health' })).statusCode, 200);
+});

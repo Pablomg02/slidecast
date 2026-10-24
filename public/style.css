@@ -355,7 +355,9 @@ body.idle .badge-control, body.idle .control-toggle { opacity: 0; }
 }
 .hand-status:empty { display: none; }
 .participant-bar.attending .hand-status { background: var(--accent); color: var(--accent-ink); animation: pulse 1.6s var(--ease) infinite; }
-body.idle .participant-bar:not(.has-hand) { opacity: 0; pointer-events: none; }
+/* Dimmed while idle, but always tappable: on a phone the first tap must reach
+   the button, not the idle cover (which would turn the slide). */
+body.idle .participant-bar:not(.has-hand):not(:focus-within) { opacity: .45; }
 .hand-panel { width: min(22rem, calc(100vw - 24px)); padding: 1rem; }
 .hand-panel textarea { resize: none; margin-bottom: .6rem; }
 .hand-panel .row { flex-wrap: nowrap; }

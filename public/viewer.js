@@ -81,6 +81,13 @@ function localMove(target) {
 }
 
 const conn = connectLive(slug, controlling ? 'presenter' : 'viewer', (msg) => {
+  // Loaded while the room was closed, then admitted without the "again" signal
+  // (its socket dropped while waiting): reload to get the deck.
+  if (!frame) {
+    if (msg.t === 'state' || msg.t === 'you') location.reload();
+    else participant.onMessage(msg);
+    return;
+  }
   if (msg.t !== 'state') {
     participant?.onMessage(msg);
     return;

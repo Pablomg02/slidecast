@@ -114,6 +114,16 @@ Deviations:
 - D8 refined during implementation: only windows that can drive the deck count as presenter devices; a display (projector with *Stop controlling*) is never refused, so a refused presenter can still watch.
 - Room counts in the admin panel are refreshed every 5 s by polling, not pushed.
 
+Fixes after an independent review (2026-10-24), each with a regression test:
+- Names and notes went on reaching presenter sockets that had lost their rights (signed out, expired, revoked, removed); such sockets are now closed with 4401 before each room update, and removing a presenter also closes that device's windows in other rooms.
+- Owner status was fixed at connect time; it is now checked live (a revoked admin can be removed).
+- A message from a socket of a just-deleted deck could crash the server.
+- A viewer that loaded a closed room and lost its connection while waiting stayed without a deck once admitted; it now reloads.
+- Queue positions did not move up when someone ahead was forgotten after the grace period.
+- Removing the only participant restarted the numbering; it now restarts only when the room closes or empties by itself (grace period over).
+- Turning names off now makes everyone anonymous, as D16 says.
+- The participant bar hid while idle and the idle cover took the first tap (on a phone, tapping "Raise hand" turned the slide); it now only dims and stays tappable.
+
 ## Results
 
-- All goals delivered. `npm test` 105 passed; `npm run check` clean; `npm run test:e2e` 54 passed (Chromium, also with `--repeat-each 2`).
+- All goals delivered. `npm test` 110 passed; `npm run check` clean; `npm run test:e2e` 55 passed (Chromium).
