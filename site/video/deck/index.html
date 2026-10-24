@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Planets in motion</title>
+<style>
+  :root { --ink: #f4f1ea; --muted: #a9b1c7; --sun: #ffb347; --accent: #8b8ff8; --night: #0d1330; }
+  html, body { margin: 0; height: 100%; background: #05070f; overflow: hidden; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); }
+  #stage {
+    position: absolute; left: 0; top: 0; width: 1600px; height: 900px; transform-origin: 0 0; overflow: hidden;
+    background: radial-gradient(circle at 78% 40%, #1d2a6b 0, var(--night) 55%, #070a1c 100%);
+  }
+  .slide { position: absolute; inset: 0; padding: 110px 130px; box-sizing: border-box; display: none; }
+  .slide.active { display: block; }
+  h1 { font-size: 132px; line-height: 1; margin: 170px 0 34px; letter-spacing: -3px; }
+  h2 { font-size: 76px; margin: 0 0 56px; letter-spacing: -1px; }
+  p, li { font-size: 44px; line-height: 1.4; }
+  .muted { color: var(--muted); }
+  .sun { color: var(--sun); }
+  ul { padding-left: 1.1em; margin: 0; width: 900px; }
+  li { margin-bottom: 30px; }
+  [data-step] { opacity: 0; transform: translateY(16px); transition: opacity .4s, transform .4s; }
+  [data-step].shown { opacity: 1; transform: none; }
+
+  .system { position: absolute; right: 90px; top: 150px; width: 600px; height: 600px; }
+  .orbit { position: absolute; left: 50%; top: 50%; border: 2px dashed rgba(169, 177, 199, .28); border-radius: 50%; }
+  .orbit .planet { position: absolute; left: 50%; top: -14px; width: 28px; height: 28px; margin-left: -14px; border-radius: 50%; }
+  .spin { animation: spin linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .star { position: absolute; left: 50%; top: 50%; width: 90px; height: 90px; margin: -45px; border-radius: 50%;
+    background: radial-gradient(circle, #fff3c4, var(--sun) 60%, #ff7a2f); box-shadow: 0 0 80px 20px rgba(255, 160, 60, .45); }
+
+  .lab { display: grid; grid-template-columns: 640px 1fr; gap: 40px; align-items: center; }
+  .lab label { display: block; font-size: 36px; color: var(--muted); margin-bottom: 18px; }
+  .lab input { width: 100%; accent-color: var(--sun); height: 40px; }
+  .readout { font-size: 96px; font-weight: 800; margin: 40px 0 0; }
+  .readout small { display: block; font-size: 34px; font-weight: 400; color: var(--muted); }
+  .lab .system { position: relative; right: auto; top: auto; margin-left: auto; }
+
+  .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; width: 1100px; margin-top: 30px; }
+  .choice { font-size: 48px; padding: 30px 40px; border-radius: 22px; background: rgba(255, 255, 255, .07); border: 3px solid rgba(255, 255, 255, .12); transition: all .4s; }
+  .reveal .choice { opacity: .35; }
+  .reveal .choice.right { opacity: 1; border-color: var(--sun); background: rgba(255, 179, 71, .16); }
+  .tag { display: inline-block; font-size: 30px; letter-spacing: 3px; text-transform: uppercase; color: var(--sun); }
+</style>
+</head>
+<body>
+<div id="stage">
+  <section class="slide" id="intro">
+    <span class="tag">Physics · Year 9</span>
+    <h1>Planets<br>in motion</h1>
+    <p class="muted">Why a year on Neptune lasts 165 of ours</p>
+    <div class="system" aria-hidden="true">
+      <div class="star"></div>
+      <div class="orbit spin" style="width:220px;height:220px;margin:-110px;animation-duration:4s"><span class="planet" style="background:#7dd3fc"></span></div>
+      <div class="orbit spin" style="width:380px;height:380px;margin:-190px;animation-duration:9s"><span class="planet" style="background:#f87171"></span></div>
+      <div class="orbit spin" style="width:560px;height:560px;margin:-280px;animation-duration:18s"><span class="planet" style="background:#c4b5fd;width:40px;height:40px;margin-left:-20px;top:-20px"></span></div>
+    </div>
+  </section>
+
+  <section class="slide" id="why" data-steps="3">
+    <h2>The further out, the slower</h2>
+    <ul>
+      <li>The Sun's pull gets <span class="sun">weaker with distance</span>.</li>
+      <li data-step="1">So outer planets move more slowly…</li>
+      <li data-step="2">…along a much longer path. Both add up.</li>
+    </ul>
+  </section>
+
+  <section class="slide" id="try">
+    <h2>Try it yourself</h2>
+    <div class="lab" data-interactive>
+      <div>
+        <label for="au">Distance from the Sun</label>
+        <input id="au" type="range" min="0.4" max="30" step="0.1" value="1">
+        <p class="readout"><span id="years">1.0</span> years<small>for one orbit at <span id="dist">1.0</span> × Earth's distance</small></p>
+      </div>
+      <div class="system" aria-hidden="true">
+        <div class="star"></div>
+        <div class="orbit" id="lab-orbit"><span class="planet" style="background:#7dd3fc"></span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="quiz" data-steps="2">
+    <h2>Quick question</h2>
+    <p class="muted">Which planet has the longest year?</p>
+    <div class="choices">
+      <div class="choice">A · Mercury</div>
+      <div class="choice">B · Earth</div>
+      <div class="choice">C · Jupiter</div>
+      <div class="choice right">D · Neptune</div>
+    </div>
+  </section>
+
+  <section class="slide" id="end">
+    <span class="tag">Homework</span>
+    <h1>Questions?</h1>
+    <p class="muted">Find your planet's year with the simulation, at home.</p>
+  </section>
+</div>
+
+<script>
+// --- slidecast native deck API: minimal engine -------------------------------
+(function () {
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var steps = [];
+  slides.forEach(function (s) {
+    var n = Number(s.dataset.steps || 1);
+    for (var k = 0; k < n; k++) steps.push({ slide: s.id, step: k });
+  });
+  var current = 0;
+
+  function render() {
+    var at = steps[current];
+    slides.forEach(function (s) {
+      s.classList.toggle('active', s.id === at.slide);
+      s.querySelectorAll('[data-step]').forEach(function (el) {
+        el.classList.toggle('shown', s.id === at.slide && Number(el.dataset.step) <= at.step);
+      });
+    });
+    document.getElementById('quiz').classList.toggle('reveal', at.slide === 'quiz' && at.step >= 1);
+  }
+
+  function go(index) {
+    current = Math.max(0, Math.min(steps.length - 1, Math.floor(index) || 0));
+    render();
+    window.dispatchEvent(new CustomEvent('slidecast:change', { detail: { index: current } }));
+  }
+
+  window.SLIDECAST_DECK = {
+    version: 1,
+    steps: steps,
+    go: go,
+    current: function () { return current; },
+  };
+
+  if (!window.__SLIDECAST__) {
+    window.addEventListener('keydown', function (e) {
+      if (['ArrowRight', 'ArrowDown', 'PageDown', ' '].indexOf(e.key) >= 0) go(current + 1);
+      else if (['ArrowLeft', 'ArrowUp', 'PageUp'].indexOf(e.key) >= 0) go(current - 1);
+    });
+  }
+
+  go(0);
+})();
+// --- end of the deck API ----------------------------------------------------
+
+// The simulation: Kepler's third law, period = distance^1.5.
+(function () {
+  var input = document.getElementById('au');
+  var orbit = document.getElementById('lab-orbit');
+  var angle = 0, last = performance.now();
+  function update() {
+    var au = Number(input.value);
+    var size = 120 + (au / 30) * 440;
+    orbit.style.width = orbit.style.height = size + 'px';
+    orbit.style.margin = (-size / 2) + 'px';
+    document.getElementById('years').textContent = Math.pow(au, 1.5).toFixed(1);
+    document.getElementById('dist').textContent = au.toFixed(1);
+  }
+  // On screen an orbit takes 1.6 s × √(real years), so far planets still move.
+  function tick(now) {
+    var seconds = 1.6 * Math.sqrt(Math.pow(Number(input.value), 1.5));
+    angle += (now - last) / 1000 * 360 / seconds;
+    last = now;
+    orbit.style.transform = 'rotate(' + angle + 'deg)';
+    requestAnimationFrame(tick);
+  }
+  input.addEventListener('input', update);
+  update();
+  requestAnimationFrame(tick);
+})();
+
+// Scale the 1600×900 stage to the window.
+(function () {
+  var stage = document.getElementById('stage');
+  function fit() {
+    var s = Math.min(innerWidth / 1600, innerHeight / 900);
+    var x = (innerWidth - 1600 * s) / 2;
+    var y = (innerHeight - 900 * s) / 2;
+    stage.style.transform = 'translate(' + x + 'px,' + y + 'px) scale(' + s + ')';
+  }
+  window.addEventListener('resize', fit);
+  fit();
+})();
+</script>
+</body>
+</html>

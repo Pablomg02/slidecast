@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>slidecast demo stage</title>
+<!-- The scene record.js films: a laptop with the presenter view, a projector
+     and a phone with the viewer, all live on the same slidecast server. -->
+<style>
+  html, body { margin: 0; width: 1600px; height: 900px; overflow: hidden; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #0f1420;
+    background: radial-gradient(circle at 70% 0%, #e7e8ff 0, #f5f6f8 55%);
+  }
+  .device { position: absolute; }
+  .device iframe { border: 0; transform-origin: 0 0; display: block; background: #000; }
+  .screen { overflow: hidden; background: #000; }
+
+  /* Laptop: presenter view, 1280×800 drawn at 0.66. */
+  #laptop { left: 60px; top: 150px; }
+  #laptop .lid { padding: 14px; background: #1e2433; border-radius: 18px 18px 6px 6px; box-shadow: 0 30px 60px -30px rgba(15, 20, 32, .55); }
+  #laptop .screen { width: 845px; height: 528px; border-radius: 4px; }
+  #laptop iframe { width: 1280px; height: 800px; transform: scale(.66); }
+  #laptop .base { height: 18px; margin: 0 -50px; background: linear-gradient(#c9ceda, #9aa1b2); border-radius: 0 0 22px 22px; }
+
+  /* Projector screen: viewer, 1280×720 drawn at 0.44. */
+  #wall { left: 1010px; top: 110px; }
+  #wall .screen { width: 563px; height: 317px; box-shadow: 0 0 0 6px #fff, 0 26px 50px -24px rgba(15, 20, 32, .5); }
+  #wall iframe { width: 1280px; height: 720px; transform: scale(.44); }
+
+  /* Phone held sideways: viewer, 780×360 drawn at 0.42. */
+  #phone { left: 1130px; top: 560px; padding: 12px 16px; background: #10131b; border-radius: 30px; box-shadow: 0 26px 50px -24px rgba(15, 20, 32, .6); }
+  #phone .screen { width: 328px; height: 151px; border-radius: 12px; }
+  #phone iframe { width: 780px; height: 360px; transform: scale(.42); }
+
+  .label { position: absolute; font-size: 19px; font-weight: 700; color: #4f46e5; letter-spacing: .3px; }
+  .label small { display: block; font-weight: 500; color: #646b7a; font-size: 15px; }
+
+  #caption {
+    position: absolute; left: 60px; top: 40px; width: 900px; font-size: 38px; font-weight: 750;
+    letter-spacing: -.6px; line-height: 1.15; transition: opacity .35s;
+  }
+  #caption.hide { opacity: 0; }
+  #key {
+    position: absolute; left: 445px; top: 760px; min-width: 64px; padding: 10px 18px; text-align: center;
+    font: 700 30px ui-monospace, Menlo, Consolas, monospace; color: #0f1420; background: #fff;
+    border: 2px solid #c8ccd8; border-bottom-width: 6px; border-radius: 12px;
+    opacity: 0; transform: translateY(8px); transition: opacity .15s, transform .15s;
+  }
+  #key.on { opacity: 1; transform: none; }
+
+  #end {
+    position: absolute; inset: 0; display: grid; place-content: center; text-align: center;
+    background: rgba(245, 246, 248, .94); opacity: 0; transition: opacity .6s; pointer-events: none;
+  }
+  #end.on { opacity: 1; }
+  #end img { width: 130px; margin: 0 auto 18px; }
+  #end b { font-size: 70px; letter-spacing: -2px; }
+  #end span { font-size: 28px; color: #646b7a; }
+</style>
+</head>
+<body>
+  <div id="caption"></div>
+
+  <div class="device" id="laptop">
+    <div class="lid"><div class="screen"><iframe id="presenter" title="Presenter view"></iframe></div></div>
+    <div class="base"></div>
+  </div>
+  <div class="label" style="left:60px;top:740px">Your laptop<small>presenter view</small></div>
+
+  <div class="device" id="wall"><div class="screen"><iframe id="projector" title="Projector"></iframe></div></div>
+  <div class="label" style="left:1010px;top:445px">The projector</div>
+
+  <div class="device" id="phone"><div class="screen"><iframe id="audience" title="A phone in the audience"></iframe></div></div>
+  <div class="label" style="left:1130px;top:765px">A phone in the audience</div>
+
+  <div id="key"></div>
+
+  <div id="end"><img src="/__stage/logo.svg" alt=""><b>slidecast</b><span>Free and open source · github.com/Pablomg02/slidecast</span></div>
+
+<script>
+  const deck = new URLSearchParams(location.search).get('deck');
+  document.getElementById('presenter').src = `/${deck}/present`;
+  document.getElementById('projector').src = `/${deck}/view`;
+  document.getElementById('audience').src = `/${deck}/view`;
+
+  const caption = document.getElementById('caption');
+  window.say = (text) => new Promise((done) => {
+    caption.classList.add('hide');
+    setTimeout(() => { caption.textContent = text; caption.classList.remove('hide'); done(); }, 350);
+  });
+  const key = document.getElementById('key');
+  let keyTimer;
+  window.showKey = (label) => {
+    key.textContent = label;
+    key.classList.add('on');
+    clearTimeout(keyTimer);
+    keyTimer = setTimeout(() => key.classList.remove('on'), 700);
+  };
+  window.theEnd = () => document.getElementById('end').classList.add('on');
+</script>
+</body>
+</html>

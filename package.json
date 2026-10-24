@@ -40,7 +40,10 @@
     "start": "node bin/slidecast.js serve",
     "test": "node --test --test-timeout=30000 test/*.test.js",
     "test:e2e": "playwright test",
-    "check": "node -e \"const fs=require('fs'),p=require('path'),cp=require('child_process');const w=d=>fs.readdirSync(d,{withFileTypes:true}).flatMap(e=>e.isDirectory()?w(p.join(d,e.name)):e.name.endsWith('.js')?[p.join(d,e.name)]:[]);for(const f of ['bin','src','public'].flatMap(w))cp.execFileSync(process.execPath,['--check',f],{stdio:'inherit'})\""
+    "check": "node -e \"const fs=require('fs'),p=require('path'),cp=require('child_process');const w=d=>fs.readdirSync(d,{withFileTypes:true}).flatMap(e=>e.isDirectory()?w(p.join(d,e.name)):e.name.endsWith('.js')?[p.join(d,e.name)]:[]);for(const f of ['bin','src','public'].flatMap(w))cp.execFileSync(process.execPath,['--check',f],{stdio:'inherit'})\"",
+    "site": "node site/build.js --serve",
+    "site:build": "node site/build.js",
+    "site:video": "node site/video/record.js"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.3",

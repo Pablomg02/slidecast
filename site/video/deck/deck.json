@@ -1,0 +1,26 @@
+{
+  "slidecast": 1,
+  "title": "Planets in motion",
+  "aspect": "16:9",
+  "viewerNav": "back",
+  "slides": {
+    "intro": {
+      "notes": "Ask first: **how long is a year on Neptune?** Let them guess before moving on."
+    },
+    "why": {
+      "notes": "Two reasons stack up: weaker pull and a longer path.",
+      "steps": {
+        "2": "Draw the two orbits on the board if they look lost."
+      }
+    },
+    "try": {
+      "notes": "Everyone moves the slider **on their own phone**. Ask them to find Neptune: about 30 times Earth's distance."
+    },
+    "quiz": {
+      "notes": "Give them ten seconds, then reveal: **Neptune**, 165 years."
+    },
+    "end": {
+      "notes": "Homework: find the year of three planets with the simulation."
+    }
+  }
+}
