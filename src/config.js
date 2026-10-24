@@ -10,10 +10,10 @@ export function defaultConfig() {
     secret: randomBytes(32).toString('base64url'),
     adminHash: null,
     presenterHash: null,
-    featured: null,
-    publicListing: false,
+    publicListing: true,
     appearance: defaultAppearance(),
     decks: {},
+    rooms: {},
   };
 }
 
@@ -28,6 +28,7 @@ export async function loadConfig(stateDir) {
       ...stored,
       appearance: { ...defaultAppearance(), ...stored.appearance },
       decks: stored.decks ?? {},
+      rooms: stored.rooms ?? {},
     };
   }
   const config = defaultConfig();

@@ -2,16 +2,20 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import net from 'node:net';
 import { buildServer } from '../src/server.js';
-import { onCleanup, tempDirs, makeDeck, listen, wsClient } from './helpers.js';
+import { onCleanup, tempDirs, makeDeck, listen, wsClient, openRooms } from './helpers.js';
 
 async function setup(t, dirs) {
   dirs ??= await tempDirs(t);
   await makeDeck(dirs.dataDir, 'talk', { meta: { slidecast: 1, viewerNav: 'follow', slides: { a: { notes: 'n' } } } });
   const app = await buildServer(dirs);
+  await openRooms(app, ['talk']);
   const urls = await listen(app);
   const clients = [];
   const connect = (role, opts) => {
-    const c = wsClient(`${urls.ws}/ws/talk?role=${role}`, opts);
+    // Viewers come through a proxy: a local-direct viewer may present, so it
+    // would be a display, not a participant.
+    const viewer = role === 'viewer' ? { join: true, headers: { 'X-Forwarded-For': '203.0.113.50' } } : {};
+    const c = wsClient(`${urls.ws}/ws/talk?role=${role}`, { ...viewer, ...opts });
     clients.push(c);
     return c;
   };
@@ -31,16 +35,17 @@ test('presenter step reaches viewer and presenter', async (t) => {
   assert.equal(first.index, 0);
   assert.equal(first.viewerNav, 'follow');
   const presenter = connect('presenter'); // loopback, no password: local direct
-  await presenter.next(isState((m) => m.presenters === 1));
+  await presenter.next((m) => m.t === 'room' && m.presenters.length === 1 && m.viewers === 1);
   const notes = await presenter.next((m) => m.t === 'notes');
   assert.deepEqual(notes.slides, { a: { notes: 'n' } });
   presenter.send({ t: 'meta', total: 10 });
   presenter.send({ t: 'step', delta: 1 });
   const v = await viewer.next(isState((m) => m.index === 1));
-  const p = await presenter.next(isState((m) => m.index === 1));
+  await presenter.next(isState((m) => m.index === 1));
   assert.equal(v.total, 10);
-  assert.equal(p.viewers, 1);
   assert.ok(v.rev >= 2);
+  // Viewers get no counts: they only matter to presenters.
+  assert.equal(v.viewers, undefined);
 });
 
 test('viewer commands are refused', async (t) => {
@@ -65,8 +70,9 @@ test('two presenters stepping at once advance twice', async (t) => {
   const { connect } = await setup(t);
   const a = connect('presenter');
   const b = connect('presenter');
-  await a.next(isState((m) => m.presenters === 2));
-  await b.next(isState((m) => m.presenters === 2));
+  // Both are this computer: one device with two windows.
+  await a.next((m) => m.t === 'room' && m.presenters[0]?.windows === 2);
+  await b.next(isState());
   a.send({ t: 'meta', total: 10 });
   a.send({ t: 'step', delta: 1 });
   b.send({ t: 'step', delta: 1 });
@@ -119,6 +125,7 @@ test('live state survives a restart via live.json', async (t) => {
   {
     await makeDeck(dirs.dataDir, 'talk');
     const app = await buildServer(dirs);
+    await openRooms(app, ['talk']);
     const urls = await listen(app);
     const p = wsClient(`${urls.ws}/ws/talk?role=presenter`);
     await p.next(isState());
@@ -132,7 +139,7 @@ test('live state survives a restart via live.json', async (t) => {
   const app = await buildServer(dirs);
   const urls = await listen(app);
   onCleanup(t, () => app.close());
-  const v = wsClient(`${urls.ws}/ws/talk?role=viewer`);
+  const v = wsClient(`${urls.ws}/ws/talk?role=viewer`, { join: true });
   const s = await v.next(isState());
   assert.equal(s.index, 4);
   assert.equal(s.blank, true);
@@ -198,7 +205,7 @@ test('a presenter whose rights were revoked gets no more notes', async (t) => {
 });
 
 test('sockets closed during the handshake do not stay counted', async (t) => {
-  const { urls, connect } = await setup(t);
+  const { urls, connect, app } = await setup(t);
   const port = new URL(urls.http).port;
   const hit = () => new Promise((done) => {
     const s = net.connect(Number(port), '127.0.0.1', () => {
@@ -213,14 +220,16 @@ test('sockets closed during the handshake do not stay counted', async (t) => {
   for (let i = 0; i < 300; i++) await hit();
   await new Promise((r) => setTimeout(r, 500));
   const viewer = connect('viewer');
-  const state = await viewer.next(isState());
-  assert.equal(state.viewers, 1);
+  await viewer.next(isState());
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(app.slidecast.live.counts('talk').viewers, 1);
 });
 
 test('WebSocket connections are capped per address and in total', async (t) => {
   const dirs = await tempDirs(t);
   await makeDeck(dirs.dataDir, 'talk');
   const app = await buildServer({ ...dirs, trustProxy: true, wsLimits: { perIp: 2, total: 3 } });
+  await openRooms(app, ['talk']);
   const urls = await listen(app);
   const clients = [];
   onCleanup(t, async () => {
@@ -228,7 +237,7 @@ test('WebSocket connections are capped per address and in total', async (t) => {
     await app.close();
   });
   const from = (ip) => {
-    const c = wsClient(`${urls.ws}/ws/talk?role=viewer`, { headers: { 'Cf-Connecting-IP': ip } });
+    const c = wsClient(`${urls.ws}/ws/talk?role=viewer`, { headers: { 'Cf-Connecting-IP': ip }, join: true });
     clients.push(c);
     return c;
   };

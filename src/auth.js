@@ -200,6 +200,22 @@ export async function createAuth(ctx) {
 
   const { config } = ctx;
 
+  // Stable key of the session a request carries (its stored hash), or null.
+  function sessionKey(req) {
+    const raw = req.cookies?.[COOKIE];
+    return getSession(req) ? sha256(raw) : null;
+  }
+
+  // Removes a deck (and the global grant) from one session's presenter
+  // rights: the admin removed that presenter from the room (D12 of 0003).
+  function dropPresent(key, slug) {
+    const s = sessions[key];
+    if (!s) return undefined;
+    s.present = s.present.filter((x) => x !== slug && x !== '*');
+    if (isEmpty(s)) delete sessions[key];
+    return save();
+  }
+
   function canAdmin(req) {
     if (getSession(req)?.admin) return true;
     return !config.adminHash && isLocalDirect(req);
@@ -297,6 +313,8 @@ export async function createAuth(ctx) {
   return {
     sessions,
     getSession,
+    sessionKey,
+    dropPresent,
     canAdmin,
     canPresent,
     canView,

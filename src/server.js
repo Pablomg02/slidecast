@@ -13,6 +13,7 @@ import { registerDeckFiles } from './deckfiles.js';
 import { registerSecurity } from './security.js';
 import { createAuth, registerAuthRoutes } from './auth.js';
 import { createLive, registerLive, MAX_MESSAGE } from './live.js';
+import { createRooms } from './rooms.js';
 import { PUBLIC_DIR } from './paths.js';
 import { registerPages } from './routes/pages.js';
 import { registerApi } from './routes/api.js';
@@ -43,6 +44,7 @@ export async function buildServer(opts = {}) {
     trustProxy: Boolean(o.trustProxy),
     loginLimits: o.loginLimits,
     wsLimits: o.wsLimits,
+    joinLimit: o.joinLimit,
     decks: createDeckStore({
       dataDir: o.dataDir,
       stateDir,
@@ -51,7 +53,8 @@ export async function buildServer(opts = {}) {
     }),
   };
   ctx.auth = await createAuth(ctx);
-  ctx.live = await createLive(ctx, { heartbeatMs: o.heartbeatMs });
+  ctx.rooms = createRooms(ctx);
+  ctx.live = await createLive(ctx, { heartbeatMs: o.heartbeatMs, graceMs: o.graceMs });
   app.decorate('slidecast', ctx);
 
   await app.register(fastifyCookie);

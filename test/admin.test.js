@@ -32,6 +32,7 @@ const ROUTES = [
   ['GET', '/api/admin/settings'],
   ['PUT', '/api/admin/settings'],
   ['PUT', '/api/admin/passwords'],
+  ['PATCH', '/api/admin/rooms/talk'],
 ];
 
 test('every admin route answers 403 without an admin session', async (t) => {
@@ -118,13 +119,11 @@ test('changing the admin password keeps the requester signed in on a new session
   assert.equal((await app.inject({ url: '/api/admin/settings', headers: { ...REMOTE, cookie: fresh } })).statusCode, 200);
 });
 
-test('settings, featured, PATCH and DELETE', async (t) => {
+test('settings, PATCH and DELETE', async (t) => {
   const { as, dirs, app } = await setup(t);
-  assert.equal((await as({ method: 'PUT', url: '/api/admin/settings', payload: { featured: 'nope' } })).statusCode, 400);
-  const s = await as({ method: 'PUT', url: '/api/admin/settings', payload: { featured: 'talk', publicListing: true } });
+  const s = await as({ method: 'PUT', url: '/api/admin/settings', payload: { publicListing: false } });
   assert.deepEqual(s.json(), {
-    featured: 'talk',
-    publicListing: true,
+    publicListing: false,
     appearance: { siteName: null, landingText: null, accent: null, showLogo: true, showCredit: true },
   });
   const patch = await as({ method: 'PATCH', url: '/api/admin/decks/talk', payload: { title: 'New title', viewerNav: 'follow' } });
@@ -134,7 +133,7 @@ test('settings, featured, PATCH and DELETE', async (t) => {
   assert.equal(del.statusCode, 204);
   assert.deepEqual(await readdir(dirs.dataDir), []);
   assert.match((await readdir(join(dirs.stateDir, 'trash')))[0], /^talk-/);
-  assert.equal(app.slidecast.config.featured, null);
+  assert.equal(app.slidecast.config.rooms.talk, undefined);
   assert.equal((await as({ method: 'DELETE', url: '/api/admin/decks/talk' })).statusCode, 404);
 });
 

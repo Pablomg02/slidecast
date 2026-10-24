@@ -3,6 +3,7 @@ import { saveConfig } from '../config.js';
 import { checkPasswordInput } from '../auth.js';
 import { sendPage } from './pages.js';
 import { parseAppearance } from '../appearance.js';
+import { parseRoomPatch } from '../rooms.js';
 
 const UPLOAD_LIMIT = 100 * 1024 * 1024;
 const PASSWORD_SCOPES = new Set(['admin', 'presenter', 'deckPresenter', 'deckViewer']);
@@ -24,7 +25,7 @@ function sendError(reply, err) {
 }
 
 export function registerAdmin(app, ctx) {
-  const { auth, decks, config, live } = ctx;
+  const { auth, decks, config, live, rooms } = ctx;
 
   // ---- pages ---------------------------------------------------------------
   const adminPage = (req, reply) => sendPage(ctx, reply, auth.canAdmin(req) ? 'admin' : 'admin-login', { admin: true });
@@ -52,7 +53,7 @@ export function registerAdmin(app, ctx) {
         const a = config.decks[d.slug] ?? {};
         rows.push({
           ...d,
-          featured: config.featured === d.slug,
+          room: { ...rooms.settings(d.slug), ...live.counts(d.slug) },
           hasPresenterPassword: Boolean(a.presenterHash),
           hasViewerPassword: Boolean(a.viewerHash),
           viewerNav: (await decks.readMeta(d.slug)).viewerNav,
@@ -84,10 +85,7 @@ export function registerAdmin(app, ctx) {
         return sendError(reply, err);
       }
       live.resetDeck(slug, { removed: true });
-      if (config.featured === slug) {
-        config.featured = null;
-        await saveConfig(ctx.stateDir, config);
-      }
+      await rooms.remove(slug);
       return reply.code(204).send();
     });
 
@@ -100,6 +98,20 @@ export function registerAdmin(app, ctx) {
       } catch (err) {
         return sendError(reply, err);
       }
+    });
+
+    // Opens or closes a room (`only` closes every other one) and sets its
+    // limits (D1, D3 of 0003).
+    scope.patch('/api/admin/rooms/:slug', async (req, reply) => {
+      const { slug } = req.params;
+      if (!(await decks.exists(slug))) return reply.code(404).send({ error: 'not-found' });
+      const { patch, error } = parseRoomPatch(req.body);
+      if (error) return reply.code(400).send({ error });
+      if (decks.single && (patch.open === false || patch.only)) return reply.code(409).send({ error: 'single-deck' });
+      const before = new Map((await decks.slugs()).map((x) => [x, rooms.settings(x)]));
+      const room = await rooms.update(slug, patch);
+      for (const [x, old] of before) live.roomUpdated(x, old);
+      return room;
     });
 
     scope.put('/api/admin/decks/:slug/slides/:slideId', async (req, reply) => {
@@ -115,7 +127,6 @@ export function registerAdmin(app, ctx) {
     });
 
     scope.get('/api/admin/settings', async () => ({
-      featured: config.featured,
       publicListing: config.publicListing,
       appearance: config.appearance,
       hasAdminPassword: Boolean(config.adminHash),
@@ -124,20 +135,16 @@ export function registerAdmin(app, ctx) {
     }));
 
     scope.put('/api/admin/settings', async (req, reply) => {
-      const { featured, publicListing, appearance } = req.body ?? {};
-      if (featured !== undefined && featured !== null && !(await decks.exists(featured))) {
-        return reply.code(400).send({ error: 'no-deck' });
-      }
+      const { publicListing, appearance } = req.body ?? {};
       if (publicListing !== undefined && typeof publicListing !== 'boolean') {
         return reply.code(400).send({ error: 'bad-request' });
       }
       const look = appearance === undefined ? {} : parseAppearance(appearance);
       if (!look) return reply.code(400).send({ error: 'bad-request' });
-      if (featured !== undefined) config.featured = featured;
       if (publicListing !== undefined) config.publicListing = publicListing;
       config.appearance = { ...config.appearance, ...look };
       await saveConfig(ctx.stateDir, config);
-      return { featured: config.featured, publicListing: config.publicListing, appearance: config.appearance };
+      return { publicListing: config.publicListing, appearance: config.appearance };
     });
 
     scope.put('/api/admin/passwords', async (req, reply) => {

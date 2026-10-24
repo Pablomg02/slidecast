@@ -1,17 +1,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildServer } from '../src/server.js';
-import { onCleanup, tempDirs, makeDeck } from './helpers.js';
+import { onCleanup, tempDirs, makeDeck, openRooms } from './helpers.js';
 
 const HOST = 'slidecast.test';
 const ORIGIN = `http://${HOST}`;
 // Not local direct: as seen through a tunnel.
 const REMOTE = { host: HOST, 'cf-connecting-ip': '203.0.113.7' };
 
-async function setup(t, slugs = ['talk']) {
+async function setup(t, slugs = ['talk'], open = slugs) {
   const dirs = await tempDirs(t);
   for (const s of slugs) await makeDeck(dirs.dataDir, s);
   const app = await buildServer(dirs);
+  await openRooms(app, open);
   onCleanup(t, () => app.close());
   return { app, ctx: app.slidecast, dirs };
 }
@@ -26,22 +27,20 @@ async function adminCookie(app) {
   return `sc_session=${res.cookies[0].value}`;
 }
 
-// What GET / should do, per D7.
-function expected({ decks, featured, admin, publicListing }) {
+// What GET / should do, per D2 of 0003: it follows the open room.
+function expected({ open, admin, publicListing }) {
   if (admin) return 'list';
-  if (featured === 'set') return '302 /b';
-  if (decks === 1) return '302 /a';
-  return publicListing ? 'list' : 'landing';
+  if (open === 1) return '302 /b';
+  return open && publicListing ? 'list' : 'landing';
 }
 
-test('root redirect matrix (D7)', async (t) => {
-  for (const decks of [0, 1, 2]) {
-    for (const featured of ['unset', 'set', 'missing']) {
-      if (featured === 'set' && decks < 2) continue; // featured "b" exists only with 2 decks
-      for (const admin of [false, true]) {
-        for (const publicListing of [false, true]) {
-          const { app, ctx } = await setup(t, ['a', 'b'].slice(0, decks));
-          ctx.config.featured = featured === 'set' ? 'b' : featured === 'missing' ? 'gone' : null;
+test('root redirect matrix (D2 of 0003)', async (t) => {
+  for (const open of [0, 1, 2]) {
+    for (const admin of [false, true]) {
+      for (const publicListing of [false, true]) {
+        {
+          // Three decks, of which "b" (then "c") are open.
+          const { app, ctx } = await setup(t, ['a', 'b', 'c'], ['b', 'c'].slice(0, open));
           ctx.config.publicListing = publicListing;
           const headers = { ...REMOTE };
           if (admin) headers.cookie = await adminCookie(app);
@@ -49,8 +48,8 @@ test('root redirect matrix (D7)', async (t) => {
           const got = res.statusCode === 302 ? `302 ${res.headers.location}`
             : res.body.includes('/_slidecast/list.js') ? 'list'
               : res.body.includes('/_slidecast/landing.js') ? 'landing' : `?${res.statusCode}`;
-          const want = expected({ decks, featured, admin, publicListing });
-          assert.equal(got, want, JSON.stringify({ decks, featured, admin, publicListing }));
+          const want = expected({ open, admin, publicListing });
+          assert.equal(got, want, JSON.stringify({ open, admin, publicListing }));
           const adm = await app.inject({ url: '/admin', headers });
           assert.ok(adm.statusCode < 300 || adm.statusCode >= 400, '/admin is never redirected');
           await app.close();
@@ -125,6 +124,7 @@ test('deck pages, login page, 404 and headers', async (t) => {
   assert.match((await app.inject({ url: '/talk/login', headers: REMOTE })).body, /login\.js/);
   assert.equal((await app.inject({ url: '/nope', headers: REMOTE })).statusCode, 404);
   assert.equal((await app.inject({ url: '/api/nope', headers: REMOTE })).json().error, 'not-found');
+  ctx.config.publicListing = false;
   assert.equal((await app.inject({ url: '/api/decks', headers: REMOTE })).statusCode, 403);
   ctx.config.publicListing = true;
   const [listed] = (await app.inject({ url: '/api/decks', headers: REMOTE })).json().decks;

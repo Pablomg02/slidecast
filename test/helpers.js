@@ -44,8 +44,15 @@ export async function listen(app) {
   return { http: `http://127.0.0.1:${port}`, ws: `ws://127.0.0.1:${port}`, host: `127.0.0.1:${port}` };
 }
 
+// Opens rooms (decks start closed, D1 of 0003).
+export async function openRooms(app, slugs) {
+  for (const slug of slugs) await app.slidecast.rooms.update(slug, { open: true });
+}
+
 // A WebSocket client that buffers messages; next(pred) waits for a match.
-export function wsClient(url, { origin, cookie, headers = {} } = {}) {
+// With `join`, it joins the room as a participant once open (true: as a new
+// one; a string: with that token).
+export function wsClient(url, { origin, cookie, headers = {}, join } = {}) {
   const h = { ...headers };
   if (origin !== null) h.Origin = origin ?? new URL(url.replace(/^ws/, 'http')).origin;
   if (cookie) h.Cookie = cookie;
@@ -64,7 +71,10 @@ export function wsClient(url, { origin, cookie, headers = {} } = {}) {
     socket.onerror = () => { if (socket.readyState !== 1) resolve({ code: 1006, reason: 'error' }); };
   });
   const opened = new Promise((resolve) => {
-    socket.onopen = () => resolve(true);
+    socket.onopen = () => {
+      if (join) socket.send(JSON.stringify({ t: 'join', token: join === true ? null : join }));
+      resolve(true);
+    };
     closedP.then(() => resolve(false));
   });
   return {

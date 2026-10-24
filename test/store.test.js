@@ -33,5 +33,6 @@ test('loadConfig creates a private config with a stable secret', async (t) => {
   const second = await loadConfig(stateDir);
   assert.equal(second.secret, first.secret);
   assert.equal(second.adminHash, null);
-  assert.equal(second.publicListing, false);
+  assert.equal(second.publicListing, true);
+  assert.deepEqual(second.rooms, {});
 });
