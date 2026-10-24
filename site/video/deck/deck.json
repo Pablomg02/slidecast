@@ -1,26 +1,26 @@
 {
   "slidecast": 1,
-  "title": "Planets in motion",
+  "title": "The shape of sound",
   "aspect": "16:9",
   "viewerNav": "back",
   "slides": {
     "intro": {
-      "notes": "Ask first: **how long is a year on Neptune?** Let them guess before moving on."
+      "notes": "Play a violin and a flute on the **same note**. Ask: why do they still sound different?"
     },
-    "why": {
-      "notes": "Two reasons stack up: weaker pull and a longer path.",
+    "mix": {
+      "notes": "A note is never one pure wave: the fundamental sets the pitch, the overtones set the colour.",
       "steps": {
-        "2": "Draw the two orbits on the board if they look lost."
+        "2": "The sum is the **timbre**: every instrument has its own recipe."
       }
     },
-    "try": {
-      "notes": "Everyone moves the slider **on their own phone**. Ask them to find Neptune: about 30 times Earth's distance."
+    "pitch": {
+      "notes": "Everyone moves the slider **on their own phone**. Who can find the A at 440 Hz first?"
     },
     "quiz": {
-      "notes": "Give them ten seconds, then reveal: **Neptune**, 165 years."
+      "notes": "Ten seconds, then reveal: the **piccolo**, around 600 Hz at its lowest."
     },
     "end": {
-      "notes": "Homework: find the year of three planets with the simulation."
+      "notes": "Homework: hum along with the fridge, a glass and a spoon, and find each note."
     }
   }
 }

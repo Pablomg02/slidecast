@@ -3,102 +3,101 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Planets in motion</title>
+<title>The shape of sound</title>
 <style>
-  :root { --ink: #f4f1ea; --muted: #a9b1c7; --sun: #ffb347; --accent: #8b8ff8; --night: #0d1330; }
-  html, body { margin: 0; height: 100%; background: #05070f; overflow: hidden; }
-  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); }
+  :root { --ink: #f6f1ea; --muted: #a39db3; --coral: #ff5e7e; --amber: #ffb347; --teal: #34e0c2; --night: #0c0a14; }
+  html, body { margin: 0; height: 100%; background: #050409; overflow: hidden; }
+  body { font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); }
   #stage {
     position: absolute; left: 0; top: 0; width: 1600px; height: 900px; transform-origin: 0 0; overflow: hidden;
-    background: radial-gradient(circle at 78% 40%, #1d2a6b 0, var(--night) 55%, #070a1c 100%);
+    background: radial-gradient(circle at 85% 110%, #3a1530 0, transparent 55%), radial-gradient(circle at 0 0, #1c1430 0, var(--night) 60%);
   }
-  .slide { position: absolute; inset: 0; padding: 110px 130px; box-sizing: border-box; display: none; }
+  canvas { position: absolute; left: 0; top: 0; z-index: -1; width: 1600px; height: 900px; pointer-events: none; }
+  .slide { position: absolute; inset: 0; padding: 100px 120px; box-sizing: border-box; display: none; }
   .slide.active { display: block; }
-  h1 { font-size: 132px; line-height: 1; margin: 170px 0 34px; letter-spacing: -3px; }
-  h2 { font-size: 76px; margin: 0 0 56px; letter-spacing: -1px; }
-  p, li { font-size: 44px; line-height: 1.4; }
+  .tag { display: inline-block; font-size: 28px; font-weight: 700; letter-spacing: 4px; text-transform: uppercase; color: var(--amber); }
+  h1 { font-family: "Inter Display", "Inter", system-ui, sans-serif; font-size: 168px; font-weight: 850; line-height: .92; margin: 34px 0 30px; letter-spacing: -6px; }
+  h2 { font-family: "Inter Display", "Inter", system-ui, sans-serif; font-size: 84px; font-weight: 800; margin: 0 0 40px; letter-spacing: -2.5px; line-height: 1; }
+  p { font-size: 42px; line-height: 1.35; margin: 0; }
   .muted { color: var(--muted); }
-  .sun { color: var(--sun); }
-  ul { padding-left: 1.1em; margin: 0; width: 900px; }
-  li { margin-bottom: 30px; }
-  [data-step] { opacity: 0; transform: translateY(16px); transition: opacity .4s, transform .4s; }
+  .hot {
+    background: linear-gradient(95deg, var(--coral), var(--amber)); -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  [data-step] { opacity: 0; transform: translateY(18px); transition: opacity .35s, transform .35s; }
   [data-step].shown { opacity: 1; transform: none; }
 
-  .system { position: absolute; right: 90px; top: 150px; width: 600px; height: 600px; }
-  .orbit { position: absolute; left: 50%; top: 50%; border: 2px dashed rgba(169, 177, 199, .28); border-radius: 50%; }
-  .orbit .planet { position: absolute; left: 50%; top: -14px; width: 28px; height: 28px; margin-left: -14px; border-radius: 50%; }
-  .spin { animation: spin linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .star { position: absolute; left: 50%; top: 50%; width: 90px; height: 90px; margin: -45px; border-radius: 50%;
-    background: radial-gradient(circle, #fff3c4, var(--sun) 60%, #ff7a2f); box-shadow: 0 0 80px 20px rgba(255, 160, 60, .45); }
+  /* Mix: three lanes, the sum drawn by the canvas. */
+  .lanes { position: absolute; left: 120px; top: 300px; }
+  .lane { height: 180px; display: flex; flex-direction: column; justify-content: center; font-size: 34px; font-weight: 700; }
+  .lane small { font-size: 26px; font-weight: 500; color: var(--muted); margin-top: 4px; }
+  .lane.f { color: var(--amber); } .lane.o { color: var(--teal); } .lane.s { color: var(--coral); }
 
-  .lab { display: grid; grid-template-columns: 640px 1fr; gap: 40px; align-items: center; }
-  .lab label { display: block; font-size: 36px; color: var(--muted); margin-bottom: 18px; }
-  .lab input { width: 100%; accent-color: var(--sun); height: 40px; }
-  .readout { font-size: 96px; font-weight: 800; margin: 40px 0 0; }
-  .readout small { display: block; font-size: 34px; font-weight: 400; color: var(--muted); }
-  .lab .system { position: relative; right: auto; top: auto; margin-left: auto; }
+  /* Pitch: the slider everyone plays with. */
+  .lab { position: absolute; left: 120px; top: 250px; width: 620px; }
+  .readout { font-family: "Inter Display", "Inter", system-ui, sans-serif; font-size: 200px; font-weight: 850; letter-spacing: -8px; line-height: 1; }
+  .readout small { font-size: 64px; letter-spacing: -1px; margin-left: 10px; color: var(--muted); font-weight: 700; }
+  .note { font-size: 40px; font-weight: 700; margin: 10px 0 48px; }
+  .note span { color: var(--amber); }
+  .lab input { width: 100%; height: 48px; accent-color: var(--coral); }
+  .lab .ends { display: flex; justify-content: space-between; font-size: 26px; color: var(--muted); margin-top: 8px; }
+  .keys { position: absolute; left: 120px; right: 120px; bottom: 70px; height: 90px; display: flex; gap: 4px; }
+  .keys i { flex: 1; border-radius: 0 0 8px 8px; background: rgba(246, 241, 234, .12); transition: background .15s; }
+  .keys i.k { background: rgba(246, 241, 234, .04); }
+  .keys i.on { background: linear-gradient(var(--coral), var(--amber)); }
 
-  .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; width: 1100px; margin-top: 30px; }
-  .choice { font-size: 48px; padding: 30px 40px; border-radius: 22px; background: rgba(255, 255, 255, .07); border: 3px solid rgba(255, 255, 255, .12); transition: all .4s; }
-  .reveal .choice { opacity: .35; }
-  .reveal .choice.right { opacity: 1; border-color: var(--sun); background: rgba(255, 179, 71, .16); }
-  .tag { display: inline-block; font-size: 30px; letter-spacing: 3px; text-transform: uppercase; color: var(--sun); }
+  .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; width: 1200px; margin-top: 50px; }
+  .choice { font-size: 50px; font-weight: 650; padding: 34px 44px; border-radius: 26px; background: rgba(255, 255, 255, .06); border: 3px solid rgba(255, 255, 255, .1); transition: all .4s; }
+  .reveal .choice { opacity: .3; }
+  .reveal .choice.right { opacity: 1; border-color: var(--amber); background: rgba(255, 179, 71, .16); transform: scale(1.03); }
 </style>
 </head>
 <body>
 <div id="stage">
   <section class="slide" id="intro">
-    <span class="tag">Physics · Year 9</span>
-    <h1>Planets<br>in motion</h1>
-    <p class="muted">Why a year on Neptune lasts 165 of ours</p>
-    <div class="system" aria-hidden="true">
-      <div class="star"></div>
-      <div class="orbit spin" style="width:220px;height:220px;margin:-110px;animation-duration:4s"><span class="planet" style="background:#7dd3fc"></span></div>
-      <div class="orbit spin" style="width:380px;height:380px;margin:-190px;animation-duration:9s"><span class="planet" style="background:#f87171"></span></div>
-      <div class="orbit spin" style="width:560px;height:560px;margin:-280px;animation-duration:18s"><span class="planet" style="background:#c4b5fd;width:40px;height:40px;margin-left:-20px;top:-20px"></span></div>
+    <canvas data-draw="field" aria-hidden="true"></canvas>
+    <span class="tag">Physics · Waves</span>
+    <h1>The shape<br>of <span class="hot">sound</span></h1>
+    <p class="muted">Why a violin and a flute never sound alike</p>
+  </section>
+
+  <section class="slide" id="mix" data-steps="3">
+    <canvas data-draw="mix" aria-hidden="true"></canvas>
+    <h2>Every sound is a mix</h2>
+    <div class="lanes">
+      <div class="lane f">Fundamental<small>220 Hz · the note you hear</small></div>
+      <div class="lane o" data-step="1">+ Overtones<small>660 Hz, 1100 Hz…</small></div>
+      <div class="lane s" data-step="2">= Timbre<small>the voice of the instrument</small></div>
     </div>
   </section>
 
-  <section class="slide" id="why" data-steps="3">
-    <h2>The further out, the slower</h2>
-    <ul>
-      <li>The Sun's pull gets <span class="sun">weaker with distance</span>.</li>
-      <li data-step="1">So outer planets move more slowly…</li>
-      <li data-step="2">…along a much longer path. Both add up.</li>
-    </ul>
-  </section>
-
-  <section class="slide" id="try">
-    <h2>Try it yourself</h2>
+  <section class="slide" id="pitch">
+    <canvas data-draw="scope" aria-hidden="true"></canvas>
+    <h2>Find your note</h2>
     <div class="lab" data-interactive>
-      <div>
-        <label for="au">Distance from the Sun</label>
-        <input id="au" type="range" min="0.4" max="30" step="0.1" value="1">
-        <p class="readout"><span id="years">1.0</span> years<small>for one orbit at <span id="dist">1.0</span> × Earth's distance</small></p>
-      </div>
-      <div class="system" aria-hidden="true">
-        <div class="star"></div>
-        <div class="orbit" id="lab-orbit"><span class="planet" style="background:#7dd3fc"></span></div>
-      </div>
+      <div class="readout"><span id="hz">220</span><small>Hz</small></div>
+      <p class="note">Note <span id="note">A3</span></p>
+      <input id="freq" type="range" min="0" max="1000" value="333" aria-label="Frequency">
+      <div class="ends"><span>Low</span><span>High</span></div>
     </div>
+    <div class="keys" id="keys" aria-hidden="true"></div>
   </section>
 
   <section class="slide" id="quiz" data-steps="2">
-    <h2>Quick question</h2>
-    <p class="muted">Which planet has the longest year?</p>
+    <h2>Which one vibrates fastest?</h2>
+    <p class="muted">All four play their lowest note.</p>
     <div class="choices">
-      <div class="choice">A · Mercury</div>
-      <div class="choice">B · Earth</div>
-      <div class="choice">C · Jupiter</div>
-      <div class="choice right">D · Neptune</div>
+      <div class="choice">A · Tuba</div>
+      <div class="choice">B · Cello</div>
+      <div class="choice">C · Your voice</div>
+      <div class="choice right">D · Piccolo</div>
     </div>
   </section>
 
   <section class="slide" id="end">
+    <canvas data-draw="field" aria-hidden="true"></canvas>
     <span class="tag">Homework</span>
     <h1>Questions?</h1>
-    <p class="muted">Find your planet's year with the simulation, at home.</p>
+    <p class="muted">Find the note of three things in your kitchen.</p>
   </section>
 </div>
 
@@ -122,6 +121,7 @@
       });
     });
     document.getElementById('quiz').classList.toggle('reveal', at.slide === 'quiz' && at.step >= 1);
+    window.DECK_AT = at;
   }
 
   function go(index) {
@@ -148,30 +148,110 @@
 })();
 // --- end of the deck API ----------------------------------------------------
 
-// The simulation: Kepler's third law, period = distance^1.5.
+// The pitch lab: a log slider from 55 Hz (A1) to 1760 Hz (A6).
+var NAMES = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+var input = document.getElementById('freq');
+var keys = document.getElementById('keys');
+var FIRST = 33, LAST = 93; // MIDI A1..A6
+for (var m = FIRST; m <= LAST; m++) {
+  var key = document.createElement('i');
+  if ([1, 3, 6, 8, 10].indexOf(m % 12) >= 0) key.className = 'k';
+  keys.appendChild(key);
+}
+function freq() { return 55 * Math.pow(32, Number(input.value) / 1000); }
+function updateLab() {
+  var f = freq();
+  var midi = Math.round(12 * Math.log2(f / 440) + 69);
+  document.getElementById('hz').textContent = Math.round(f);
+  document.getElementById('note').textContent = NAMES[midi % 12] + (Math.floor(midi / 12) - 1);
+  Array.prototype.forEach.call(keys.children, function (k, i) { k.classList.toggle('on', i + FIRST === midi); });
+}
+input.addEventListener('input', updateLab);
+updateLab();
+
+// Canvas drawings, only for the slide on screen.
 (function () {
-  var input = document.getElementById('au');
-  var orbit = document.getElementById('lab-orbit');
-  var angle = 0, last = performance.now();
-  function update() {
-    var au = Number(input.value);
-    var size = 120 + (au / 30) * 440;
-    orbit.style.width = orbit.style.height = size + 'px';
-    orbit.style.margin = (-size / 2) + 'px';
-    document.getElementById('years').textContent = Math.pow(au, 1.5).toFixed(1);
-    document.getElementById('dist').textContent = au.toFixed(1);
+  var canvases = Array.prototype.slice.call(document.querySelectorAll('canvas[data-draw]'));
+  canvases.forEach(function (c) { c.width = 1600; c.height = 900; });
+  var shown = { mix: 0 };
+
+  function line(g, y0, amp, fn, from, to) {
+    g.beginPath();
+    for (var x = from; x <= to; x += 3) {
+      var y = y0 + amp * fn(x);
+      if (x === from) g.moveTo(x, y); else g.lineTo(x, y);
+    }
+    g.stroke();
   }
-  // On screen an orbit takes 1.6 s × √(real years), so far planets still move.
-  function tick(now) {
-    var seconds = 1.6 * Math.sqrt(Math.pow(Number(input.value), 1.5));
-    angle += (now - last) / 1000 * 360 / seconds;
-    last = now;
-    orbit.style.transform = 'rotate(' + angle + 'deg)';
-    requestAnimationFrame(tick);
+  // A cheap glow: the same line, wide and faint, then drawn again on top.
+  function glow(g, width, y0, amp, fn, from, to) {
+    var alpha = g.globalAlpha;
+    g.lineWidth = width * 4; g.globalAlpha = alpha * 0.14; line(g, y0, amp, fn, from, to);
+    g.lineWidth = width; g.globalAlpha = alpha; line(g, y0, amp, fn, from, to);
   }
-  input.addEventListener('input', update);
-  update();
-  requestAnimationFrame(tick);
+  function grad(g, a, b) {
+    var gr = g.createLinearGradient(0, 0, 1600, 0);
+    gr.addColorStop(0, a); gr.addColorStop(1, b);
+    return gr;
+  }
+
+  var draw = {
+    // A field of drifting waves along the bottom of the slide.
+    field: function (g, t) {
+      g.lineWidth = 3;
+      for (var i = 0; i < 9; i++) {
+        var k = i / 8;
+        g.strokeStyle = grad(g, 'rgba(255,94,126,' + (0.15 + 0.6 * k) + ')', 'rgba(255,179,71,' + (0.15 + 0.6 * k) + ')');
+        line(g, 640 + i * 22, 70 + 40 * Math.sin(t * 0.7 + i), function (x) {
+          return Math.sin(x / (170 - i * 9) + t * (1.2 + k) + i * 0.6) * Math.sin(x / 520 + t * 0.4);
+        }, 0, 1600);
+      }
+    },
+    // Fundamental, overtone and their sum, one lane each.
+    mix: function (g, t) {
+      var at = window.DECK_AT || { step: 0 };
+      shown.mix += ((at.step + 1) - shown.mix) * 0.12;
+      var f = function (x) { return Math.sin(x / 40 - t * 3); };
+      var o = function (x) { return Math.sin(x / (40 / 3) - t * 9) * 0.45 + Math.sin(x / 8 - t * 15) * 0.2; };
+      var from = 560, to = 1480;
+      g.lineWidth = 5;
+      g.strokeStyle = '#ffb347'; line(g, 390, 60, f, from, to);
+      if (shown.mix > 1.05) {
+        g.globalAlpha = Math.min(1, shown.mix - 1);
+        g.strokeStyle = '#34e0c2'; line(g, 570, 60, o, from, from + (to - from) * Math.min(1, shown.mix - 1));
+      }
+      if (shown.mix > 2.05) {
+        g.globalAlpha = Math.min(1, shown.mix - 2);
+        g.strokeStyle = grad(g, '#ff5e7e', '#ffb347');
+        glow(g, 8, 750, 55, function (x) { return f(x) + o(x); }, from, from + (to - from) * Math.min(1, shown.mix - 2));
+      }
+      g.globalAlpha = 1;
+    },
+    // An oscilloscope: more cycles across the screen the higher the note.
+    scope: function (g, t) {
+      var cycles = 1.5 * Math.pow(2, Number(input.value) / 300);
+      var from = 820, to = 1480, mid = 470;
+      g.strokeStyle = 'rgba(246,241,234,.08)'; g.lineWidth = 2;
+      g.strokeRect(from - 20, mid - 210, to - from + 40, 420);
+      g.beginPath(); g.moveTo(from, mid); g.lineTo(to, mid); g.stroke();
+      g.strokeStyle = grad(g, '#ff5e7e', '#ffb347');
+      glow(g, 6, mid, 160, function (x) {
+        return Math.sin((x - from) / (to - from) * cycles * 2 * Math.PI - t * 6);
+      }, from, to);
+    },
+  };
+
+  function frame(now) {
+    var t = now / 1000;
+    canvases.forEach(function (c) {
+      if (!c.parentNode.classList.contains('active')) return;
+      var g = c.getContext('2d');
+      g.clearRect(0, 0, 1600, 900);
+      draw[c.dataset.draw](g, t);
+    });
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
 })();
 
 // Scale the 1600×900 stage to the window.

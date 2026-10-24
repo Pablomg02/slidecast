@@ -86,9 +86,9 @@ export default {
 
     // Video
     ['>See it for real</p>', '>Míralo en acción</p>'],
-    ['<h2>One deck, three screens, perfectly in step</h2>', '<h2>Una presentación, tres pantallas, perfectamente sincronizadas</h2>'],
-    ['<p>Recorded straight from slidecast: the presenter view on a laptop, the projector and a phone in the audience.</p>',
-      '<p>Grabado directamente desde slidecast: la vista de presentador en un portátil, el proyector y un móvil entre el público.</p>'],
+    ['<h2>slidecast in under a minute</h2>', '<h2>slidecast en menos de un minuto</h2>'],
+    ['<p>The problem it solves, a class with a laptop, a projector and a phone, and the rest of what it can do. Recorded straight from slidecast.</p>',
+      '<p>El problema que resuelve, una clase con un portátil, un proyector y un móvil, y todo lo demás que puede hacer. Grabado directamente desde slidecast.</p>'],
 
     // Use cases
     ['<h2>One deck, any room</h2>', '<h2>Una presentación, cualquier sala</h2>'],
