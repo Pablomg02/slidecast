@@ -69,8 +69,12 @@ h1, h2, h3 { margin: 0; letter-spacing: -.03em; line-height: 1.08; }
 }
 .brand { display: flex; align-items: center; gap: 10px; color: var(--ink); font-weight: 700; font-size: 19px; letter-spacing: -.02em; }
 .nav nav { display: flex; gap: 26px; margin-left: auto; }
-.nav nav a { color: var(--muted); font-size: 15px; font-weight: 500; }
+.nav nav a { color: var(--muted); font-size: 15px; font-weight: 500; white-space: nowrap; }
 .nav nav a:hover { color: var(--ink); }
+.lang { display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line-strong); }
+.lang a { padding: 4px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: .06em; color: var(--muted); }
+.lang a:hover { color: var(--ink); }
+.lang a[aria-current] { color: #0b0d18; background: var(--grad); }
 
 /* Hero */
 .hero {
@@ -657,6 +661,11 @@ h1, h2, h3 { margin: 0; letter-spacing: -.03em; line-height: 1.08; }
 .js .hero .reveal { transition-delay: calc(var(--i, 0) * 110ms); }
 
 /* ---------------------------------------------------------------- Mobile */
+@media (max-width: 1100px) {
+  .nav { gap: 18px; }
+  .nav nav { gap: 16px; }
+  .nav nav a { font-size: 14px; }
+}
 @media (max-width: 960px) {
   .grid { grid-template-columns: 1fr 1fr; }
   .case-body { grid-template-columns: 1fr; }
@@ -679,7 +688,7 @@ h1, h2, h3 { margin: 0; letter-spacing: -.03em; line-height: 1.08; }
   body { font-size: 16px; }
   .nav { gap: 12px; }
   .nav nav { display: none; }
-  .nav .btn { margin-left: auto; }
+  .nav .lang { margin-left: auto; }
   .story { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 0 16px; }
   .stage-wrap {
     grid-column: 1; z-index: 5; height: auto; padding: 14px 0 26px; margin: 0 -16px;
