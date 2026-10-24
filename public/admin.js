@@ -150,7 +150,7 @@ function render({ decks, single }) {
   app.append(el('h2', {}, t('appearance')), appearanceForm());
 }
 
-// Site name, home page message, accent colour and the credit (all cosmetic).
+// Site name, home page message, accent colour, logo and credit (all cosmetic).
 function appearanceForm() {
   const look = settings.appearance;
   const name = el('input', { type: 'text', id: 'site-name', value: look.siteName ?? '', placeholder: 'Slidecast', maxLength: 60 });
@@ -169,6 +169,7 @@ function appearanceForm() {
       color.value = DEFAULT_ACCENT;
     },
   }, t('resetDefault'));
+  const showLogo = el('input', { type: 'checkbox', id: 'show-logo', checked: look.showLogo !== false });
   const showCredit = el('input', { type: 'checkbox', id: 'show-credit', checked: look.showCredit !== false });
   const msg = el('span.status');
   const form = el('form.card.appearance-form', {},
@@ -178,13 +179,14 @@ function appearanceForm() {
     el('p.hint.muted', {}, t('landingTextHint', { site })),
     el('label', { htmlFor: 'accent-color' }, t('accentColor')),
     el('div.row.accent-row', {}, color, reset),
-    el('label.inline.credit-toggle', { htmlFor: 'show-credit' }, showCredit, ` ${t('showCredit')}`),
+    el('label.inline.logo-toggle', { htmlFor: 'show-logo' }, showLogo, ` ${t('showLogo')}`),
+    el('label.inline', { htmlFor: 'show-credit' }, showCredit, ` ${t('showCredit')}`),
     el('div.row', {}, el('button.primary', { type: 'submit' }, t('save')), msg));
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const res = await api('/api/admin/settings', {
       method: 'PUT',
-      body: { appearance: { siteName: name.value, landingText: text.value, accent, showCredit: showCredit.checked } },
+      body: { appearance: { siteName: name.value, landingText: text.value, accent, showLogo: showLogo.checked, showCredit: showCredit.checked } },
     });
     status(msg, res.ok ? t('saved') : errorText(res), res.ok ? 'ok' : 'error');
     // The name and colour belong to the page itself: reload to show them.

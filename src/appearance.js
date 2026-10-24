@@ -1,11 +1,12 @@
 // Cosmetic settings the person running the server can change from /admin:
-// site name, home page text, accent colour and the "made with" credit.
+// site name, home page text, accent colour, the logo by the name and the
+// "made with" credit.
 // Nothing here changes behaviour, only how the shell pages look.
 
 export const REPO_URL = 'https://github.com/Pablomg02/slidecast';
 
 export function defaultAppearance() {
-  return { siteName: null, landingText: null, accent: null, showCredit: true };
+  return { siteName: null, landingText: null, accent: null, showLogo: true, showCredit: true };
 }
 
 const LIMITS = { siteName: 60, landingText: 300 };
@@ -25,9 +26,9 @@ export function parseAppearance(input) {
       if (value === null || value === '') out.accent = null;
       else if (typeof value === 'string' && HEX.test(value)) out.accent = value.toLowerCase();
       else return null;
-    } else if (key === 'showCredit') {
+    } else if (key === 'showLogo' || key === 'showCredit') {
       if (typeof value !== 'boolean') return null;
-      out.showCredit = value;
+      out[key] = value;
     } else {
       return null;
     }

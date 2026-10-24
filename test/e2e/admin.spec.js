@@ -143,7 +143,7 @@ test('Spanish sign-in headings', async ({ browser }) => {
   await context.close();
 });
 
-test('appearance: site name, home message, accent and credit', async ({ browser }) => {
+test('appearance: site name, home message, accent, logo and credit', async ({ browser }) => {
   const own = await startServer();
   try {
     const context = await browser.newContext({ locale: 'es-ES' });
@@ -151,11 +151,13 @@ test('appearance: site name, home message, accent and credit', async ({ browser 
     await page.goto(`${own.url}/demo`);
     await expect(page.locator('.brand')).toHaveText('Slidecast');
     await expect(page.locator('.credit a')).toHaveAttribute('href', 'https://github.com/Pablomg02/slidecast');
+    await expect(page.locator('.brand .brand-logo')).toHaveCount(1);
 
     await page.goto(`${own.url}/admin`); // local direct, no admin password
     await page.fill('#site-name', 'Charlas de Pablo');
     await page.fill('#landing-text', 'Pide el enlace en clase.');
     await page.locator('#accent-color').fill('#e11d48');
+    await page.uncheck('#show-logo');
     await page.uncheck('#show-credit');
     await page.click('.appearance-form button[type=submit]');
     await expect(page.locator('.appearance-form .status')).toHaveText('Guardado');
@@ -165,7 +167,9 @@ test('appearance: site name, home message, accent and credit', async ({ browser 
     await page.goto(`${own.url}/demo`);
     await expect(page).toHaveTitle(/· Charlas de Pablo$/);
     await expect(page.locator('.brand')).toHaveText('Charlas de Pablo');
+    await expect(page.locator('.brand .brand-logo')).toHaveCount(0);
     await expect(page.locator('.credit')).toHaveCount(0);
+    await expect(page.locator('#app')).not.toContainText('null');
     expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()))
       .toBe('#e11d48');
     await context.close();

@@ -17,5 +17,4 @@ app.append(el('ul.deck-grid', {}, decks.map((d) => el('li.deck-card', {},
     el('span.deck-actions', {},
       el('a', { href: `/${d.slug}/view` }, t('viewer')),
       el('a.quiet', { href: `/${d.slug}/present` }, t('presenter'))))))));
-const foot = credit();
-if (foot) app.append(foot);
+app.append(credit());

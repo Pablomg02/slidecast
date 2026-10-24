@@ -134,7 +134,11 @@ label { display: block; font-weight: 600; font-size: .92rem; margin: 1rem 0 .4re
 
 /* "Made with Slidecast" */
 .credit { margin-top: 4rem; text-align: center; font-size: .82rem; }
-.credit a { color: var(--muted); text-decoration: none; }
+.credit a {
+  display: inline-flex; align-items: center; gap: .3rem;
+  color: var(--muted); text-decoration: none;
+}
+.credit-logo { width: 1.6rem; height: 1.6rem; margin: -.3rem -.1rem; }
 .credit a:hover { color: var(--ink); text-decoration: underline; }
 
 /* simple pages */
@@ -566,7 +570,7 @@ dialog .password-control { margin-top: 1.25rem; }
 .hint { font-size: .88rem; margin: .45rem 0 0; }
 .appearance-form textarea { resize: vertical; }
 .appearance-form .accent-row input[type=color] { width: 3.2rem; height: 2.4rem; padding: .15rem; cursor: pointer; }
-.appearance-form .credit-toggle { margin-top: 1.25rem; }
+.appearance-form .logo-toggle { margin-top: 1.25rem; }
 .appearance-form > .row:last-child { margin-top: 1.25rem; }
 .settings > .password-control:first-child, .settings > .listing + .password-control { margin-top: 1.5rem; }
 .settings > .password-control:first-child { margin-top: 0; padding-top: 0; border-top: 0; }

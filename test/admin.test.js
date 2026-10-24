@@ -125,7 +125,7 @@ test('settings, featured, PATCH and DELETE', async (t) => {
   assert.deepEqual(s.json(), {
     featured: 'talk',
     publicListing: true,
-    appearance: { siteName: null, landingText: null, accent: null, showCredit: true },
+    appearance: { siteName: null, landingText: null, accent: null, showLogo: true, showCredit: true },
   });
   const patch = await as({ method: 'PATCH', url: '/api/admin/decks/talk', payload: { title: 'New title', viewerNav: 'follow' } });
   assert.deepEqual(patch.json(), { title: 'New title', viewerNav: 'follow', aspect: '16:9' });
@@ -142,16 +142,16 @@ test('appearance: validated, saved, and shown on the pages', async (t) => {
   const { as, app, dirs } = await setup(t);
   for (const bad of [
     { siteName: 'x'.repeat(61) }, { landingText: 3 }, { accent: 'red' }, { accent: '#12345' },
-    { showCredit: 'no' }, { other: 1 }, 'text',
+    { showLogo: 1 }, { showCredit: 'no' }, { other: 1 }, 'text',
   ]) {
     assert.equal((await as({ method: 'PUT', url: '/api/admin/settings', payload: { appearance: bad } })).statusCode, 400, JSON.stringify(bad));
   }
   const s = await as({
     method: 'PUT', url: '/api/admin/settings',
-    payload: { appearance: { siteName: ' Charlas <b>&</b> "Pablo" ', landingText: 'Hola', accent: '#E11D48', showCredit: false } },
+    payload: { appearance: { siteName: ' Charlas <b>&</b> "Pablo" ', landingText: 'Hola', accent: '#E11D48', showLogo: false, showCredit: false } },
   });
   assert.equal(s.statusCode, 200);
-  assert.deepEqual(s.json().appearance, { siteName: 'Charlas <b>&</b> "Pablo"', landingText: 'Hola', accent: '#e11d48', showCredit: false });
+  assert.deepEqual(s.json().appearance, { siteName: 'Charlas <b>&</b> "Pablo"', landingText: 'Hola', accent: '#e11d48', showLogo: false, showCredit: false });
   const saved = JSON.parse(await readFile(join(dirs.stateDir, 'config.json'), 'utf8'));
   assert.equal(saved.appearance.accent, '#e11d48');
 
@@ -165,7 +165,7 @@ test('appearance: validated, saved, and shown on the pages', async (t) => {
 
   // A partial update keeps the other fields; empty strings and null reset.
   const r = await as({ method: 'PUT', url: '/api/admin/settings', payload: { appearance: { siteName: '', accent: null } } });
-  assert.deepEqual(r.json().appearance, { siteName: null, landingText: 'Hola', accent: null, showCredit: false });
+  assert.deepEqual(r.json().appearance, { siteName: null, landingText: 'Hola', accent: null, showLogo: false, showCredit: false });
   const plain = await app.inject({ url: '/talk', headers: REMOTE });
   assert.match(plain.body, /<title>Slidecast<\/title>/);
   assert.doesNotMatch(plain.body, /theme\.css/);

@@ -80,15 +80,16 @@ export function icon(name, cls = 'icon') {
 }
 
 export function brand() {
-  return el('a.brand', { href: '/' }, logo('brand-logo'), siteName);
+  return el('a.brand', { href: '/' }, appearance.showLogo === false ? null : logo('brand-logo'), siteName);
 }
 
-// "Made with Slidecast" at the foot of the public pages, unless turned off.
+// "Made with Slidecast" at the foot of the public pages, unless turned off
+// (then an empty fragment, which the pages can append as it is).
 export function credit() {
-  if (appearance.showCredit === false) return null;
+  if (appearance.showCredit === false) return document.createDocumentFragment();
   return el('footer.credit', {}, el('a', {
     href: 'https://github.com/Pablomg02/slidecast', target: '_blank', rel: 'noopener',
-  }, t('madeWith', { name: 'Slidecast' })));
+  }, logo('credit-logo'), t('madeWith', { name: 'Slidecast' })));
 }
 
 export function logo(cls) {

@@ -112,6 +112,7 @@ const STRINGS = {
     landingTextHint: 'Shown at {site} when there is no home page or list. Empty: the default message.',
     accentColor: 'Accent colour',
     resetDefault: 'Default',
+    showLogo: 'Show the logo next to the site name at the top of each page',
     showCredit: 'Show "Made with Slidecast" and a link to the project at the bottom of the public pages',
   },
   es: {
@@ -225,6 +226,7 @@ const STRINGS = {
     landingTextHint: 'Se muestra en {site} cuando no hay portada ni lista. Vacío: el mensaje por defecto.',
     accentColor: 'Color de acento',
     resetDefault: 'Por defecto',
+    showLogo: 'Mostrar el logo junto al nombre del sitio arriba en cada página',
     showCredit: 'Mostrar «Hecho con Slidecast» y un enlace al proyecto al pie de las páginas públicas',
   },
 };
