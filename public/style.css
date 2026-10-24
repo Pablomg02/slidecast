@@ -130,12 +130,7 @@ label { display: block; font-weight: 600; font-size: .92rem; margin: 1rem 0 .4re
   font-weight: 700; font-size: 1.05rem; letter-spacing: -.02em; color: var(--ink); text-decoration: none;
 }
 .brand:hover { color: var(--ink); }
-.brand-mark {
-  display: inline-grid; place-items: center; width: 1.9rem; height: 1.9rem; border-radius: 9px;
-  background: linear-gradient(135deg, var(--accent), #a855f7); color: #fff;
-  box-shadow: 0 4px 12px -4px var(--accent);
-}
-.brand-mark .icon { width: 1.05rem; height: 1.05rem; stroke-width: 2; }
+.brand-logo { width: 2.6rem; height: 2.6rem; margin: -.35rem -.2rem; }
 
 /* simple pages */
 .page-landing, .page-list, .page-selector, .page-login, .page-notfound, .page-admin-login {
@@ -159,9 +154,8 @@ label { display: block; font-weight: 600; font-size: .92rem; margin: 1rem 0 .4re
 .hero-mark {
   display: inline-grid; place-items: center; width: 4rem; height: 4rem; margin-bottom: 1.5rem;
   border-radius: 20px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow);
-  color: var(--accent);
 }
-.hero-mark .icon { width: 1.8rem; height: 1.8rem; }
+.hero-logo { width: 2.9rem; height: 2.9rem; }
 .hero-code {
   font-size: 5rem; font-weight: 800; letter-spacing: -.05em; line-height: 1; margin: 0 0 1rem !important;
   background: linear-gradient(135deg, var(--accent), #a855f7); -webkit-background-clip: text; background-clip: text; color: transparent;

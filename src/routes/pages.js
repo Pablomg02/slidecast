@@ -36,6 +36,9 @@ export function registerPages(app, ctx) {
   });
 
   app.get('/robots.txt', async (req, reply) => reply.type('text/plain').send('User-agent: *\nDisallow: /\n'));
+  // Browsers ask for /favicon.ico on their own; a PNG under that name works.
+  const favicon = readFileSync(join(PUBLIC_DIR, 'favicon.png'));
+  app.get('/favicon.ico', async (req, reply) => reply.type('image/png').header('Cache-Control', 'public, max-age=86400').send(favicon));
 
   async function deckPage(req, reply, { need, name }) {
     const { slug } = req.params;

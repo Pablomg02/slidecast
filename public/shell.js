@@ -58,7 +58,6 @@ const ICONS = {
   arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
   chevron: '<path d="M6 15l6-6 6 6"/>',
   more: '<circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/>',
-  deck: '<rect x="3" y="5" width="14" height="10" rx="2"/><path d="M7 19h12a2 2 0 0 0 2-2V9"/>',
 };
 
 export function icon(name, cls = 'icon') {
@@ -71,7 +70,11 @@ export function icon(name, cls = 'icon') {
 }
 
 export function brand() {
-  return el('a.brand', { href: '/' }, el('span.brand-mark', {}, icon('deck')), 'slidecast');
+  return el('a.brand', { href: '/' }, logo('brand-logo'), 'slidecast');
+}
+
+export function logo(cls) {
+  return el(`img.${cls}`, { src: '/_slidecast/logo.svg', alt: '' });
 }
 
 // A deck's thumbnail: its cover image when it has one, otherwise the deck

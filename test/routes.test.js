@@ -162,3 +162,16 @@ test('deck list: cover image and locked decks', async (t) => {
   // A cover path that leaves the deck folder is ignored (falls back to cover.png).
   assert.equal((await ctx.decks.get('secret')).cover, 'cover.png');
 });
+
+test('favicon and logo are served', async (t) => {
+  const { app } = await setup(t);
+  const ico = await app.inject({ url: '/favicon.ico', headers: REMOTE });
+  assert.equal(ico.statusCode, 200);
+  assert.equal(ico.headers['content-type'], 'image/png');
+  assert.deepEqual([...ico.rawPayload.subarray(1, 4)].map((c) => String.fromCharCode(c)).join(''), 'PNG');
+  const svg = await app.inject({ url: '/_slidecast/logo.svg', headers: REMOTE });
+  assert.equal(svg.statusCode, 200);
+  assert.match(svg.headers['content-type'], /^image\/svg\+xml/);
+  const page = await app.inject({ url: '/talk', headers: REMOTE });
+  assert.match(page.body, /<link rel="icon" href="\/_slidecast\/logo.svg"/);
+});
