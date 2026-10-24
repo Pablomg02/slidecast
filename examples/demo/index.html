@@ -31,6 +31,9 @@
   td { padding: 14px 40px 14px 0; vertical-align: top; }
   code { font: 36px ui-monospace, Menlo, Consolas, monospace; background: #ebe7dd; padding: 2px 10px; border-radius: 8px; }
   .footer { position: absolute; left: 140px; bottom: 60px; font-size: 28px; color: var(--muted); }
+  .wave-demo { margin-top: 1rem; display: flex; flex-direction: column; gap: .4rem; align-items: flex-start; }
+  .wave-demo label { font-size: .85rem; color: var(--muted); }
+  .wave-demo svg { background: rgba(127,127,127,.08); border-radius: 8px; }
 </style>
 </head>
 <body>
@@ -70,6 +73,19 @@
     </table>
   </section>
 
+  <section class="slide" id="interactive">
+    <h2>Interactive slides</h2>
+    <p>Slides are plain HTML, so a slider can redraw a plot live. Every viewer plays on
+       their own screen — state inside a slide is not synced, by design.</p>
+    <div class="wave-demo">
+      <svg id="wave-plot" viewBox="0 0 320 120" width="320" height="120" role="img" aria-label="A sine wave redrawn by the sliders">
+        <path id="wave-path" fill="none" stroke="var(--accent, #4a7dff)" stroke-width="2"/>
+      </svg>
+      <label>amplitude <input type="range" id="wave-amp" min="0" max="50" value="32"></label>
+      <label>frequency <input type="range" id="wave-freq" min="1" max="8" value="3"></label>
+    </div>
+  </section>
+
   <section class="slide" id="end">
     <h2>Make your own</h2>
     <p>A deck is a folder with <code>index.html</code> and an optional <code>deck.json</code> for notes.</p>
@@ -77,6 +93,28 @@
   </section>
 </div>
 
+<script>
+// --- interactive wave demo (issue: an interactive slide in the demo) ---------
+(function () {
+  var path = document.getElementById('wave-path');
+  var amp = document.getElementById('wave-amp');
+  var freq = document.getElementById('wave-freq');
+  if (!path || !amp || !freq) return;
+
+  function draw() {
+    var a = Number(amp.value), k = Number(freq.value), d = '';
+    for (var x = 0; x <= 320; x += 4) {
+      var y = 60 - a * Math.sin((x / 320) * k * 2 * Math.PI);
+      d += (x ? ' L ' : 'M ') + x + ' ' + y.toFixed(1);
+    }
+    path.setAttribute('d', d);
+  }
+
+  amp.addEventListener('input', draw);
+  freq.addEventListener('input', draw);
+  draw();
+})();
+</script>
 <script>
 // --- slidecast native deck API: minimal engine -------------------------------
 (function () {

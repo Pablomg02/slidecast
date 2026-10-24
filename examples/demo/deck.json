@@ -22,6 +22,9 @@
     },
     "end": {
       "notes": "Edit these notes in the admin panel: `/admin`, then **Edit notes**."
+    },
+    "interactive": {
+      "notes": "Drag either slider: the SVG redraws instantly, on each viewer's own screen. State inside a slide is never synced, by design \u2014 the presenter moving on does not stop anyone playing."
     }
   }
 }
