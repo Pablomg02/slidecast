@@ -6,6 +6,8 @@ include breaking changes, always listed here.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-25
+
 - Rooms: each deck is a room the admin opens and closes, from the admin
   panel or the presenter view; "Open only this one" closes the others. Rooms
   start closed, viewers of a closed room wait and join by themselves when it
@@ -61,6 +63,7 @@ First public release.
   Compose.
 - English and Spanish interface.
 
-[Unreleased]: https://github.com/Pablomg02/slidecast/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/Pablomg02/slidecast/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Pablomg02/slidecast/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/Pablomg02/slidecast/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Pablomg02/slidecast/releases/tag/v0.1.0
