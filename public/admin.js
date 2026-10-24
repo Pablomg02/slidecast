@@ -60,6 +60,8 @@ let settings = null;
 // --accent in style.css, shown by the colour input while no accent is set.
 const DEFAULT_ACCENT = '#4f46e5';
 
+const roomCells = new Map(); // slug → redraws that deck's room cell (roomCell)
+
 async function load() {
   const [decksRes, settingsRes] = await Promise.all([api('/api/admin/decks'), api('/api/admin/settings')]);
   if (decksRes.status === 403) {
@@ -72,6 +74,7 @@ async function load() {
 
 function render({ decks, single }) {
   app.replaceChildren();
+  roomCells.clear();
   app.append(el('header.admin-header', {},
     el('div.admin-title', {}, brand(), el('h1', {}, t('admin'))),
     el('div.row', {},
@@ -220,16 +223,27 @@ function uploadForm() {
 // Open / closed switch, live counts and "open only this one" (D1, D3 of 0003).
 // In single-deck mode the room is always open.
 function roomCell(d, { single, several }) {
-  const { room } = d;
-  const counts = el('span.room-counts.muted', { hidden: !room.open },
-    t('roomCounts', { v: room.viewers, p: room.presenters, h: room.raised }));
-  const toggle = el(`button.small.room-toggle${room.open ? '.is-open' : ''}`, {
-    type: 'button', disabled: single, 'aria-pressed': String(room.open),
-    onclick: () => setRoom(d.slug, { open: !room.open }),
-  }, el('span.dot'), room.open ? t('roomOpen') : t('roomClosed'));
+  const room = { ...d.room };
+  const counts = el('span.room-counts.muted');
+  const label = document.createTextNode('');
+  const toggle = el('button.small.room-toggle', {
+    type: 'button', disabled: single, onclick: () => setRoom(d.slug, { open: !room.open }),
+  }, el('span.dot'), label);
   const only = several && !single
     ? el('button.small.room-only', { type: 'button', onclick: () => setRoom(d.slug, { only: true }) }, t('openOnly'))
     : null;
+  // Redrawn in place by the poll below, so a room opened or closed elsewhere
+  // (the presenter view, another tab) shows here and the switch sends the right value.
+  const update = (fresh) => {
+    Object.assign(room, fresh);
+    toggle.classList.toggle('is-open', room.open);
+    toggle.setAttribute('aria-pressed', String(room.open));
+    label.textContent = room.open ? t('roomOpen') : t('roomClosed');
+    counts.hidden = !room.open;
+    counts.textContent = t('roomCounts', { v: room.viewers, p: room.presenters, h: room.raised });
+  };
+  update(room);
+  roomCells.set(d.slug, update);
   return el('div.room-cell', {}, toggle, only, counts);
 }
 
@@ -238,15 +252,12 @@ async function setRoom(slug, patch) {
   if (res.ok) await load();
 }
 
-// Live counts, refreshed in place (a full redraw would reset the forms).
+// Room state and live counts, refreshed in place (a full redraw would reset the forms).
 setInterval(async () => {
   if (document.hidden || document.querySelector('dialog[open]')) return;
   const res = await api('/api/admin/decks');
   if (!res.ok) return;
-  for (const d of res.data.decks) {
-    const cell = document.querySelector(`tr[data-slug="${d.slug}"] .room-counts`);
-    if (cell) cell.textContent = t('roomCounts', { v: d.room.viewers, p: d.room.presenters, h: d.room.raised });
-  }
+  for (const d of res.data.decks) roomCells.get(d.slug)?.(d.room);
 }, 5000);
 
 function confirmDelete(slug) {

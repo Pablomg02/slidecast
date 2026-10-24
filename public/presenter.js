@@ -47,6 +47,7 @@ const viewers = el('span.p-viewers', { id: 'viewers' }, t('viewersCount', { n: 0
 const roomClosed = el('span.badge.badge-warn.p-room-closed', { id: 'room-closed', hidden: true }, t('roomClosedBadge'));
 // Only the admin opens and closes rooms (D3 of 0003); closing asks once more.
 let closeArmed = 0;
+let roomErrorUntil = 0;
 const roomBtn = el('button', { id: 'room-toggle', hidden: !deck.canAdmin, onclick: () => toggleRoom() });
 const clock = el('span.p-clock', { id: 'clock' });
 const timerText = el('span.p-timer-text', { id: 'timer' }, '00:00');
@@ -230,7 +231,7 @@ setTab(tab);
 function renderRoom(room) {
   viewers.textContent = t('viewersCount', { n: room.viewers });
   roomClosed.hidden = room.open;
-  if (Date.now() >= closeArmed) roomBtn.textContent = room.open ? t('closeRoom') : t('openRoom');
+  if (Date.now() >= Math.max(closeArmed, roomErrorUntil)) roomBtn.textContent = room.open ? t('closeRoom') : t('openRoom');
   roomBtn.classList.toggle('danger', room.open);
 }
 
@@ -245,8 +246,14 @@ async function toggleRoom() {
   }
   closeArmed = 0;
   roomBtn.disabled = true;
-  await api(`/api/admin/rooms/${encodeURIComponent(slug)}`, { method: 'PATCH', body: { open: !room.open } });
+  const res = await api(`/api/admin/rooms/${encodeURIComponent(slug)}`, { method: 'PATCH', body: { open: !room.open } })
+    .catch(() => ({ ok: false, status: 0 }));
   roomBtn.disabled = false;
+  if (res.ok) return;
+  // The button itself says it failed for a moment (session expired, network down).
+  roomErrorUntil = Date.now() + 3000;
+  roomBtn.textContent = t('error', { code: res.data?.error ?? res.status });
+  setTimeout(() => renderRoom(panels.room), 3100);
 }
 
 // Another device took the last presenter place: offer to watch instead (D8 of 0003).

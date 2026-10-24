@@ -370,6 +370,19 @@ test('owner status is checked live: an admin whose session was revoked can be re
   assert.equal((await target.closed).code, 4401);
 });
 
+test('the server\'s own computer is marked local, so no one is offered to remove it', async (t) => {
+  const { app, ws } = await setup(t);
+  await app.slidecast.auth.setPassword('admin', null, 'admin-pass1');
+  const local = ws('presenter'); // local direct, no session, not the owner once there is an admin password
+  await local.next(isRoom());
+  const owner = ws('presenter', { cookie: await loginCookie(app, 'admin', 'admin-pass1'), headers: PROXIED });
+  const room = await owner.next(isRoom((m) => m.presenters.length === 2));
+  const device = room.presenters.find((d) => !d.you);
+  assert.equal(device.owner, false);
+  assert.equal(device.local, true);
+  assert.equal(room.presenters.find((d) => d.you).local, false);
+});
+
 test('queue positions move up when someone ahead is forgotten; a kick never reuses a number', async (t) => {
   const { viewer, ws } = await setup(t, { opts: { graceMs: 200 } });
   const a = viewer();

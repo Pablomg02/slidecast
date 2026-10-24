@@ -199,3 +199,40 @@ test('a viewer that waited in a closed room and lost its connection still gets t
   await expect(v.locator('.join-dialog')).toBeVisible();
   await context.close();
 });
+
+test('the room button says so when opening or closing fails, and stays usable', async ({ browser }) => {
+  const { page: p, context: pc } = await presenterPage(browser);
+  const btn = p.locator('#room-toggle');
+  await expect(btn).toHaveText('Close room');
+  await p.route('**/api/admin/rooms/demo', (route) => route.fulfill({ status: 403, json: { error: 'forbidden' } }));
+  await btn.click();
+  await btn.click();
+  await expect(btn).toHaveText('Something went wrong (forbidden).');
+  await expect(btn).toBeEnabled();
+  await expect(btn).toHaveText('Close room', { timeout: 5000 });
+  // A network failure must not leave the button disabled either.
+  await p.unroute('**/api/admin/rooms/demo');
+  await p.route('**/api/admin/rooms/demo', (route) => route.abort());
+  await btn.click();
+  await btn.click();
+  await expect(btn).toBeEnabled();
+  expect(srv.app.slidecast.rooms.isOpen('demo')).toBe(true);
+  await pc.close();
+});
+
+test('the admin panel follows a room opened or closed elsewhere', async ({ browser }) => {
+  const context = await browser.newContext();
+  await context.addCookies([{ name: 'sc_session', value: adminCookie, url: srv.url }]);
+  const page = await context.newPage();
+  await page.goto(`${srv.url}/admin`);
+  const toggle = page.locator('tr[data-slug=demo] .room-toggle');
+  await expect(toggle).toHaveText('Open');
+  await patchRoom('demo', { open: false }); // e.g. from the presenter view
+  await expect(toggle).toHaveText('Closed', { timeout: 8000 });
+  await expect(page.locator('tr[data-slug=demo] .room-counts')).toBeHidden();
+  await toggle.click();
+  await expect.poll(() => srv.app.slidecast.rooms.isOpen('demo')).toBe(true);
+  await expect(toggle).toHaveText('Open');
+  await expect(page.locator('tr[data-slug=demo] .room-counts')).toBeVisible();
+  await context.close();
+});

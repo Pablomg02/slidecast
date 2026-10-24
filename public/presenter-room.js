@@ -113,7 +113,7 @@ export function createRoomPanels({ send }) {
         d.owner ? el('span.tag', {}, t('adminTag')) : null,
         d.windows > 1 ? el('span.muted', {}, t('windowsN', { n: d.windows })) : null,
         el('span.grow'),
-        room.admin && !d.owner && !d.you ? confirmButton(t('kick'), t('confirmKick'), `d:${d.id}`, kick, armed) : null);
+        room.admin && !d.owner && !d.local && !d.you ? confirmButton(t('kick'), t('confirmKick'), `d:${d.id}`, kick, armed) : null);
     }));
   }
 

@@ -117,7 +117,8 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
     const devices = new Map();
     for (const c of s.clients) {
       if (c.kind !== 'presenter') continue;
-      const d = devices.get(c.device) ?? { id: deviceId(c.device), owner: false, windows: 0 };
+      // The server's own computer can never be removed (D12), owner or not.
+      const d = devices.get(c.device) ?? { id: deviceId(c.device), owner: false, local: c.device === 'local', windows: 0 };
       d.owner ||= ctx.auth.canAdmin(c.req);
       d.windows++;
       devices.set(c.device, d);
