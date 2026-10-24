@@ -1,6 +1,8 @@
 import { mkdtemp, rm, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+// Node 20 has no global WebSocket; ws is what @fastify/websocket runs on.
+import WebSocket from 'ws';
 
 const cleanups = new WeakMap();
 
@@ -56,7 +58,7 @@ export function wsClient(url, { origin, cookie, headers = {} } = {}) {
     messages.push(msg);
     for (const w of [...waiters]) if (w.pred(msg)) { waiters.splice(waiters.indexOf(w), 1); w.resolve(msg); }
   };
-  // Node's WebSocket fires only "error" (no "close") when the handshake is refused.
+  // A refused handshake may fire only "error", without "close".
   const closedP = new Promise((resolve) => {
     socket.onclose = (e) => { closed = { code: e.code, reason: e.reason }; resolve(closed); };
     socket.onerror = () => { if (socket.readyState !== 1) resolve({ code: 1006, reason: 'error' }); };
