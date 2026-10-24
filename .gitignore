@@ -1,5 +1,6 @@
 node_modules/
 .slidecast/
+.syncdeck/
 decks/*
 !decks/.gitkeep
 test-results/
