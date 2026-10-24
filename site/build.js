@@ -68,14 +68,24 @@ function untranslated(en, tr) {
 if (process.argv.includes('--serve')) {
   const TYPES = {
     '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript',
-    '.svg': 'image/svg+xml', '.png': 'image/png', '.webm': 'video/webm',
+    '.svg': 'image/svg+xml', '.png': 'image/png', '.webm': 'video/webm', '.mp4': 'video/mp4',
   };
   createServer(async (req, res) => {
     const path = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^(\.\.[/\\])+/, '');
     const file = join(out, path.endsWith('/') ? join(path, 'index.html') : path);
     try {
       const body = await readFile(file);
-      res.writeHead(200, { 'content-type': TYPES[extname(file)] ?? 'application/octet-stream' });
+      const type = TYPES[extname(file)] ?? 'application/octet-stream';
+      // Safari only plays video from servers that answer byte ranges.
+      const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range ?? '');
+      if (range && (range[1] || range[2])) {
+        const start = range[1] ? Number(range[1]) : Math.max(0, body.length - Number(range[2]));
+        const end = range[1] && range[2] ? Math.min(Number(range[2]), body.length - 1) : body.length - 1;
+        if (start > end) return res.writeHead(416, { 'content-range': `bytes */${body.length}` }).end();
+        res.writeHead(206, { 'content-type': type, 'accept-ranges': 'bytes', 'content-range': `bytes ${start}-${end}/${body.length}` });
+        return res.end(body.subarray(start, end + 1));
+      }
+      res.writeHead(200, { 'content-type': type, 'accept-ranges': 'bytes' });
       res.end(body);
     } catch {
       res.writeHead(404).end('Not found');

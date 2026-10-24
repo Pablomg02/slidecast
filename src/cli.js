@@ -4,7 +4,6 @@ import { cp, mkdir, readFile, rm } from 'node:fs/promises';
 import { homedir, networkInterfaces } from 'node:os';
 import { dirname, join, resolve, sep } from 'node:path';
 import { spawn } from 'node:child_process';
-import { buildServer } from './server.js';
 import { loadConfig, saveConfig } from './config.js';
 import { readJson, writeJsonAtomic } from './store.js';
 import { applyPasswordHash, checkPasswordInput, hashPassword, revokeScope } from './auth.js';
@@ -120,6 +119,8 @@ async function serve(argv) {
   }
   values.state ??= await defaultStateDir(singleDeck);
 
+  // Loaded here, not at the top, so passwd and new work before npm install.
+  const { buildServer } = await import('./server.js');
   const app = await buildServer({
     dataDir,
     stateDir: values.state,

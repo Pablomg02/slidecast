@@ -2,7 +2,10 @@
 // Starts a real slidecast server with the deck in site/video/deck, films
 // stage.html (presenter, projector and phone side by side) with Playwright and
 // writes site/media/demo.webm and its poster, site/media/demo-poster.png.
+// With an ffmpeg that has libx264 on the PATH it also writes site/media/demo.mp4,
+// the copy Safari and iPhones play (set FFMPEG to use another binary).
 import { copyFile, cp, mkdtemp, mkdir, readFile, rm } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -114,3 +117,11 @@ try {
 await copyFile(await video.path(), join(media, 'demo.webm'));
 await rm(root, { recursive: true, force: true });
 console.log('Wrote site/media/demo.webm and site/media/demo-poster.png');
+
+const mp4 = spawnSync(process.env.FFMPEG ?? 'ffmpeg', [
+  '-hide_banner', '-loglevel', 'error', '-y', '-i', join(media, 'demo.webm'),
+  '-c:v', 'libx264', '-profile:v', 'high', '-level', '4.1', '-pix_fmt', 'yuv420p',
+  '-preset', 'slow', '-crf', '26', '-movflags', '+faststart', '-an', join(media, 'demo.mp4'),
+], { stdio: 'inherit' });
+if (mp4.status === 0) console.log('Wrote site/media/demo.mp4');
+else console.warn('Could not write site/media/demo.mp4: install ffmpeg with libx264, or set FFMPEG, and run this again.');

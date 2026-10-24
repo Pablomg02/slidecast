@@ -201,7 +201,10 @@ addEventListener('click', (e) => {
       <p>Recorded straight from slidecast: the presenter view on a laptop, the projector and a phone in the audience.</p>
     </div>
     <div class="video-frame reveal">
-      <video id="demo-video" src="media/demo.webm" poster="media/demo-poster.png" muted loop playsinline controls preload="none"></video>
+      <video id="demo-video" poster="media/demo-poster.png" muted loop playsinline controls preload="none">
+        <source src="media/demo.mp4" type="video/mp4">
+        <source src="media/demo.webm" type="video/webm">
+      </video>
     </div>
   </section>
 
@@ -374,7 +377,7 @@ addEventListener('click', (e) => {
             </article>
             <article class="example">
               <span class="tag-pill">In any language</span>
-              <p>Una clase de 15 minutos sobre la Revolución Francesa para 4.º de ESO, con una línea del tiempo interactiva y notas para el profesor.</p>
+              <p lang="es">Una clase de 15 minutos sobre la Revolución Francesa para 4.º de ESO, con una línea del tiempo interactiva y notas para el profesor.</p>
               <button type="button" data-copy>Copy</button>
             </article>
           </div>
@@ -444,7 +447,7 @@ addEventListener('click', (e) => {
         </li>
         <li>
           <h3>Open a terminal in the slidecast folder</h3>
-          <p data-os="win">Open the folder, right-click an empty space and choose <b>Open in Terminal</b>.</p>
+          <p data-os="win">Open the folder, right-click an empty space and choose <b>Open in Terminal</b>. On Windows 10, click the address bar instead, type <code>cmd</code> and press Enter.</p>
           <p data-os="mac">Open <b>Terminal</b>, type <code>cd</code> and a space, drag the slidecast folder onto the window and press Enter.</p>
           <p data-os="linux">Open a terminal and <code>cd</code> into the slidecast folder.</p>
         </li>

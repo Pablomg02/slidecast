@@ -4,6 +4,23 @@
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const clamp = (v, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, v));
 
+  // Reveals go first: the page starts hidden, so an error further down must
+  // not leave it that way.
+  document.querySelectorAll('.hero .reveal').forEach((el, i) => el.style.setProperty('--i', i));
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+  }, { rootMargin: '0px 0px -8% 0px' });
+  document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
+
+  // Scrolls a row of tabs sideways, never the page, so the picked one shows.
+  function bringIntoView(tab) {
+    const row = tab.parentElement;
+    if (row.scrollWidth <= row.clientWidth) return;
+    const r = row.getBoundingClientRect();
+    const t = tab.getBoundingClientRect();
+    row.scrollTo({ left: row.scrollLeft + t.left - r.left - (r.width - t.width) / 2, behavior: reduced ? 'auto' : 'smooth' });
+  }
+
   // ------------------------------------------------------------ The deck
   // Steps of the mini deck, as in a real slidecast deck: [slide, step].
   const STEPS = [[0, 0], [1, 0], [1, 1], [1, 2], [2, 0], [3, 0], [3, 1], [4, 0]];
@@ -423,6 +440,7 @@
         t.classList.toggle('on', on);
         t.style.setProperty('--cycle', `${CASES[name].frames.length * BEAT}ms`);
         t.classList.remove('playing');
+        if (on) bringIntoView(t);
       }
       for (const p of panels) p.hidden = p.dataset.case !== name;
       cases.set(name, CASES[name].frames[0]);
@@ -512,11 +530,15 @@
       return `rgb(${stops[k].map((c, i) => Math.round(c + (stops[k + 1][i] - c) * f)).join(',')})`;
     };
     const text = promise.textContent;
-    promise.setAttribute('aria-label', text);
     promise.textContent = '';
+    // Screen readers get the phrase once, not letter by letter.
+    const said = document.createElement('span');
+    said.className = 'sr-only';
+    said.textContent = text;
+    promise.append(said);
     // Words stay whole so lines break between them, never inside one.
     let n = 0;
-    for (const word of text.split(/(?<= )/)) {
+    for (const word of text.match(/\S+\s*/g)) {
       const w = document.createElement('span');
       w.setAttribute('aria-hidden', 'true');
       w.className = 'w';
@@ -532,12 +554,6 @@
     }
     promise.classList.add('typed');
   }
-
-  document.querySelectorAll('.hero .reveal').forEach((el, i) => el.style.setProperty('--i', i));
-  const io = new IntersectionObserver((entries) => {
-    for (const e of entries) if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
-  }, { rootMargin: '0px 0px -8% 0px' });
-  document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
 
   for (const card of document.querySelectorAll('.card')) {
     card.addEventListener('pointermove', (e) => {
@@ -570,6 +586,7 @@
       const on = b.dataset.step === n;
       b.classList.toggle('on', on);
       b.setAttribute('aria-selected', on);
+      if (on) bringIntoView(b);
     }
     for (const p of aiPanels) p.hidden = p.dataset.step !== n;
     // The upload animation starts from the beginning each time it is shown.
