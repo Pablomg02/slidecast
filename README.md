@@ -129,9 +129,9 @@ just `http://192.168.1.20:4321/<deck>`: it opens a page where each person
 chooses to watch or to present.
 
 <p align="center"><img src="docs/assets/selector.png" alt="The deck page: a preview of the first slide, a Watch button for viewers and a smaller Presenter link" width="420"></p>
- If you also want to
-upload decks from another device, set an admin password too:
-`node bin/slidecast.js passwd admin`.
+
+If you also want to upload decks from another device, set an admin password
+too: `node bin/slidecast.js passwd admin`.
 
 > [!TIP]
 > If the other devices cannot connect, check that they are on the same Wi-Fi,
@@ -297,20 +297,10 @@ Run it as `node bin/slidecast.js …` from the slidecast folder, or install the
 
 ## Contributing
 
-Bug reports and ideas are welcome in
-[Issues](https://github.com/Pablomg02/slidecast/issues). For security
-problems, follow [SECURITY.md](SECURITY.md) instead of opening a public issue.
-
-To work on the code:
-
-```bash
-npm install
-npm test                          # unit and integration tests
-npx playwright install chromium   # once
-npm run test:e2e                  # browser tests
-npm run check                     # syntax check
-```
+Bug reports, ideas and pull requests are welcome: see
+[CONTRIBUTING.md](CONTRIBUTING.md). For security problems, follow
+[SECURITY.md](SECURITY.md) instead of opening a public issue.
 
 ## License
 
-[MIT](LICENSE) © Pablomg02
+[MIT](LICENSE) © Pablo Magariños Docampo

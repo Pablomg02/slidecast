@@ -1,0 +1,31 @@
+name: Idea or feature request
+description: Suggest something slidecast could do.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        slidecast tries to stay small: a deck is a folder with an `index.html`, with no accounts, database or cloud service. See [what fits slidecast](https://github.com/Pablomg02/slidecast/blob/main/CONTRIBUTING.md#what-fits-slidecast). English or Spanish are both fine.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you are trying to do
+      description: The situation and the problem, before any solution. For example, "in a large room, people at the back…".
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you propose
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives or workarounds you considered
+  - type: checkboxes
+    id: pr
+    attributes:
+      label: Contributing
+      options:
+        - label: I would like to implement it myself.

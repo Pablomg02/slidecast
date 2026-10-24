@@ -4,7 +4,7 @@
   "description": "Present any HTML slide deck, including AI-generated ones, with a presenter view, speaker notes, a phone remote and audience screens that follow live.",
   "type": "module",
   "license": "MIT",
-  "author": "Pablomg02 (https://github.com/Pablomg02)",
+  "author": "Pablo Magariños Docampo (https://github.com/Pablomg02)",
   "homepage": "https://github.com/Pablomg02/slidecast#readme",
   "repository": {
     "type": "git",
