@@ -264,8 +264,8 @@ which counts as local: `ssh -L 4321:localhost:4321 pi@<the Pi>` and then open
 
 ## Troubleshooting
 
-- *"No presenter password is configured…"* when presenting through the
-  tunnel: set one (see above). Without passwords only the Pi itself may present.
+- *"Presenting is not available from this device yet"* when presenting
+  through the tunnel: set a presenter password (see above). Without passwords only the Pi itself may present.
 - Viewers stop following after a while: check that the tunnel is up; the
   pages reconnect by themselves and show a *Reconnecting…* badge meanwhile.
 - `journalctl -u slidecast -f` (systemd) or `docker compose logs -f slidecast`

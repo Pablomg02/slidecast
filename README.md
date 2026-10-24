@@ -1,172 +1,249 @@
 <p align="center"><img src="public/logo.svg" width="150" alt=""></p>
 <h1 align="center">slidecast</h1>
+<p align="center"><b>Present any HTML slide deck like you would in PowerPoint, with a presenter view, your phone as a remote, and audience screens that follow you live.</b></p>
 <p align="center">
   <a href="https://github.com/Pablomg02/slidecast/actions/workflows/test.yml"><img src="https://github.com/Pablomg02/slidecast/actions/workflows/test.yml/badge.svg" alt="tests"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-818cf8" alt="MIT license"></a>
 </p>
 
-> **En español:** slidecast sirve presentaciones HTML de un solo archivo con
-> vista de presentador (notas, siguiente paso, cronómetro) y vista de
-> espectador sincronizada: el proyector, tu móvil como mando y los portátiles
-> del público siguen el mismo paso. Funciona en tu portátil con un comando o en
-> una Raspberry Pi publicada con Cloudflare Tunnel. La interfaz está en español
-> e inglés. Las instrucciones de instalación (en tu ordenador, en tu red o
-> Tailscale, y en una Raspberry Pi con Cloudflare Tunnel) están en
-> *Getting started*.
+## What is slidecast?
 
-slidecast serves single-file HTML presentations with PowerPoint-style
-presenter and audience views. The presenter moves through the deck with the
-keyboard, a clicker or a phone; every viewer (the projector, students'
-laptops) follows the same step within a second. Speaker notes live next to the
-deck in `deck.json` and are edited in the browser.
+More and more presentations are written as a web page: you ask an AI
+assistant for a deck and get back one `index.html`. It looks great, but it
+lacks what PowerPoint gives you on presentation day: speaker notes only you
+can see, a preview of what comes next, a timer, a remote control, a second
+screen for the audience.
 
-It is built for decks generated with AI: a deck is just a folder with an
-`index.html`, optionally a `deck.json`, and its assets.
+slidecast adds all of that to any HTML deck. You run it on your computer (or
+on a small server), open the **presenter view** on your screen and the
+**viewer** on the projector, and from then on every screen showing the deck
+moves with you: the projector, your phone, your audience's laptops.
 
-## What it does
+<p align="center"><img src="docs/assets/presenter.png" alt="The presenter view: the current slide, the next one, speaker notes, timer, clock and controls" width="860"></p>
 
-- **Class, one laptop.** `slidecast serve my-deck`; one tab in presenter mode,
-  another on the projector in viewer mode. No setup, no passwords.
-- **Phone as a remote.** On a Raspberry Pi behind Cloudflare Tunnel: open the
-  presenter view on your phone (password), the classroom PC shows the viewer.
-- **Students follow along.** They open the public link and join as viewers;
-  you choose whether they are locked to your step, may look back, or browse
-  freely.
-- **New deck from anywhere.** Sign in to `/admin`, upload a deck, write the
-  speaker notes step by step in the browser.
+- **Presenter view**: current and next slide, speaker notes, timer, clock,
+  and a button to black out every screen. It also works on a phone.
+- **Viewers in sync**: every screen follows your slides within a second.
+- **Any remote**: keyboard, a presentation clicker, or your phone.
+- **Notes in the browser**: write them slide by slide in the admin panel;
+  they are saved next to the deck.
+- **Made for AI decks**: a deck is just a folder with an `index.html`. The
+  [deck format](docs/deck-format.md) includes a prompt to give your AI
+  assistant.
+- **Yours**: it runs on your computer, your network or your own server. No
+  account, no cloud service, no tracking. English and Spanish interface.
+
+## What you can do with it
+
+From the simplest setup to the most complete one:
+
+1. **A laptop and a projector.** A teacher plugs the laptop into the
+   projector. The laptop screen shows the presenter view with notes and
+   timer; the projector shows the slides. Exactly like PowerPoint's presenter
+   mode, but for HTML.
+2. **Your phone as a remote.** Leave the laptop on the lectern and walk
+   around the room: the presenter view on your phone shows your notes and
+   moves the slides on the projector.
+3. **The audience follows on their own devices.** Students or colleagues open
+   a link on their laptop or phone and see the slides there, in step with
+   you. Handy in large rooms, for people at the back, or for anyone joining
+   remotely.
+4. **Everyone at their own pace.** You choose what viewers may do: stay
+   locked to your slide, go back to re-read an earlier one (and return to
+   you with one click), or browse the whole deck freely. You can change it in
+   the middle of the talk.
+5. **Interactive slides.** An HTML slide can contain anything a web page can:
+   simulations, sliders, quizzes, live charts, videos. Each person can play
+   with them on their own screen while you keep presenting.
+
+A deck is a web page, so the possibilities are endless: if a browser can show
+it, slidecast can present it.
 
 ## Getting started
 
-You need [Node.js](https://nodejs.org) 20 or newer and a copy of this
-repository:
+### What you need
+
+- **[Node.js](https://nodejs.org) 20 or newer.** Download the *LTS* version
+  from its website and install it like any other program.
+- **slidecast itself.** Either click the green **Code** button at the top of
+  this page and choose **Download ZIP** (then unzip it), or, if you use git:
+
+  ```bash
+  git clone https://github.com/Pablomg02/slidecast.git
+  ```
+
+The commands below are typed in a terminal (on Windows: *PowerShell*) opened
+in the slidecast folder.
+
+### 1. On your own computer
+
+This is all you need for a laptop and a projector.
 
 ```bash
-git clone https://github.com/Pablomg02/slidecast.git
-cd slidecast
 npm install
-```
-
-Pick the case that fits.
-
-### 1. On your own computer (one screen, or laptop + projector)
-
-```bash
 ./start.sh
 ```
 
-It starts slidecast and opens `http://127.0.0.1:4321/admin` in your browser;
-press Ctrl+C (or close the window) to stop it. Upload a deck there (a
-`.zip` or `.html`).
-Then open the deck: choose **Presenter** in one window and **Viewer** in
-another (drag that one to the projector and press `F`). On this computer
-no password is needed. To try it first with the demo deck:
-`node bin/slidecast.js serve examples/demo`.
+On Windows, type `npm start` instead of `./start.sh` and then open
+<http://127.0.0.1:4321/admin> in your browser.
 
-### 2. From other devices on your network or Tailscale (phone as a remote, students on the same Wi-Fi)
+Your browser opens slidecast's admin page. There:
 
-Set a presenter password (8+ characters, a letter and a digit) once, and
-listen on the network:
+1. Upload your deck: a single `.html` file, or a `.zip` with the deck's folder.
+2. Click **Presenter** next to your deck.
+3. Click **Open viewer** in the presenter view, drag that new window to the
+   projector and press `F` for full screen.
+
+That's it: move through the deck from the presenter view with the arrow keys
+or a clicker. No password is needed while everything happens on your
+computer. To stop slidecast, press `Ctrl+C` in the terminal or close it.
+
+**No deck yet?** Try the demo: `node bin/slidecast.js serve examples/demo`
+and open the address it prints.
+
+### 2. On your local network
+
+For your phone as a remote, or for an audience on the same Wi-Fi as you.
+
+Other devices need a password to present, so set one first (8 characters or
+more, with at least one letter and one digit). You only do this once:
 
 ```bash
 node bin/slidecast.js passwd presenter
 ./start.sh --network
 ```
 
-The command prints the addresses to use from the other devices, e.g.
-`http://192.168.1.20:4321/<deck>/present` on your phone (it asks for the
-password) and `/<deck>/view` for everyone else. To manage decks from another
-device too, set an admin password: `node bin/slidecast.js passwd admin`. If
-nothing connects, check that your firewall allows TCP port 4321.
+On Windows, the second line is `npm start -- --host 0.0.0.0`.
 
-### 3. On a Raspberry Pi, on the Internet through Cloudflare Tunnel
+slidecast prints the addresses other devices can use, something like
+`http://192.168.1.20:4321`. Then:
 
-On the Pi run:
+- **On your phone**, open `http://192.168.1.20:4321/<deck>/present` and type
+  the presenter password.
+- **Your audience** opens `http://192.168.1.20:4321/<deck>/view`; no password.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/Pablomg02/slidecast/main/deploy/install.sh | sudo bash
-```
+`<deck>` is the deck's *Name in URL* in the admin page. If you also want to
+upload decks from another device, set an admin password too:
+`node bin/slidecast.js passwd admin`.
 
-It installs everything, asks for the passwords, and starts slidecast as a
-service on `http://localhost:4321`. Then create a tunnel in the Cloudflare
-dashboard (Zero Trust → Networks → Tunnels), install `cloudflared` on the Pi
-with its token, and point your hostname to `http://localhost:4321`. Step by
-step, Docker and hardening tips:
-[docs/deploy-raspberry.md](docs/deploy-raspberry.md).
+> [!TIP]
+> If the other devices cannot connect, check that they are on the same Wi-Fi,
+> and that your computer's firewall allows connections on port 4321. Some
+> public or university networks block connections between devices; in that
+> case use one of the options in the next step.
 
-### Updating
+### 3. From anywhere
 
-- Cases 1 and 2: `git pull && npm install`, then start it again.
-- Case 3: `sudo slidecast-update` (it backs up the settings, restarts, and goes
-  back to the previous version by itself if the new one fails).
+To reach slidecast from other networks (your phone on mobile data, an audience
+following from home, a server that is always on), see
+**[Access from other networks](docs/remote-access.md)**. It covers:
 
-### Forgot a password?
+- **Tailscale**, to connect your own devices (laptop and phone) wherever they
+  are;
+- **Cloudflare Tunnel**, to share a public link with anyone, from your own
+  computer or from an always-on Raspberry Pi.
 
-Passwords cannot be read back; set a new one on the machine running slidecast
-with `node bin/slidecast.js passwd admin` (or `presenter`); add `--clear` to
-remove it. On the Pi, see the guide.
+## Making decks
 
-### Making decks
+Any HTML presentation works best when slidecast knows where its slides are.
+The quickest way to get one is to ask your AI assistant: copy the prompt in
+**[docs/deck-format.md](docs/deck-format.md#instructions-for-your-ai-assistant)**,
+add what your talk is about, and upload the `index.html` it gives you.
 
-A deck is a folder with an `index.html` (and its assets). Start one with
-`node bin/slidecast.js new my-talk`; the format and a prompt for your AI
-assistant are in [docs/deck-format.md](docs/deck-format.md).
-`npm install -g .` makes the `slidecast` command available everywhere.
+To start from a working example instead, run
+`node bin/slidecast.js new my-talk` and edit `decks/my-talk/index.html`.
 
-## Roles and URLs
+Speaker notes are written in the admin panel (**Edit notes**). They are
+stored in a `deck.json` file next to the deck, so they travel with it.
 
-| URL | Who | What |
-| --- | --- | --- |
-| `/` | everyone | Opens the deck chosen to open at `/`, or the only deck. Otherwise the list of decks (if enabled) or a page asking for the link. A signed-in admin always gets the list. |
-| `/<deck>` | everyone | Choose viewer or presenter. |
-| `/<deck>/view` | viewers | The deck, full window, following the live step. |
-| `/<deck>/present` | presenter | Current and next step, notes, timer, clock, controls. Works on a phone. |
-| `/admin` | admin | Upload and delete decks, what `/` shows, passwords, settings. |
-| `/admin/edit/<deck>` | admin | Notes editor. |
+## During the presentation
 
-Passwords: an **admin** password, a **presenter** password (for every deck,
-or per deck), and an optional per-deck **viewer** password. On the machine
-running slidecast, without passwords, you are presenter and admin; from any
-other device (including through Cloudflare Tunnel) the role is refused until a
-password is set. Set them with `slidecast passwd` or in the admin panel.
+### Keys
 
-## Keys
+These work in the presenter view, and most presentation clickers send them,
+so clickers work out of the box.
 
 | Key | Action |
 | --- | --- |
-| → ↓ Space PageDown Enter | Next step |
-| ← ↑ Shift+Space PageUp Backspace | Previous step |
-| Home / End | First / last step |
-| B or . | Blank every viewer's screen (and back) |
-| F | Full screen |
-| L | Viewer: back to the live step |
+| `→` `↓` `Space` `PageDown` `Enter` | Next step |
+| `←` `↑` `Shift+Space` `PageUp` `Backspace` | Previous step |
+| `Home` / `End` | First / last step |
+| `B` or `.` | Black out every viewer's screen (press again to come back) |
+| `F` | Full screen |
+| `L` | In a viewer: back to the presenter's slide |
 
-Most presentation clickers send PageUp/PageDown and `B`/`.`, so they work
-out of the box. If the viewer window on the projector has the focus and that
-browser may present (on the machine running slidecast without a presenter
-password, or after signing in as presenter), it shows a *Controlling* badge and
-the clicker drives the presentation from there too. Its *Stop controlling*
-button turns that window into a plain viewer (and *Control* back).
+Clicker connected to the projector's computer instead of yours? When the
+viewer window is allowed to present (on the computer running slidecast, or
+after signing in as presenter), it shows a *Controlling* badge and the clicker
+drives the presentation from there too. *Stop controlling* turns it back into
+a plain viewer.
 
-## Viewer modes
+### What viewers may do
 
-Chosen per deck (`viewerNav` in `deck.json`, or the admin panel) and switchable
-live from the presenter view (changing it in the admin panel also applies at
-once):
+Chosen per deck in the admin panel, and switchable live from the presenter
+view:
 
-- **Follow**: viewers always show the presenter's step.
-- **May go back** (default): viewers can look at earlier steps, never ahead;
-  a *Back to live* button (or `L`) returns.
+- **Follow**: viewers always see your slide.
+- **May go back** (default): viewers can look at earlier slides, never ahead
+  of you; a *Back to live* button returns to your slide.
 - **Free**: viewers can browse the whole deck.
 
-## Admin panel
+### Admin panel
 
-At `/admin`: upload a deck as a `.zip` (with `index.html` at the root or in a
-single top folder) or as one `.html` file; replacing a deck keeps its notes.
-Delete (moved to a trash folder, never erased), choose what `/` shows (one
-deck, the list of decks, or a page asking for the link), set passwords, change a deck's title or
-default viewer mode, and open the notes editor.
+At `/admin` you can upload and replace decks (replacing keeps the notes),
+delete them (they go to a trash folder, never erased), edit notes, set
+passwords, rename decks, choose each deck's viewer mode, and choose what
+visitors see at the main address: one deck, the list of decks, or a page
+asking for the link.
 
-## CLI
+## Passwords and privacy
+
+| Password | What it allows | Needed |
+| --- | --- | --- |
+| **Presenter** | Moving the slides. One for every deck, or one per deck. | When presenting from another device. |
+| **Admin** | The admin panel. | When managing decks from another device. |
+| **Viewer** (optional) | Watching one deck. | Only if you want to keep a deck private. |
+
+On the computer running slidecast you are presenter and admin without any
+password. From any other device, presenting and the admin panel stay closed
+until you set the password. Set them with `node bin/slidecast.js passwd …` or
+in the admin panel.
+
+Passwords are stored only as one-way hashes, so nobody can read them back. If
+you forget one, set a new one on the computer running slidecast:
+`node bin/slidecast.js passwd admin` (or `presenter`); add `--clear` to remove
+it.
+
+Decks run in a sandbox: a deck written by an AI or downloaded from the
+Internet cannot read your passwords or act as the admin. Details in
+[docs/security.md](docs/security.md).
+
+## Updating
+
+- Downloaded as a ZIP: download the new version and copy your `decks` and
+  `.slidecast` folders into it (they hold your decks, notes, passwords and
+  settings).
+- With git: `git pull && npm install`, then start it again.
+- On a Raspberry Pi installed with the script: `sudo slidecast-update`.
+
+## Reference
+
+<details>
+<summary><b>Addresses</b></summary>
+
+| Address | Who | What |
+| --- | --- | --- |
+| `/` | everyone | The deck chosen in the admin panel, or the only deck; otherwise the list of decks or a page asking for the link. A signed-in admin always gets the list. |
+| `/<deck>` | everyone | Choose viewer or presenter. |
+| `/<deck>/view` | viewers | The deck, full window, following the presenter. |
+| `/<deck>/present` | presenter | Current and next step, notes, timer, clock, controls. |
+| `/admin` | admin | Decks, passwords and settings. |
+| `/admin/edit/<deck>` | admin | Notes editor. |
+
+</details>
+
+<details>
+<summary><b>Command line</b></summary>
 
 ```
 slidecast serve [path] [--data dir] [--state dir] [--host h] [--port p] [--trust-proxy] [--open]
@@ -175,32 +252,47 @@ slidecast new <slug> [--data dir]
 slidecast --help | --version
 ```
 
-- `serve <folder with index.html>` serves only that deck (single-deck mode);
-  `serve <folder>` serves every deck inside it. Default: `./decks`.
-- Server state (password hashes, sessions, live step) goes to `./.slidecast`.
-  Both folders are git-ignored. When `./.slidecast` would end up inside the
-  deck being served (`cd my-deck && slidecast serve .`), the state goes to
-  `~/.config/slidecast` instead (`%APPDATA%\slidecast` on Windows), and an
-  existing `./.slidecast` there is moved.
+Run it as `node bin/slidecast.js …` from the slidecast folder, or install the
+`slidecast` command for your user with `npm install -g .`.
+
+- `serve <folder with index.html>` serves only that deck; `serve <folder>`
+  serves every deck inside it. Default: `./decks`.
+- Settings, password hashes, sessions and the live step go to `./.slidecast`.
+  Both folders are ignored by git. When `./.slidecast` would end up inside the
+  deck being served (`cd my-deck && slidecast serve .`), they go to
+  `~/.config/slidecast` instead (`%APPDATA%\slidecast` on Windows).
+- `--host 0.0.0.0` makes slidecast reachable from your network (default
+  `127.0.0.1`, this computer only); default port `4321`.
 - `--trust-proxy` is for Cloudflare Tunnel. Behind another proxy, make sure it
   overwrites `Cf-Connecting-IP` and `X-Forwarded-For`, or clients can choose
-  their own address for the login limits.
-- Default address `127.0.0.1:4321`. `--host 0.0.0.0` makes it reachable on
-  your network and prints the LAN URLs.
-- Environment variables mirror the flags: `SLIDECAST_HOST`, `SLIDECAST_PORT`,
-  `SLIDECAST_DATA`, `SLIDECAST_STATE`, `SLIDECAST_TRUST_PROXY=1`.
+  their own address for the sign-in limits.
+- Environment variables mirror the options: `SLIDECAST_HOST`,
+  `SLIDECAST_PORT`, `SLIDECAST_DATA`, `SLIDECAST_STATE`,
+  `SLIDECAST_TRUST_PROXY=1`.
+
+</details>
 
 ## Documentation
 
-- [Deck format](docs/deck-format.md): folder layout, `deck.json`, the deck
-  API, and a prompt for your AI assistant.
-- [Deploying on a Raspberry Pi with Cloudflare Tunnel](docs/deploy-raspberry.md):
-  one-command install (`deploy/install.sh`) and updates (`sudo slidecast-update`).
-- [Security](docs/security.md): threat model, measures, reporting issues.
+- [Access from other networks](docs/remote-access.md): Tailscale and
+  Cloudflare Tunnel.
+- [Raspberry Pi with Cloudflare Tunnel](docs/deploy-raspberry.md): an
+  always-on server, installed with one command.
+- [Deck format](docs/deck-format.md): folder layout, `deck.json`, the API a
+  deck exposes, and a prompt for your AI assistant.
+- [Security](docs/security.md): threat model, protections, reporting a
+  vulnerability.
 
-## Development
+## Contributing
+
+Bug reports and ideas are welcome in
+[Issues](https://github.com/Pablomg02/slidecast/issues). For security
+problems, follow [SECURITY.md](SECURITY.md) instead of opening a public issue.
+
+To work on the code:
 
 ```bash
+npm install
 npm test                          # unit and integration tests
 npx playwright install chromium   # once
 npm run test:e2e                  # browser tests
@@ -209,4 +301,4 @@ npm run check                     # syntax check
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+[MIT](LICENSE) © Pablomg02
