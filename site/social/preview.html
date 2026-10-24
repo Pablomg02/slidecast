@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>slidecast social preview</title>
+<!-- The 1280×640 card GitHub and the website show when the repository is
+     shared. render.js opens this file, moves the demo deck to its "mix" slide
+     and saves docs/assets/social-preview.png. Same look as the website's hero. -->
+<style>
+  :root {
+    --bg: #07080f; --ink: #eef0f7; --muted: #9aa0b4; --line: rgba(255, 255, 255, .08);
+    --grad: linear-gradient(100deg, #a78bfa, #818cf8 50%, #38bdf8);
+  }
+  html, body { margin: 0; width: 1280px; height: 640px; overflow: hidden; }
+  body { position: relative; font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: var(--bg); -webkit-font-smoothing: antialiased; }
+  .grad { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+  /* The hero's aurora and grid. */
+  .aurora { position: absolute; inset: -20%; filter: blur(80px); opacity: .55; }
+  .aurora i { position: absolute; width: 640px; height: 640px; border-radius: 50%; }
+  .aurora i:nth-child(1) { left: 5%; top: 0; background: radial-gradient(circle, #7c3aed, transparent 65%); }
+  .aurora i:nth-child(2) { right: 0; top: 10%; background: radial-gradient(circle, #2563eb, transparent 65%); }
+  .aurora i:nth-child(3) { left: 45%; bottom: 0; background: radial-gradient(circle, #0891b2, transparent 65%); }
+  .grid {
+    position: absolute; inset: 0;
+    background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 64px 64px; mask-image: radial-gradient(ellipse at 35% 45%, #000 10%, transparent 70%);
+  }
+
+  .text { position: absolute; left: 80px; top: 70px; width: 640px; }
+  .brand { display: flex; align-items: center; gap: 14px; font-size: 34px; font-weight: 800; letter-spacing: -1px; }
+  .brand img { width: 58px; }
+  .eyebrow { margin: 70px 0 16px; font-size: 16px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #a5b4fc; }
+  h1 { margin: 0; font-size: 54px; font-weight: 800; letter-spacing: -.045em; line-height: 1.05; }
+  p.lede { margin: 26px 0 0; width: 520px; font-size: 23px; line-height: 1.45; color: var(--muted); }
+
+  /* A projector and a phone showing the same live slide. */
+  .screen { position: absolute; overflow: hidden; background: #000; }
+  .screen iframe { border: 0; display: block; width: 1600px; height: 900px; transform-origin: 0 0; }
+  #wall { left: 720px; top: 120px; width: 496px; height: 279px; box-shadow: 0 0 0 5px #e8eaf2, 0 40px 90px -20px rgba(99, 102, 241, .6); }
+  #wall iframe { transform: scale(.31); }
+  #phone { position: absolute; left: 650px; top: 400px; padding: 9px 12px; background: #1b1f2c; border-radius: 24px; box-shadow: 0 0 0 1px rgba(255, 255, 255, .16), 0 26px 50px -20px #000; }
+  #phone .screen { position: relative; width: 236px; height: 133px; border-radius: 10px; }
+  #phone iframe { transform: scale(.1475); }
+</style>
+</head>
+<body>
+  <div class="aurora"><i></i><i></i><i></i></div>
+  <div class="grid"></div>
+
+  <div class="text">
+    <div class="brand"><img src="../../public/logo.svg" alt="">slidecast</div>
+    <p class="eyebrow">Free and open source</p>
+    <h1>Present any HTML deck<br><span class="grad">in ways PowerPoint<br>never could.</span></h1>
+    <p class="lede">Presenter view, phone remote and audience screens that follow you live.</p>
+  </div>
+
+  <div class="screen" id="wall"><iframe src="../video/deck/index.html" title="Projector"></iframe></div>
+  <div id="phone"><div class="screen"><iframe src="../video/deck/index.html" title="A phone"></iframe></div></div>
+</body>
+</html>
