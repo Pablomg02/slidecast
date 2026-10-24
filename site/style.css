@@ -76,6 +76,21 @@ h1, h2, h3 { margin: 0; letter-spacing: -.03em; line-height: 1.08; }
 .lang a { padding: 4px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: .06em; color: var(--muted); }
 .lang a:hover { color: var(--ink); }
 .lang a[aria-current] { color: #0b0d18; background: var(--grad); }
+.menu-btn {
+  display: none; place-items: center; width: 40px; height: 40px; padding: 0; flex: none; cursor: pointer;
+  border-radius: 12px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+}
+.menu-btn i, .menu-btn i::before, .menu-btn i::after {
+  display: block; width: 18px; height: 2px; border-radius: 2px; background: currentColor;
+  transition: transform .25s var(--ease), background-color .25s;
+}
+.menu-btn i { position: relative; }
+.menu-btn i::before, .menu-btn i::after { content: ""; position: absolute; left: 0; }
+.menu-btn i::before { transform: translateY(-6px); }
+.menu-btn i::after { transform: translateY(6px); }
+.nav.open .menu-btn i { background-color: transparent; }
+.nav.open .menu-btn i::before { transform: rotate(45deg); }
+.nav.open .menu-btn i::after { transform: rotate(-45deg); }
 
 /* Hero */
 .hero {
@@ -584,7 +599,7 @@ h1, h2, h3 { margin: 0; letter-spacing: -.03em; line-height: 1.08; }
 .cmd code { flex: 1; min-width: 0; padding: 0; background: none; font-size: 13px; color: #cdd2e2; white-space: pre-wrap; overflow-wrap: anywhere; }
 .cmd button { flex: none; padding: 6px 12px; border: 0; border-radius: 8px; font: 600 12px var(--font); color: var(--ink); background: var(--surface-2); cursor: pointer; }
 .cmd button:hover { background: rgba(255, 255, 255, .14); }
-.more { text-align: center; margin: 44px 0 0; color: var(--muted); }
+.more { text-align: center; text-wrap: balance; margin: 44px 0 0; color: var(--muted); }
 
 /* Use cases */
 .cases { border-radius: 28px; background: var(--surface); border: 1px solid var(--line); padding: 14px; }
@@ -694,8 +709,19 @@ html:not(.js) .step { opacity: 1; }
   :root { --nav: 56px; }
   body { font-size: 16px; }
   .nav { gap: 12px; }
-  .nav nav { display: none; }
   .nav .lang { margin-left: auto; }
+  /* The section links fold into a menu under the bar. */
+  .js .menu-btn { display: grid; }
+  .nav nav {
+    position: absolute; top: 100%; left: 0; right: 0; margin: 0; flex-direction: column; gap: 0;
+    padding: 6px 20px 14px; background: rgba(7, 8, 15, .97); border-bottom: 1px solid var(--line);
+    box-shadow: 0 24px 40px rgba(0, 0, 0, .45);
+    visibility: hidden; opacity: 0; transform: translateY(-8px);
+    transition: opacity .25s var(--ease), transform .25s var(--ease), visibility 0s .25s;
+  }
+  .nav.open nav { visibility: visible; opacity: 1; transform: none; transition-delay: 0s; }
+  .nav nav a { padding: 13px 2px; font-size: 17px; color: var(--ink); border-bottom: 1px solid var(--line); }
+  .nav nav a:last-child { border-bottom: 0; }
   .story { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 0 16px; }
   .stage-wrap {
     grid-column: 1; z-index: 5; height: auto; padding: 14px 0 26px; margin: 0 -16px;
@@ -716,7 +742,7 @@ html:not(.js) .step { opacity: 1; }
   .step h2 { font-size: 1.45rem; margin-bottom: 12px; }
   .step p { font-size: 1rem; }
   .section { padding: 90px 16px; }
-  .footer { padding: 30px 16px 40px; }
+  .footer { flex-direction: column; justify-content: center; text-align: center; gap: 10px; padding: 30px 16px 40px; }
 }
 @media (max-width: 600px) {
   .grid { grid-template-columns: 1fr; }
@@ -725,6 +751,9 @@ html:not(.js) .step { opacity: 1; }
   .seg button { flex: 1; padding: 9px 8px; }
   .beyond { grid-template-columns: 1fr; }
   .hero { padding-bottom: 124px; }
+  /* Room for the menu button: the GitHub button keeps only its icon. */
+  .nav .btn-small { padding: 8px 11px; }
+  .gh-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .cta .btn { flex: 1 1 100%; justify-content: center; }
   .video-frame { padding: 5px; border-radius: 16px; }
   .video-frame video { border-radius: 12px; }

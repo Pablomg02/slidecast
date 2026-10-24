@@ -12,6 +12,22 @@
   }, { rootMargin: '0px 0px -8% 0px' });
   document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
 
+  // On phones the section links open from the menu button. A link, a tap
+  // outside or Escape closes the menu.
+  const header = document.querySelector('.nav');
+  const menuBtn = header.querySelector('.menu-btn');
+  const setMenu = (open) => {
+    header.classList.toggle('open', open);
+    menuBtn.setAttribute('aria-expanded', open);
+  };
+  menuBtn.addEventListener('click', () => setMenu(!header.classList.contains('open')));
+  header.querySelector('nav').addEventListener('click', (e) => { if (e.target.closest('a')) setMenu(false); });
+  addEventListener('click', (e) => { if (!header.contains(e.target)) setMenu(false); });
+  addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && header.classList.contains('open')) { setMenu(false); menuBtn.focus(); }
+  });
+  matchMedia('(max-width: 860px)').addEventListener('change', () => setMenu(false));
+
   // Scrolls a row of tabs sideways, never the page, so the picked one shows.
   function bringIntoView(tab) {
     const row = tab.parentElement;

@@ -20,6 +20,7 @@ export default {
     ['<a href="./" hreflang="en" lang="en" title="English" aria-current="page">EN</a><a href="es/" hreflang="es" lang="es" title="Español">ES</a>',
       '<a href="./" hreflang="en" lang="en" title="English">EN</a><a href="es/" hreflang="es" lang="es" title="Español" aria-current="page">ES</a>'],
     ['aria-label="Language"', 'aria-label="Idioma"'],
+    ['aria-label="Menu"', 'aria-label="Menú"'],
     ['>How it works</a>', '>Cómo funciona</a>'],
     ['>Use cases<', '>Casos de uso<'],
     ['>Features<', '>Funciones<'],
@@ -190,7 +191,7 @@ export default {
       '<p class="soft">¿Solo tienes el <code>.html</code>? Súbelo tal cual y escribe las notas en el navegador.</p>'],
     ['>How to start slidecast →</a>', '>Cómo arrancar slidecast →</a>'],
     ['>More about the format in the <a href="https://github.com/Pablomg02/slidecast/blob/main/docs/deck-format.md">deck format guide</a>.</p>',
-      '>Más sobre el formato en la <a href="https://github.com/Pablomg02/slidecast/blob/main/docs/deck-format.md">guía del formato de presentaciones</a> (en inglés).</p>'],
+      '>Más sobre el formato en la <a href="https://github.com/Pablomg02/slidecast/blob/main/docs/deck-format.md">guía del formato de presentaciones</a>.</p>'],
 
     // Get started
     ['>Get started</p>', '>Primeros pasos</p>'],
@@ -247,10 +248,10 @@ export default {
       '¿No se conectan los dispositivos? Comprueba que estén en la misma Wi-Fi y que tu cortafuegos permita el puerto 4321. Algunas redes públicas o universitarias lo bloquean; para eso tienes la guía de abajo.'],
     ['<b>Want people to join from anywhere, over the Internet?</b>', '<b>¿Quieres que se conecten desde cualquier lugar, por Internet?</b>'],
     ['Use Tailscale for your own devices, or Cloudflare Tunnel for a public link, from your computer or an always-on server.',
-      'Usa Tailscale para tus propios dispositivos o Cloudflare Tunnel para un enlace público, desde tu ordenador o un servidor siempre encendido (guía en inglés).'],
+      'Usa Tailscale para tus propios dispositivos o Cloudflare Tunnel para un enlace público, desde tu ordenador o un servidor siempre encendido.'],
     ['>Read the guide →</i>', '>Leer la guía →</i>'],
-    ['>Everything else, from viewer passwords to updates, is in the <a href="https://github.com/Pablomg02/slidecast#readme">README</a>.</p>',
-      '>Todo lo demás, de las contraseñas de espectador a las actualizaciones, está en el <a href="https://github.com/Pablomg02/slidecast#readme">README</a> (en inglés).</p>'],
+    ['>Want to know more? Visit the <a href="https://github.com/Pablomg02/slidecast">GitHub repository</a>.</p>',
+      '>¿Quieres saber más? Visita el <a href="https://github.com/Pablomg02/slidecast">repositorio de GitHub</a>.</p>'],
 
     // Footer
     ['MIT licence ©', 'Licencia MIT ©'],
