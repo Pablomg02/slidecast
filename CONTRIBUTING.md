@@ -116,5 +116,23 @@ Some tests guard things that are easy to forget:
   `README: restore…`).
 - Fill in the pull request template; CI must pass before merging.
 
+## Releases (maintainer)
+
+1. Move the changes under a new version heading in `CHANGELOG.md`, with the
+   date, and add its link at the bottom. Before 1.0, anything that breaks
+   existing decks, settings or commands bumps the minor version (0.1 → 0.2)
+   and is listed first.
+2. Set the same version in `package.json` and `package-lock.json`:
+   `npm version <x.y.z> --no-git-tag-version`.
+3. Commit (`Release 0.2.0`), push, and wait for CI to pass on `main`.
+4. Tag and publish, with that version's changelog section as the notes:
+   `gh release create v0.2.0 --target main --title "slidecast 0.2.0" --notes-file notes.md`.
+5. If the Raspberry Pi update script or the Docker setup changed, say so in
+   the notes: people update with `sudo slidecast-update` or
+   `docker compose up -d --build`.
+
+Dependency updates come from Dependabot as weekly pull requests; merge them
+when CI passes, and check the changelog of major versions first.
+
 By contributing you agree that your contribution is licensed under the
 [MIT License](LICENSE) of the project.
