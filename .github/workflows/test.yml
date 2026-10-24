@@ -44,7 +44,7 @@ jobs:
       run:
         working-directory: deploy
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: The tunnel token in deploy/.env reaches cloudflared
         run: |
           echo 'TUNNEL_TOKEN=dummy-token' > .env
