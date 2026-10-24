@@ -124,7 +124,7 @@ h1, h2, h3 { margin: 0; letter-spacing: -.03em; line-height: 1.08; }
 }
 .scroll-hint {
   position: absolute; bottom: 32px; left: 50%; transform: translateX(-50%);
-  display: flex; flex-direction: column; align-items: center; gap: 10px; color: var(--muted); font-size: 13px;
+  display: flex; flex-direction: column; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; white-space: nowrap;
 }
 .scroll-hint i { width: 22px; height: 34px; border: 2px solid var(--line-strong); border-radius: 12px; position: relative; }
 .scroll-hint i::after {
@@ -724,7 +724,7 @@ html:not(.js) .step { opacity: 1; }
   .seg { width: 100%; }
   .seg button { flex: 1; padding: 9px 8px; }
   .beyond { grid-template-columns: 1fr; }
-  .hero { padding-bottom: 110px; }
+  .hero { padding-bottom: 124px; }
   .cta .btn { flex: 1 1 100%; justify-content: center; }
   .video-frame { padding: 5px; border-radius: 16px; }
   .video-frame video { border-radius: 12px; }
