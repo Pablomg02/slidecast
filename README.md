@@ -203,6 +203,11 @@ passwords, rename decks, choose each deck's viewer mode, and choose what
 visitors see at the main address: one deck, the list of decks, or a page
 asking for the link.
 
+Under **Appearance** you can give the site your own name (browser tab, top of
+each page, home page), change the home page message and the accent colour,
+and hide the "Made with Slidecast" link at the foot of the public pages. These
+only change how the pages look, never how they work.
+
 ## Passwords and privacy
 
 | Password | What it allows | Needed |
