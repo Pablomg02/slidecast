@@ -6,13 +6,22 @@ include breaking changes, always listed here.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-24
+
 - Swiping on a slider or inside `data-interactive` no longer changes slides on
   touch screens; swipes elsewhere on the slide still do.
+- Appearance: the "Made with Slidecast" credit shows the logo, and a new
+  setting hides the logo next to the site name. Turning the credit off no
+  longer leaves "null" on the home, deck and not-found pages.
+- Docker Compose starts without `deploy/.env`, as the Raspberry Pi guide
+  does before the tunnel token exists.
 - markdown-it 15 for speaker notes (fixes several slow-parsing cases); links
   without a scheme, like `example.com`, are still turned into links.
-- Fix two viewer tests that could fail on slow CI machines.
+- fflate, only used by the tests, no longer ships in Pi and Docker installs.
+- Website at <https://pablomg02.github.io/slidecast/>, in English and
+  Spanish, with a demo video.
 - CI builds the Docker image and checks it the way the Raspberry Pi guide
-  uses it.
+  uses it; two viewer tests no longer fail on slow CI machines.
 
 ## [0.1.0] - 2026-10-24
 
@@ -33,5 +42,6 @@ First public release.
   Compose.
 - English and Spanish interface.
 
-[Unreleased]: https://github.com/Pablomg02/slidecast/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Pablomg02/slidecast/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/Pablomg02/slidecast/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Pablomg02/slidecast/releases/tag/v0.1.0
