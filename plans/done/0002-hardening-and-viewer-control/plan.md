@@ -124,3 +124,6 @@ Deviations:
 - All goals delivered. `npm test` 74 passed; `npm run check` clean; `npm run test:e2e` 44 passed (Chromium).
 
 ## Closure
+
+2026-10-24 — done. All goals delivered. `deploy/install.sh` and
+`deploy/update.sh` have not run on a real Pi yet.

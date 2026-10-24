@@ -15,7 +15,7 @@ presenter view with notes and the next slide, no way to drive the projector
 from a phone, no way for students to follow on their own laptops, and no place
 to keep speaker notes outside the HTML. PowerPoint's presenter/audience split
 is what is missing, plus remote access through the author's Raspberry Pi
-(e.g. `slides.pablomagarinos.es`).
+(e.g. `slides.example.com`).
 
 Real scenarios that must work:
 
@@ -451,3 +451,7 @@ Verification section:
 Not delivered / not verified: `docker build` (no Docker here); manual checks on a phone, on Safari/iOS, and with the author's private decks.
 
 ## Closure
+
+2026-10-24 — done. Every goal delivered; the follow-ups became 0002. Still
+unchecked: `docker build`, and manual checks on a phone, on Safari/iOS and with
+the author's private decks.

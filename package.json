@@ -4,6 +4,24 @@
   "description": "Serve single-file HTML presentations with synced presenter and audience views.",
   "type": "module",
   "license": "MIT",
+  "author": "Pablomg02 (https://github.com/Pablomg02)",
+  "homepage": "https://github.com/Pablomg02/syncdeck#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Pablomg02/syncdeck.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Pablomg02/syncdeck/issues"
+  },
+  "keywords": [
+    "presentation",
+    "slides",
+    "presenter-view",
+    "speaker-notes",
+    "html",
+    "websocket",
+    "raspberry-pi"
+  ],
   "engines": {
     "node": ">=20"
   },
