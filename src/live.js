@@ -142,6 +142,8 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS } = {}) {
     if (!allowed) return socket.close(4401, 'unauthorized');
 
     const s = await stateOf(slug);
+    // The socket may have closed during the awaits; its close event is gone.
+    if (socket.readyState !== 1) return undefined;
     client = { socket, role, req, slug, missed: 0 };
     s.clients.add(client);
     socket.on('pong', () => { client.missed = 0; });
@@ -203,7 +205,9 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS } = {}) {
     notifyNotes(slug, slides) {
       const s = decks.get(slug);
       if (!s) return;
-      for (const c of s.clients) if (c.role === 'presenter') send(c, { t: 'notes', slides });
+      for (const c of s.clients) {
+        if (c.role === 'presenter' && ctx.auth.canPresent(c.req, slug)) send(c, { t: 'notes', slides });
+      }
     },
     // The admin changed the deck's default viewer mode: apply it live too.
     setViewerNav(slug, mode) {

@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import net from 'node:net';
 import { buildServer } from '../src/server.js';
 import { onCleanup, tempDirs, makeDeck, listen, wsClient } from './helpers.js';
 
@@ -163,11 +164,57 @@ test('changing the default viewer mode in the admin panel reaches connected view
   const res = await app.inject({
     method: 'PATCH',
     url: '/api/admin/decks/talk',
-    headers: { host: 'syncdeck.test', origin: 'http://syncdeck.test' },
+    headers: { host: 'localhost:4321', origin: 'http://localhost:4321' },
     payload: { viewerNav: 'free' },
   });
   assert.equal(res.statusCode, 200);
   await viewer.next(isState((m) => m.viewerNav === 'free'));
+});
+
+test('a presenter whose rights were revoked gets no more notes', async (t) => {
+  const { app, connect } = await setup(t);
+  const local = { host: 'localhost:4321', origin: 'http://localhost:4321' };
+  await app.syncdeck.auth.setPassword('presenter', null, 'presenter-pass1');
+  const login = await app.inject({
+    method: 'POST',
+    url: '/api/login',
+    headers: local,
+    payload: { scope: 'presenter', password: 'presenter-pass1' },
+  });
+  const c = login.cookies.find((x) => x.name === 'sd_session');
+  // A remote presenter (through a proxy), so only the session grants the rights.
+  const presenter = connect('presenter', { cookie: `sd_session=${c.value}`, headers: { 'X-Forwarded-For': '203.0.113.5' } });
+  await presenter.next((m) => m.t === 'notes');
+  await app.syncdeck.auth.setPassword('presenter', null, 'presenter-pass2');
+  const res = await app.inject({
+    method: 'PUT',
+    url: '/api/admin/decks/talk/slides/a',
+    headers: { host: 'localhost:4321', origin: 'http://localhost:4321' },
+    payload: { notes: 'written after the revocation' },
+  });
+  assert.equal(res.statusCode, 200);
+  await new Promise((r) => setTimeout(r, 300));
+  assert.equal(presenter.messages.some((m) => m.t === 'notes'), false);
+});
+
+test('sockets closed during the handshake do not stay counted', async (t) => {
+  const { urls, connect } = await setup(t);
+  const port = new URL(urls.http).port;
+  const hit = () => new Promise((done) => {
+    const s = net.connect(Number(port), '127.0.0.1', () => {
+      s.end(`GET /ws/talk?role=viewer HTTP/1.1\r\nHost: ${urls.host}\r\nOrigin: ${urls.http}\r\n`
+        + 'Upgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n'
+        + 'Sec-WebSocket-Version: 13\r\n\r\n');
+      s.destroy();
+    });
+    s.on('close', done);
+    s.on('error', done);
+  });
+  for (let i = 0; i < 300; i++) await hit();
+  await new Promise((r) => setTimeout(r, 500));
+  const viewer = connect('viewer');
+  const state = await viewer.next(isState());
+  assert.equal(state.viewers, 1);
 });
 
 test('WebSocket connections are capped per address and in total', async (t) => {

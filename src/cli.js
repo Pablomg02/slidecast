@@ -1,8 +1,8 @@
 import { parseArgs } from 'node:util';
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import { cp, readFile } from 'node:fs/promises';
-import { networkInterfaces } from 'node:os';
-import { join, resolve } from 'node:path';
+import { cp, mkdir, readFile, rm } from 'node:fs/promises';
+import { homedir, networkInterfaces } from 'node:os';
+import { dirname, join, resolve, sep } from 'node:path';
 import { spawn } from 'node:child_process';
 import { buildServer } from './server.js';
 import { loadConfig, saveConfig } from './config.js';
@@ -25,11 +25,13 @@ serve:
   [path]            A folder with index.html (single-deck mode) or a folder of
                     decks (default: --data)
   --data <dir>      Decks folder (default ./decks, env SYNCDECK_DATA)
-  --state <dir>     Server state: config, sessions (default ./.syncdeck, env SYNCDECK_STATE)
+  --state <dir>     Server state: config, sessions (default ./.syncdeck, env SYNCDECK_STATE;
+                    ~/.config/syncdeck when ./.syncdeck would be inside the deck)
   --host <host>     Address to listen on (default 127.0.0.1, env SYNCDECK_HOST);
                     0.0.0.0 makes it reachable on your network
   --port <port>     Port (default 4321, env SYNCDECK_PORT)
-  --trust-proxy     Behind Cloudflare Tunnel or another proxy (env SYNCDECK_TRUST_PROXY=1)
+  --trust-proxy     Behind Cloudflare Tunnel (env SYNCDECK_TRUST_PROXY=1); other proxies
+                    must overwrite Cf-Connecting-IP and X-Forwarded-For
   --open            Open the browser
 
 passwd:
@@ -39,13 +41,38 @@ passwd:
   syncdeck passwd presenter --deck <slug> --viewer
                                             Viewer password for one deck
   --clear           Remove the password instead of setting one
-  --state <dir>     Server state folder (default ./.syncdeck)
+  --state <dir>     Server state folder (default as for serve)
   The password is read twice from the terminal, or one line from stdin.
 `;
 
 function fail(message) {
   process.stderr.write(`syncdeck: ${message}\n`);
   process.exitCode = 1;
+}
+
+// ---- state folder ----------------------------------------------------------
+
+function userStateDir() {
+  const base = process.env.XDG_CONFIG_HOME
+    || (process.platform === 'win32' ? process.env.APPDATA : null)
+    || join(homedir(), '.config');
+  return join(base, 'syncdeck');
+}
+
+// ./.syncdeck, unless that puts the state (signing secret, password hashes)
+// inside the deck being served, as `cd my-deck && syncdeck serve .` would:
+// then the user's config folder, moving an existing ./.syncdeck there.
+async function defaultStateDir(deckDir) {
+  const local = resolve('.syncdeck');
+  if (!deckDir || !local.startsWith(deckDir + sep)) return './.syncdeck';
+  const user = userStateDir();
+  if (existsSync(local) && !existsSync(user)) {
+    await mkdir(dirname(user), { recursive: true });
+    await cp(local, user, { recursive: true });
+    await rm(local, { recursive: true });
+    process.stderr.write(`syncdeck: moved the state folder out of the deck, to ${user}\n`);
+  }
+  return user;
 }
 
 // ---- serve -----------------------------------------------------------------
@@ -73,7 +100,7 @@ async function serve(argv) {
     allowPositionals: true,
     options: {
       data: { type: 'string', default: env.SYNCDECK_DATA ?? './decks' },
-      state: { type: 'string', default: env.SYNCDECK_STATE ?? './.syncdeck' },
+      state: { type: 'string', default: env.SYNCDECK_STATE },
       host: { type: 'string', default: env.SYNCDECK_HOST ?? '127.0.0.1' },
       port: { type: 'string', default: env.SYNCDECK_PORT ?? '4321' },
       'trust-proxy': { type: 'boolean', default: env.SYNCDECK_TRUST_PROXY === '1' },
@@ -91,6 +118,7 @@ async function serve(argv) {
     if (existsSync(join(p, 'index.html'))) singleDeck = p;
     else dataDir = p;
   }
+  values.state ??= await defaultStateDir(singleDeck);
 
   const app = await buildServer({
     dataDir,
@@ -183,9 +211,11 @@ async function passwd(argv) {
       deck: { type: 'string' },
       viewer: { type: 'boolean', default: false },
       clear: { type: 'boolean', default: false },
-      state: { type: 'string', default: process.env.SYNCDECK_STATE ?? './.syncdeck' },
+      state: { type: 'string', default: process.env.SYNCDECK_STATE },
     },
   });
+  // Run from inside a deck folder, use the same state folder `serve .` would.
+  values.state ??= await defaultStateDir(existsSync('index.html') ? resolve('.') : null);
   const which = positionals[0];
   let kind;
   if (which === 'admin' && !values.deck && !values.viewer) kind = 'admin';

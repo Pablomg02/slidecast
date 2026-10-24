@@ -33,9 +33,9 @@ export function registerSecurity(app) {
   // text/plain is a "simple" content type a cross-site form can send: drop it.
   app.removeContentTypeParser('text/plain');
 
+  // Every path, not only "/api/": the router decodes "/%61pi/..." to "/api/...".
   app.addHook('onRequest', async (req, reply) => {
-    const path = req.url.split('?')[0];
-    if (path.startsWith('/api/') && !SAFE_METHODS.has(req.method) && !originMatches(req)) {
+    if (!SAFE_METHODS.has(req.method) && !originMatches(req)) {
       return reply.code(403).send({ error: 'bad-origin' });
     }
     return undefined;

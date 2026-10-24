@@ -52,10 +52,19 @@ function socketAddress(req) {
   return (req.raw ?? req).socket?.remoteAddress ?? '';
 }
 
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+// True when the Host header names this machine by a loopback name. Any other
+// name reaching a loopback socket may be a DNS-rebound attacker's domain.
+function isLoopbackHost(host) {
+  if (typeof host !== 'string') return false;
+  return LOOPBACK_HOSTS.has(host.toLowerCase().replace(/:\d+$/, ''));
+}
+
 // D10: loopback alone is not enough, because cloudflared also connects from
 // localhost; a request that went through any proxy carries one of these headers.
 export function isLocalDirect(req) {
-  if (!LOOPBACK.has(socketAddress(req))) return false;
+  if (!LOOPBACK.has(socketAddress(req)) || !isLoopbackHost(req.headers.host)) return false;
   return PROXY_HEADERS.every((h) => req.headers[h] === undefined);
 }
 
@@ -339,7 +348,9 @@ export function createFailureLimit({ max, windowMs = HOUR, now = Date.now } = {}
 export function registerAuthRoutes(app, ctx) {
   const { auth, config } = ctx;
   const limits = { perMinute: 5, overallPerMinute: 50, failuresPerHour: 20, ...ctx.loginLimits };
-  const keyOf = (req) => `${clientIp(req, ctx.trustProxy)}|${req.body?.scope}|${req.body?.deck ?? ''}`;
+  // Keyed on the password actually tested, so junk scopes or decks that share
+  // the global password do not open new budgets.
+  const keyOf = (req) => `${clientIp(req, ctx.trustProxy)}|${req.login.target}`;
   const perClient = app.createRateLimit({ max: limits.perMinute, timeWindow: 60_000, keyGenerator: keyOf });
   const overall = app.createRateLimit({ max: limits.overallPerMinute, timeWindow: 60_000, keyGenerator: () => 'login' });
   const failures = createFailureLimit({ max: limits.failuresPerHour });
@@ -349,7 +360,34 @@ export function registerAuthRoutes(app, ctx) {
     return reply.code(429).send({ error: 'too-many-attempts' });
   }
 
+  // Works out which password a login tests, or the error to answer with.
+  async function resolveLogin(body) {
+    const { scope, deck, password } = body ?? {};
+    if (!SCOPES.has(scope) || typeof password !== 'string' || password.length > MAX_PASSWORD
+      || (deck !== undefined && deck !== null && !isValidSlug(deck))
+      || (scope === 'viewer' && !deck)) {
+      return { code: 400, error: 'bad-request' };
+    }
+    if (deck && !(await ctx.decks.exists(deck))) return { code: 404, error: 'no-deck' };
+    if (scope === 'admin') return { hash: config.adminHash, target: 'admin', grantArgs: { admin: true } };
+    if (scope === 'presenter') {
+      const own = deck && deckAuth(config, deck).presenterHash;
+      return {
+        hash: deck ? auth.presenterHashFor(deck) : config.presenterHash,
+        target: own ? `presenter:${deck}` : 'presenter',
+        grantArgs: { present: [deck || '*'] },
+      };
+    }
+    return { hash: deckAuth(config, deck).viewerHash, target: `viewer:${deck}`, grantArgs: { view: [deck] } };
+  }
+
+  // Requests that cannot test a password are answered before the limits, so
+  // they never use up the shared budget.
   async function limit(req, reply) {
+    const login = await resolveLogin(req.body);
+    if (login.error) return reply.code(login.code).send({ error: login.error });
+    if (!login.hash) return reply.code(409).send({ error: 'no-password-configured' });
+    req.login = login;
     const wait = failures.blockedFor(keyOf(req));
     if (wait) return tooMany(reply, wait);
     for (const limiter of [perClient, overall]) {
@@ -359,28 +397,10 @@ export function registerAuthRoutes(app, ctx) {
     return undefined;
   }
 
+  app.decorateRequest('login', null);
   app.post('/api/login', { preHandler: limit }, async (req, reply) => {
-    const { scope, deck, password } = req.body ?? {};
-    if (!SCOPES.has(scope) || typeof password !== 'string' || password.length > MAX_PASSWORD
-      || (deck !== undefined && deck !== null && !isValidSlug(deck))
-      || (scope === 'viewer' && !deck)) {
-      return reply.code(400).send({ error: 'bad-request' });
-    }
-    if (deck && !(await ctx.decks.exists(deck))) return reply.code(404).send({ error: 'no-deck' });
-
-    let hash;
-    let grantArgs;
-    if (scope === 'admin') {
-      hash = config.adminHash;
-      grantArgs = { admin: true };
-    } else if (scope === 'presenter') {
-      hash = deck ? auth.presenterHashFor(deck) : config.presenterHash;
-      grantArgs = { present: [deck || '*'] };
-    } else {
-      hash = deckAuth(config, deck).viewerHash;
-      grantArgs = { view: [deck] };
-    }
-    if (!hash) return reply.code(409).send({ error: 'no-password-configured' });
+    const { scope, deck, password } = req.body;
+    const { hash, grantArgs } = req.login;
     if (!(await verifyPassword(password, hash))) {
       const who = { ip: clientIp(req, ctx.trustProxy), scope, deck: deck || undefined };
       req.log.warn(who, 'login failed');

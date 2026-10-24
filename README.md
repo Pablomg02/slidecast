@@ -173,7 +173,13 @@ syncdeck --help | --version
 - `serve <folder with index.html>` serves only that deck (single-deck mode);
   `serve <folder>` serves every deck inside it. Default: `./decks`.
 - Server state (password hashes, sessions, live step) goes to `./.syncdeck`.
-  Both folders are git-ignored.
+  Both folders are git-ignored. When `./.syncdeck` would end up inside the
+  deck being served (`cd my-deck && syncdeck serve .`), the state goes to
+  `~/.config/syncdeck` instead (`%APPDATA%\syncdeck` on Windows), and an
+  existing `./.syncdeck` there is moved.
+- `--trust-proxy` is for Cloudflare Tunnel. Behind another proxy, make sure it
+  overwrites `Cf-Connecting-IP` and `X-Forwarded-For`, or clients can choose
+  their own address for the login limits.
 - Default address `127.0.0.1:4321`. `--host 0.0.0.0` makes it reachable on
   your network and prints the LAN URLs.
 - Environment variables mirror the flags: `SYNCDECK_HOST`, `SYNCDECK_PORT`,

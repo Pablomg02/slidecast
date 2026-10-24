@@ -126,16 +126,23 @@ test('a deck password overrides a global presenter session', async (t) => {
 
 test('local-direct rule: loopback without proxy headers only', async (t) => {
   const { app, auth } = await setup(t);
-  const base = { raw: { socket: { remoteAddress: '127.0.0.1' } }, headers: {}, cookies: {} };
+  const base = { raw: { socket: { remoteAddress: '127.0.0.1' } }, headers: { host: '127.0.0.1:4321' }, cookies: {} };
   assert.equal(isLocalDirect(base), true);
   assert.equal(isLocalDirect({ ...base, raw: { socket: { remoteAddress: '::ffff:127.0.0.1' } } }), true);
   assert.equal(isLocalDirect({ ...base, raw: { socket: { remoteAddress: '192.168.1.10' } } }), false);
   for (const h of ['x-forwarded-for', 'forwarded', 'x-real-ip', 'cf-connecting-ip']) {
-    assert.equal(isLocalDirect({ ...base, headers: { [h]: '203.0.113.5' } }), false, h);
+    assert.equal(isLocalDirect({ ...base, headers: { ...base.headers, [h]: '203.0.113.5' } }), false, h);
+  }
+  for (const host of ['localhost', 'LOCALHOST:4321', '[::1]:4321', '127.0.0.1']) {
+    assert.equal(isLocalDirect({ ...base, headers: { host } }), true, host);
+  }
+  // DNS rebinding: an attacker's domain resolved to 127.0.0.1.
+  for (const host of ['evil.example:4321', 'localhost.evil.example', '127.0.0.1.nip.io:4321', undefined]) {
+    assert.equal(isLocalDirect({ ...base, headers: { host } }), false, String(host));
   }
   assert.equal(auth.canPresent(base, 'talk'), true);
   assert.equal(auth.canAdmin(base), true);
-  const proxied = { ...base, headers: { 'cf-connecting-ip': '203.0.113.5' } };
+  const proxied = { ...base, headers: { ...base.headers, 'cf-connecting-ip': '203.0.113.5' } };
   assert.equal(auth.canPresent(proxied, 'talk'), false);
   assert.equal(auth.canAdmin(proxied), false);
   // No password configured: login answers 409 whatever the address.
@@ -144,6 +151,40 @@ test('local-direct rule: loopback without proxy headers only', async (t) => {
   assert.deepEqual(res.json(), { error: 'no-password-configured' });
   const s = await app.inject({ url: '/api/session', headers: { 'cf-connecting-ip': '203.0.113.5' } });
   assert.deepEqual(s.json(), { admin: false, present: [], view: [], localDirect: false });
+});
+
+test('logins that cannot test a password do not use up the limits', async (t) => {
+  const { app, auth } = await setup(t, { trustProxy: true });
+  await auth.setPassword('presenter', null, 'presenter-pass1');
+  for (let i = 0; i < 60; i++) {
+    const res = await login(app, { scope: `junk${i}`, password: 'x' }, { 'cf-connecting-ip': `198.51.100.${i}` });
+    assert.equal(res.statusCode, 400);
+  }
+  for (let i = 0; i < 10; i++) {
+    const res = await login(app, { scope: 'viewer', deck: `nodeck${i}`, password: 'x' });
+    assert.equal(res.statusCode, 404);
+  }
+  assert.equal((await login(app, { scope: 'admin', password: 'x' })).statusCode, 409);
+  assert.equal((await login(app, { scope: 'presenter', password: 'presenter-pass1' })).statusCode, 204);
+});
+
+test('decks without their own password share the global presenter budget', async (t) => {
+  const { app, auth, dirs } = await setup(t);
+  await makeDeck(dirs.dataDir, 'other');
+  await auth.setPassword('presenter', null, 'presenter-pass1');
+  const codes = [];
+  for (const deck of [null, 'talk', 'other', 'talk', 'other', 'talk']) {
+    codes.push((await login(app, { scope: 'presenter', deck, password: 'nope' })).statusCode);
+  }
+  assert.deepEqual(codes, [401, 401, 401, 401, 401, 429]);
+});
+
+test('the Origin check also covers percent-encoded paths', async (t) => {
+  const { app } = await setup(t);
+  for (const url of ['/%61pi/logout', '/%2561pi/logout', '/api%2Flogout']) {
+    const res = await app.inject({ method: 'POST', url, headers: { host: HOST, origin: 'http://evil.example' } });
+    assert.equal(res.statusCode, 403, url);
+  }
 });
 
 test('POST without a matching Origin → 403', async (t) => {

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { writeFile, mkdir } from 'node:fs/promises';
+import { writeFile, mkdir, link } from 'node:fs/promises';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { buildServer } from '../src/server.js';
@@ -72,6 +72,49 @@ test('expired, malformed and other-deck tokens are refused', async (t) => {
 test('deck.json is never served', async (t) => {
   const { app, token } = await setup(t);
   assert.equal((await app.inject(`/_deck/talk/${token()}/deck.json`)).statusCode, 404);
+});
+
+test('deck.json is not served under another name either', async (t) => {
+  const { app, token, dataDir } = await setup(t);
+  // Case-insensitive file systems (macOS, Windows) open deck.json for these.
+  for (const name of ['DECK.JSON', 'Deck.json', 'deck.json.', 'deck.json%3A%3A%24DATA']) {
+    await writeFile(join(dataDir, 'talk', decodeURIComponent(name)), '{"syncdeck":1}');
+    assert.equal((await app.inject(`/_deck/talk/${token()}/${name}`)).statusCode, 404, name);
+  }
+  // Any other link to the same file, such as a Windows short name.
+  await link(join(dataDir, 'talk', 'deck.json'), join(dataDir, 'talk', 'notes.json'));
+  assert.equal((await app.inject(`/_deck/talk/${token()}/notes.json`)).statusCode, 404);
+});
+
+test('hidden files and folders are never served', async (t) => {
+  const { app, token, dataDir } = await setup(t);
+  await mkdir(join(dataDir, 'talk', '.syncdeck'));
+  await writeFile(join(dataDir, 'talk', '.syncdeck', 'config.json'), '{"secret":"s"}');
+  await writeFile(join(dataDir, 'talk', '.env'), 'KEY=1');
+  await mkdir(join(dataDir, 'talk', 'img', '.git'));
+  await writeFile(join(dataDir, 'talk', 'img', '.git', 'config'), 'x');
+  for (const p of ['.syncdeck/config.json', '.env', 'img/.git/config', '%2esyncdeck/config.json', '.syncdeck%5cconfig.json']) {
+    assert.equal((await app.inject(`/_deck/talk/${token()}/${p}`)).statusCode, 404, p);
+  }
+});
+
+test('tokens expiring later than the server ever issues are refused', async () => {
+  assert.equal(verifyDeckToken('s', 'talk', issueDeckToken('s', 'talk', Date.now() + 3600_000)), false);
+  assert.equal(verifyDeckToken('s', 'talk', issueDeckToken('s', 'talk', Date.now() + 60_000)), true);
+});
+
+test('index.html is built once per version and answers 304 to its ETag', async (t) => {
+  const { app, token, dataDir } = await setup(t);
+  const url = `/_deck/talk/${token()}/`;
+  const first = await app.inject(url);
+  const etag = first.headers.etag;
+  assert.ok(etag);
+  assert.equal((await app.inject({ url, headers: { 'if-none-match': etag } })).statusCode, 304);
+  await writeFile(join(dataDir, 'talk', 'index.html'), '<!doctype html><html><head></head><body>changed</body></html>');
+  const after = await app.inject({ url, headers: { 'if-none-match': etag } });
+  assert.equal(after.statusCode, 200);
+  assert.match(after.body, /changed/);
+  assert.match(after.body, /bridge\.js/);
 });
 
 test('gzip when the client accepts it', async (t) => {

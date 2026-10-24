@@ -1,8 +1,11 @@
 import { readFile, realpath, stat } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
-import { createGzip, gzipSync } from 'node:zlib';
-import { resolve, sep, extname, join } from 'node:path';
+import { createGzip, gzip } from 'node:zlib';
+import { promisify } from 'node:util';
+import { resolve, sep, extname, join, dirname, basename } from 'node:path';
 import { verifyDeckToken } from './tokens.js';
+
+const gzipAsync = promisify(gzip);
 
 export const DECK_CSP = "sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox; frame-ancestors 'self'";
 export const BRIDGE_TAG = '<script src="/_syncdeck/bridge.js"></script>';
@@ -41,7 +44,33 @@ function acceptsGzip(req) {
   return /\bgzip\b/.test(req.headers['accept-encoding'] ?? '');
 }
 
+// The name a case-insensitive file system (macOS, Windows) would open:
+// "DECK.JSON", "deck.json." and "deck.json::$DATA" all reach deck.json.
+function foldName(name) {
+  return name.toLowerCase().replace(/:.*$/, '').replace(/[. ]+$/, '');
+}
+
+async function isNotesFile(deckDir, target, st) {
+  if (dirname(target) === deckDir && foldName(basename(target)) === 'deck.json') return true;
+  // Other aliases of the same file, such as Windows short names ("DECK~1.JSO").
+  const notes = await stat(join(deckDir, 'deck.json')).catch(() => null);
+  return Boolean(notes?.ino) && notes.ino === st.ino && notes.dev === st.dev;
+}
+
 export function registerDeckFiles(app, ctx) {
+  // index.html with the bridge injected, plain and gzipped, per file version:
+  // building it on every request would let anyone stall the server.
+  const pages = new Map(); // path → {version, html, gz}
+  async function deckPage(target, st) {
+    const version = `${st.size}-${st.mtimeMs}`;
+    const hit = pages.get(target);
+    if (hit?.version === version) return hit;
+    const html = Buffer.from(injectBridge(await readFile(target, 'utf8')));
+    const page = { version, html, gz: await gzipAsync(html) };
+    pages.set(target, page);
+    return page;
+  }
+
   app.get('/_deck/:slug/:token/*', async (req, reply) => {
     const { slug, token } = req.params;
     if (!verifyDeckToken(ctx.config.secret, slug, token)) return reply.code(403).send('Forbidden');
@@ -50,6 +79,8 @@ export function registerDeckFiles(app, ctx) {
 
     const rel = req.params['*'] ?? '';
     if (rel.includes('\0')) return reply.code(403).send('Forbidden');
+    // Hidden files and folders (.git, .env, a state folder) are never deck content.
+    if (rel.split(/[\\/]/).some((part) => part.startsWith('.'))) return reply.code(404).send('Not found');
     let target = resolve(deckDir, rel);
     const root = await realpath(deckDir);
     if (target !== deckDir && !target.startsWith(deckDir + sep)) return reply.code(403).send('Forbidden');
@@ -65,7 +96,7 @@ export function registerDeckFiles(app, ctx) {
     } catch {
       return reply.code(404).send('Not found');
     }
-    if (!st.isFile() || target === join(deckDir, 'deck.json')) return reply.code(404).send('Not found');
+    if (!st.isFile() || (await isNotesFile(deckDir, target, st))) return reply.code(404).send('Not found');
 
     // Every deck file gets the sandbox CSP: an HTML or SVG file opened directly
     // must not run on syncdeck's origin either.
@@ -75,14 +106,17 @@ export function registerDeckFiles(app, ctx) {
     reply.header('Vary', 'Accept-Encoding');
 
     if (target === join(deckDir, 'index.html')) {
-      const html = injectBridge(await readFile(target, 'utf8'));
+      const page = await deckPage(target, st);
+      const etag = `W/"${page.version}"`;
+      reply.header('ETag', etag);
       reply.header('Content-Type', 'text/html; charset=utf-8');
       reply.header('Cache-Control', 'no-cache');
+      if (req.headers['if-none-match'] === etag) return reply.code(304).send();
       if (acceptsGzip(req)) {
         reply.header('Content-Encoding', 'gzip');
-        return reply.send(gzipSync(html));
+        return reply.send(page.gz);
       }
-      return reply.send(html);
+      return reply.send(page.html);
     }
 
     const type = MIME[extname(target).toLowerCase()] ?? 'application/octet-stream';

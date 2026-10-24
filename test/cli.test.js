@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, execFile } from 'node:child_process';
-import { readFile, stat } from 'node:fs/promises';
+import { readFile, stat, cp, mkdir, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tempDirs, onCleanup } from './helpers.js';
@@ -9,9 +10,9 @@ import { tempDirs, onCleanup } from './helpers.js';
 const repo = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BIN = join(repo, 'bin', 'syncdeck.js');
 
-function run(args, { input, cwd = repo } = {}) {
+function run(args, { input, cwd = repo, env } = {}) {
   return new Promise((resolve) => {
-    const child = execFile(process.execPath, [BIN, ...args], { cwd }, (err, stdout, stderr) => {
+    const child = execFile(process.execPath, [BIN, ...args], { cwd, env }, (err, stdout, stderr) => {
       resolve({ code: err ? err.code : 0, stdout, stderr });
     });
     if (input !== undefined) child.stdin.end(input);
@@ -75,8 +76,8 @@ test('--help and --version', async () => {
   assert.equal((await run(['nope'])).code, 1);
 });
 
-function serve(args, t) {
-  const child = spawn(process.execPath, [BIN, 'serve', ...args], { cwd: repo });
+function serve(args, t, { cwd = repo, env } = {}) {
+  const child = spawn(process.execPath, [BIN, 'serve', ...args], { cwd, env });
   onCleanup(t, () => new Promise((r) => { child.once('exit', r); child.kill('SIGTERM'); }));
   return new Promise((resolve, reject) => {
     let out = '';
@@ -106,4 +107,28 @@ test('serve on 0.0.0.0 lists LAN URLs and warns about missing passwords', async 
   const { out } = await serve([dataDir, '--host', '0.0.0.0', '--port', '0', '--state', stateDir], t);
   assert.match(out, /Warning: listening on 0\.0\.0\.0 with no presenter or admin password/);
   assert.match(out, /syncdeck passwd presenter --state /);
+});
+
+test('from inside a deck folder the state goes to the user config folder, not into the deck', async (t) => {
+  const { root } = await tempDirs(t);
+  const deck = join(root, 'my-talk');
+  await cp(join(repo, 'examples', 'demo'), deck, { recursive: true });
+  await mkdir(join(deck, '.syncdeck'));
+  await writeFile(join(deck, '.syncdeck', 'config.json'), JSON.stringify({ secret: 'old-secret' }));
+  const env = { ...process.env, XDG_CONFIG_HOME: join(root, 'xdg') };
+  delete env.SYNCDECK_STATE;
+  const userState = join(root, 'xdg', 'syncdeck');
+
+  const r = await run(['passwd', 'admin'], { input: 'password123\n', cwd: deck, env });
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stderr, /moved the state folder out of the deck/);
+  assert.equal(existsSync(join(deck, '.syncdeck')), false);
+  const c = await config(userState);
+  assert.equal(c.secret, 'old-secret');
+  assert.match(c.adminHash, /^scrypt\$/);
+
+  const { base } = await serve(['.', '--port', '0'], t, { cwd: deck, env });
+  const session = await (await fetch(`${base}/api/session`)).json();
+  assert.equal(session.admin, false, 'the admin password from the user folder applies');
+  assert.equal(existsSync(join(deck, '.syncdeck')), false);
 });
