@@ -1,6 +1,7 @@
 <p align="center"><img src="public/logo.svg" width="150" alt=""></p>
 <h1 align="center">slidecast</h1>
 <p align="center"><b>Present any HTML slide deck like you would in PowerPoint, with a presenter view, your phone as a remote, and audience screens that follow you live.</b></p>
+<p align="center"><a href="https://pablomg02.github.io/slidecast/"><b>See how it works on the website →</b></a></p>
 <p align="center">
   <a href="https://github.com/Pablomg02/slidecast/actions/workflows/test.yml"><img src="https://github.com/Pablomg02/slidecast/actions/workflows/test.yml/badge.svg" alt="tests"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-818cf8" alt="MIT license"></a>
