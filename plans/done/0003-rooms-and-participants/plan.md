@@ -127,3 +127,9 @@ Fixes after an independent review (2026-10-24), each with a regression test:
 ## Results
 
 - All goals delivered. `npm test` 110 passed; `npm run check` clean; `npm run test:e2e` 55 passed (Chromium).
+
+## Closure
+
+2026-10-24 — done. All goals delivered; CI green on `main` (unit on Node 20
+and 22, e2e, Docker). Not yet tried with a real audience of hundreds of
+viewers.
