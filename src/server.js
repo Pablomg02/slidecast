@@ -21,7 +21,8 @@ import { registerAdmin } from './routes/admin.js';
 export { PUBLIC_DIR };
 
 const require = createRequire(import.meta.url);
-const markdownIt = readFileSync(join(require.resolve('markdown-it/package.json'), '..', 'dist', 'markdown-it.min.js'));
+// The UMD build: loaded as a classic script, it defines window.markdownit.
+const markdownIt = readFileSync(require.resolve('markdown-it/browser'));
 
 export async function buildServer(opts = {}) {
   const o = {

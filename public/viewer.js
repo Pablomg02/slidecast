@@ -79,6 +79,7 @@ const conn = connectLive(slug, controlling ? 'presenter' : 'viewer', (msg) => {
   if (msg.t !== 'state') return;
   const navChanged = msg.viewerNav !== live.viewerNav;
   Object.assign(live, msg);
+  document.body.dataset.nav = live.viewerNav; // lets the tests wait for a mode change
   blank.hidden = !live.blank;
   if (live.viewerNav === 'follow' && navChanged) attached = true;
   if (!attached && live.viewerNav === 'back' && local > live.index) attached = true;

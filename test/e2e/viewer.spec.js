@@ -19,6 +19,9 @@ test.afterAll(async () => {
 const deckFrame = (page) => page.frames().find((f) => f.url().includes('/_deck/'));
 const current = (page) => deckFrame(page).evaluate(() => window.SLIDECAST_DECK.current());
 
+// The presenter's socket sees a mode change before the viewer page does.
+const viewerNav = (page, mode) => expect(page.locator('body')).toHaveAttribute('data-nav', mode);
+
 async function openViewer(page) {
   await page.goto(`${srv.url}/demo/view`);
   await expect.poll(() => deckFrame(page)?.evaluate(() => Boolean(window.SLIDECAST_DECK)).catch(() => false)).toBe(true);
@@ -50,6 +53,7 @@ test('follow: the viewer cannot move', async ({ page }) => {
   await openViewer(page);
   await presenter.send({ t: 'nav', mode: 'follow' });
   await presenter.state((s) => s.viewerNav === 'follow');
+  await viewerNav(page, 'follow');
   await page.keyboard.press('ArrowRight');
   await page.keyboard.press('ArrowLeft');
   // Keys pressed inside the deck are forwarded too, and ignored as well.
@@ -91,6 +95,7 @@ test('free: the viewer can go ahead of live', async ({ page }) => {
   await openViewer(page);
   await presenter.send({ t: 'nav', mode: 'free' });
   await presenter.state((s) => s.viewerNav === 'free');
+  await viewerNav(page, 'free');
   await page.keyboard.press('ArrowRight');
   await page.keyboard.press('ArrowRight');
   await expect.poll(() => current(page)).toBe(2);
@@ -102,6 +107,7 @@ test('switching to follow re-attaches a detached viewer', async ({ page }) => {
   await openViewer(page);
   await presenter.send({ t: 'nav', mode: 'free' });
   await presenter.state((s) => s.viewerNav === 'free');
+  await viewerNav(page, 'free');
   await page.keyboard.press('ArrowRight');
   await expect.poll(() => current(page)).toBe(1);
   await presenter.send({ t: 'nav', mode: 'follow' });
