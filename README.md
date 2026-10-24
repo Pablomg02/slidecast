@@ -31,7 +31,7 @@ moves with you: the projector, your phone, your audience's laptops.
   [deck format](docs/deck-format.md) includes a prompt to give your AI
   assistant.
 - **Yours**: it runs on your computer, your network or your own server. No
-  account, no cloud service, no tracking. English and Spanish interface.
+  account, no cloud service, no tracking. English, Spanish and French interface.
 
 <p align="center"><img src="docs/assets/presenter.png" alt="The presenter view: the current slide, the next one, speaker notes, timer, clock and controls" width="640"><br><sub>The presenter view</sub></p>
 
