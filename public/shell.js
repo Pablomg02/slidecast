@@ -68,6 +68,8 @@ const ICONS = {
   arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
   chevron: '<path d="M6 15l6-6 6 6"/>',
   more: '<circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/>',
+  hand: '<path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11M11 10.5v-6a1.5 1.5 0 0 1 3 0V11M14 10.5V6a1.5 1.5 0 0 1 3 0v8.5a6.5 6.5 0 0 1-6.5 6.5h-.6a6 6 0 0 1-4.6-2.2L3.2 15a1.6 1.6 0 0 1 2.4-2.1L8 15"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
 };
 
 export function icon(name, cls = 'icon') {
@@ -139,10 +141,20 @@ export function setTitle(title) {
 
 // ---- live connection -------------------------------------------------------
 
-// WebSocket to /ws/<slug> with reconnect (0.5 s → 10 s). The last `meta`
-// message is re-sent after every reconnect. onStatus gets "open",
-// "reconnecting" or "denied" (4401/4404: no point retrying).
-export function connectLive(slug, role, onMessage, onStatus = () => {}) {
+// Close codes that end the connection for good (see CLOSE in src/live.js).
+const FINAL = {
+  4000: 'again', // the room opened or admits people again: reload
+  4401: 'denied',
+  4403: 'kicked',
+  4404: 'denied',
+  4410: 'presenters-full',
+};
+
+// WebSocket to /ws/<slug> with reconnect (0.5 s → 10 s). `hello()`, if given,
+// is sent first on every connection; the last `meta` message is re-sent after
+// every reconnect. onStatus gets "open", "reconnecting", "full" (the room is
+// full: retrying) or, with no retry, one of FINAL's names.
+export function connectLive(slug, role, onMessage, onStatus = () => {}, { hello } = {}) {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   const url = `${proto}://${location.host}/ws/${encodeURIComponent(slug)}?role=${role}`;
   let ws = null;
@@ -156,6 +168,8 @@ export function connectLive(slug, role, onMessage, onStatus = () => {}) {
     ws.onopen = () => {
       delay = 500;
       onStatus('open');
+      const first = hello?.();
+      if (first) ws.send(JSON.stringify(first));
       if (meta) ws.send(JSON.stringify(meta));
     };
     ws.onmessage = (e) => {
@@ -165,11 +179,11 @@ export function connectLive(slug, role, onMessage, onStatus = () => {}) {
     };
     ws.onclose = (e) => {
       if (stopped) return;
-      if (e.code === 4401 || e.code === 4404) {
-        onStatus('denied', e.code);
+      if (FINAL[e.code]) {
+        onStatus(FINAL[e.code], e.code);
         return;
       }
-      onStatus('reconnecting');
+      onStatus(e.code === 4409 ? 'full' : 'reconnecting');
       timer = setTimeout(open, delay);
       delay = Math.min(delay * 2, 10_000);
     };
@@ -306,6 +320,14 @@ export function isOwnKey(e) {
 export function toggleFullscreen() {
   if (document.fullscreenElement) document.exitFullscreen?.();
   else document.documentElement.requestFullscreen?.().catch(() => {});
+}
+
+// "Participant 007", or the participant's name (D6 of 0003).
+export function participantNumber(n) {
+  return String(n).padStart(3, '0');
+}
+export function participantLabel({ n, name }) {
+  return name || t('participantN', { n: participantNumber(n) });
 }
 
 export function stepLabel(step) {

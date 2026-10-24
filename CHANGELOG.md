@@ -6,6 +6,25 @@ include breaking changes, always listed here.
 
 ## [Unreleased]
 
+- Rooms: each deck is a room the admin opens and closes, from the admin
+  panel or the presenter view; "Open only this one" closes the others. Rooms
+  start closed, viewers of a closed room wait and join by themselves when it
+  opens, and closing a room forgets everyone in it. `/` follows the open room
+  (with several open, the list of them). **Breaking:** the "Home page"
+  setting is gone, and the public list is now on by default and shows only
+  open rooms.
+- Viewers give a name that only presenters see, or join anonymously
+  ("Participant 007"), and can raise their hand with a short note.
+  Presenters see raised hands and the people in the room in new tabs next to
+  the notes: queue, attend (the viewer is told), resolve, lower all, turn
+  hands off; remove a viewer (a reload does not bring them back) or stop
+  admitting new people. The admin can remove another presenter's device.
+- Per-deck room settings: presenters at once (devices, 1–20, 20 by default),
+  viewers at once (1–1000, 200 by default), ask for names, allow hands.
+- WebSocket limits: 500 connections per address (was 100) and 1 200 in total
+  (was 1 000), plus 100 kept for presenters. Viewers no longer receive every
+  join and leave, only changes of the slide state.
+
 ## [0.1.1] - 2026-10-24
 
 - Swiping on a slider or inside `data-interactive` no longer changes slides on

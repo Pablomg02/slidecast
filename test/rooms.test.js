@@ -292,7 +292,7 @@ test('the viewer limit counts sockets; the presenter limit counts devices and sp
   const room = await owner.next(isRoom((m) => m.presenters.length === 2));
   assert.equal(room.admin, true);
   const target = room.presenters.find((d) => !d.owner);
-  assert.equal(target.windows, 2);
+  assert.equal(target.windows, 1, 'a display does not count');
   first.send({ t: 'kick-presenter', id: room.presenters.find((d) => d.owner).id });
   assert.equal((await first.next((m) => m.t === 'error')).code, 'forbidden', 'only the admin');
   owner.send({ t: 'kick-presenter', id: target.id });

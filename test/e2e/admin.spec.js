@@ -19,7 +19,7 @@ async function demoZip() {
   return path;
 }
 
-test('log in, upload, feature, redirect, delete', async ({ page, browser }) => {
+test('log in, upload, open only this room, redirect, delete', async ({ page, browser }) => {
   await page.goto(`${srv.url}/admin`);
   await page.fill('#password', 'nope-nope');
   await page.click('button[type=submit]');
@@ -34,10 +34,15 @@ test('log in, upload, feature, redirect, delete', async ({ page, browser }) => {
   await expect(page.locator('tr[data-slug=demo2]')).toBeVisible();
   await expect(page.locator('tr[data-slug=demo2] td').first()).toHaveText('slidecast demo');
 
-  await page.check('tr[data-slug=demo2] input[name=featured]');
-  await expect.poll(() => srv.app.slidecast.config.featured).toBe('demo2');
+  // A new deck's room starts closed; "Open only this one" closes the others.
+  await expect(page.locator('tr[data-slug=demo2] .room-toggle')).toHaveText('Closed');
+  await page.click('tr[data-slug=demo2] .room-only');
+  await expect(page.locator('tr[data-slug=demo2] .room-toggle')).toHaveText('Open');
+  await expect(page.locator('tr[data-slug=demo] .room-toggle')).toHaveText('Closed');
+  expect(srv.app.slidecast.rooms.isOpen('demo2')).toBe(true);
+  expect(srv.app.slidecast.rooms.isOpen('legacy-pres')).toBe(false);
 
-  // An anonymous visitor (no admin session) is sent to the featured deck.
+  // An anonymous visitor (no admin session) is sent to the open room.
   const anon = await browser.newContext();
   const visitor = await anon.newPage();
   await visitor.goto(`${srv.url}/`);
@@ -58,7 +63,8 @@ test('log in, upload, feature, redirect, delete', async ({ page, browser }) => {
   await expect(page.locator('tr[data-slug=demo2]')).toHaveCount(0);
   const trash = await readdir(join(srv.stateDir, 'trash'));
   expect(trash.some((n) => n.startsWith('demo2-'))).toBe(true);
-  expect(srv.app.slidecast.config.featured).toBe(null);
+  expect(srv.app.slidecast.config.rooms.demo2).toBe(undefined);
+  for (const slug of ['demo', 'legacy-pres']) await srv.app.slidecast.rooms.update(slug, { open: true });
 });
 
 test('deck settings dialog sets a viewer password', async ({ page }) => {
@@ -85,10 +91,10 @@ test('multi-deck panel: listing hint, admin password removal hint, sign out', as
   await expect(page.locator('#public-listing')).toBeVisible();
   await expect(page.locator('.listing .hint')).toContainText('only shows a note asking for the link');
   const site = new URL(srv.url).host;
-  await expect(page.locator('.featured-hint')).toContainText(`goes to ${site} with nothing after it`);
-  await expect(page.locator('label[for=public-listing]')).toContainText(`list of presentations at ${site}`);
+  await expect(page.locator('.room-hint')).toContainText(`${site} opens the open room`);
+  await expect(page.locator('label[for=public-listing]')).toContainText(`list of them at ${site}`);
   await expect(page.locator('.page-admin')).not.toContainText(' / ');
-  await expect(page.locator('th', { hasText: 'Home page' })).toBeVisible();
+  await expect(page.locator('th', { hasText: 'Room' })).toBeVisible();
   await expect(page.locator('.password-control:has(#pw-admin-all) .hint'))
     .toContainText('slidecast passwd admin --clear');
   await expect(page.locator('#logout')).toBeVisible();
@@ -103,7 +109,7 @@ test('phone panel: decks as cards, nothing wider than the screen', async ({ brow
   const card = page.locator('tr[data-slug=demo]');
   await expect(card).toBeVisible();
   await expect(page.locator('.deck-table thead')).toBeHidden();
-  await expect(card.locator('.deck-featured')).toContainText('Home page');
+  await expect(card.locator('.deck-room')).toContainText('Open');
   for (const name of ['Viewer', 'Presenter', 'Edit notes', 'Settings', 'Delete']) {
     const box = await card.getByText(name, { exact: true }).boundingBox();
     expect(box.x + box.width).toBeLessThanOrEqual(320);
@@ -112,7 +118,7 @@ test('phone panel: decks as cards, nothing wider than the screen', async ({ brow
   await context.close();
 });
 
-test('single-deck panel hides featured and the public list; no sign out without a password', async ({ browser }) => {
+test('single-deck panel: the room is always open, no public list; no sign out without a password', async ({ browser }) => {
   const single = await startServer({ single: true });
   try {
     const context = await browser.newContext({ locale: 'es-ES' });
@@ -120,8 +126,9 @@ test('single-deck panel hides featured and the public list; no sign out without 
     await page.goto(`${single.url}/admin`); // local direct, no admin password
     await expect(page.locator('tr[data-slug=demo]')).toBeVisible();
     await expect(page.locator('#public-listing')).toHaveCount(0);
-    await expect(page.locator('input[name=featured]')).toHaveCount(0);
-    await expect(page.locator('th', { hasText: 'Destacada' })).toHaveCount(0);
+    await expect(page.locator('.room-toggle')).toBeDisabled();
+    await expect(page.locator('.room-toggle')).toHaveText('Abierta');
+    await expect(page.locator('.room-only')).toHaveCount(0);
     await expect(page.locator('#logout')).toHaveCount(0);
     await expect(page.locator('.password-control:has(#pw-admin-all) .hint'))
       .toHaveText('Sin ella, el panel de administración solo funciona en el ordenador donde corre Slidecast.');

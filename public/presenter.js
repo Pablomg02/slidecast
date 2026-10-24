@@ -6,6 +6,7 @@ import {
   toggleFullscreen, isOwnKey, icon,
 } from './shell.js';
 import { renderMarkdown } from './markdown.js';
+import { createRoomPanels } from './presenter-room.js';
 
 const slug = slugFromPath();
 const app = document.getElementById('app');
@@ -16,7 +17,7 @@ setTitle(deck.title);
 
 const [aw, ah] = deck.aspect.split(':').map(Number);
 const desktop = window.matchMedia('(min-width: 900px)');
-const live = { index: 0, total: 0, blank: false, viewerNav: deck.viewerNav, viewers: 0 };
+const live = { index: 0, total: 0, blank: false, viewerNav: deck.viewerNav };
 let notes = deck.notes ?? {};
 
 // ---- layout ----------------------------------------------------------------
@@ -42,7 +43,11 @@ const modeSelect = el('select', { id: 'viewer-mode', title: t('viewerMode'), onc
   el('option', { value: 'follow' }, t('modeFollow')),
   el('option', { value: 'back' }, t('modeBack')),
   el('option', { value: 'free' }, t('modeFree')));
-const viewers = el('span.p-viewers', { id: 'viewers' });
+const viewers = el('span.p-viewers', { id: 'viewers' }, t('viewersCount', { n: 0 }));
+const roomClosed = el('span.badge.badge-warn.p-room-closed', { id: 'room-closed', hidden: true }, t('roomClosedBadge'));
+// Only the admin opens and closes rooms (D3 of 0003); closing asks once more.
+let closeArmed = 0;
+const roomBtn = el('button', { id: 'room-toggle', hidden: !deck.canAdmin, onclick: () => toggleRoom() });
 const clock = el('span.p-clock', { id: 'clock' });
 const timerText = el('span.p-timer-text', { id: 'timer' }, '00:00');
 const timerToggle = el('button', { id: 'timer-toggle', onclick: () => toggleTimer() }, t('start'));
@@ -63,12 +68,24 @@ const openViewer = el('a.button', { href: `/${slug}/view`, target: '_blank', rel
 const slideToggle = el('button.p-slide-toggle', { id: 'slide-toggle', onclick: () => setSlideFolded(!slideFolded) },
   icon('chevron'), el('span.label'));
 
+// Notes, raised hands and people share the side panel, as tabs.
+const panels = createRoomPanels({ send: (msg) => conn.send(msg) });
+const handsCount = el('span.p-tab-count', { hidden: true });
+const tabs = {
+  notes: el('button.p-tab', { type: 'button', role: 'tab', id: 'tab-notes', onclick: () => setTab('notes') }, t('notes')),
+  hands: el('button.p-tab', { type: 'button', role: 'tab', id: 'tab-hands', onclick: () => setTab('hands') }, t('tabHands'), handsCount),
+  people: el('button.p-tab', { type: 'button', role: 'tab', id: 'tab-people', onclick: () => setTab('people') }, t('tabPeople')),
+};
+const fontBox = el('div.p-font', {}, fontSteps, fontToggle);
+
 // The slide id lives above the notes, not in the toolbar, so its changing
 // width never shifts the toolbar.
 const notesBox = el('section.p-notes', {},
-  el('div.p-notes-head', {}, slideId, slideToggle),
+  el('div.p-notes-head', {}, el('div.p-tabs', { role: 'tablist' }, Object.values(tabs)), roomClosed, slideId, slideToggle),
   notesBody,
-  el('div.p-font', {}, fontSteps, fontToggle));
+  panels.handsPanel,
+  panels.peoplePanel,
+  fontBox);
 
 // Phone only: clock, viewer settings and blank stay folded behind this button.
 const moreToggle = el('button.p-more-toggle', {
@@ -84,7 +101,7 @@ const toolbar = el('div.p-toolbar', {},
   el('div.p-group.p-timer', {}, timerText, timerToggle, timerReset, moreToggle),
   el('div.p-group.p-secondary', {}, clock),
   el('div.p-group.p-secondary', {}, modeSelect, viewers),
-  el('div.p-group.p-secondary', {}, btnBlank),
+  el('div.p-group.p-secondary', {}, btnBlank, roomBtn),
   el('div.p-group.p-extra', {}, openViewer),
   reconnecting);
 
@@ -176,12 +193,68 @@ function render() {
   btnBlank.textContent = live.blank ? t('unblank') : t('blank');
   btnBlank.classList.toggle('active', live.blank);
   modeSelect.value = live.viewerNav;
-  viewers.textContent = t('viewersCount', { n: live.viewers });
   btnPrev.disabled = live.index <= 0;
   btnNext.disabled = n > 0 && live.index >= n - 1;
   if (current.readyState && current.index !== live.index) current.go(live.index);
   renderNext();
   renderNotes();
+}
+
+// ---- tabs and room -----------------------------------------------------------
+
+let tab = 'notes';
+try { tab = localStorage.getItem('slidecast.presenterTab') || 'notes'; } catch { /* storage blocked */ }
+let seenHands = 0;
+function setTab(name) {
+  tab = tabs[name] ? name : 'notes';
+  for (const [k, btn] of Object.entries(tabs)) btn.setAttribute('aria-selected', String(k === tab));
+  notesBody.hidden = tab !== 'notes';
+  fontBox.hidden = tab !== 'notes';
+  panels.handsPanel.hidden = tab !== 'hands';
+  panels.peoplePanel.hidden = tab !== 'people';
+  if (tab === 'hands') seenHands = panels.handCount();
+  renderHandsTab();
+  try { localStorage.setItem('slidecast.presenterTab', tab); } catch { /* storage blocked */ }
+}
+
+// The hands tab shows how many there are, and pulses while new ones are unseen.
+function renderHandsTab() {
+  const n = panels.handCount();
+  if (tab === 'hands' || n < seenHands) seenHands = n;
+  handsCount.textContent = String(n);
+  handsCount.hidden = n === 0;
+  tabs.hands.classList.toggle('p-tab-new', n > seenHands);
+}
+setTab(tab);
+
+function renderRoom(room) {
+  viewers.textContent = t('viewersCount', { n: room.viewers });
+  roomClosed.hidden = room.open;
+  if (Date.now() >= closeArmed) roomBtn.textContent = room.open ? t('closeRoom') : t('openRoom');
+  roomBtn.classList.toggle('danger', room.open);
+}
+
+async function toggleRoom() {
+  const room = panels.room;
+  if (!room) return;
+  if (room.open && Date.now() >= closeArmed) {
+    closeArmed = Date.now() + 3000;
+    roomBtn.textContent = t('confirmClose');
+    setTimeout(() => renderRoom(panels.room), 3100);
+    return;
+  }
+  closeArmed = 0;
+  roomBtn.disabled = true;
+  await api(`/api/admin/rooms/${encodeURIComponent(slug)}`, { method: 'PATCH', body: { open: !room.open } });
+  roomBtn.disabled = false;
+}
+
+// Another device took the last presenter place: offer to watch instead (D8 of 0003).
+function presentersFull() {
+  app.replaceChildren(el('section.card.p-full', {},
+    el('h1', {}, t('presentersFullTitle')),
+    el('p.muted', {}, t('presentersFullText')),
+    el('a.button.primary', { href: `/${slug}/view?control=off` }, t('watchAsViewer'))));
 }
 
 const conn = connectLive(slug, 'presenter', (msg) => {
@@ -191,10 +264,15 @@ const conn = connectLive(slug, 'presenter', (msg) => {
   } else if (msg.t === 'notes') {
     notes = msg.slides ?? {};
     renderNotes();
+  } else if (msg.t === 'room') {
+    panels.update(msg);
+    renderRoom(msg);
+    renderHandsTab();
   }
 }, (status) => {
-  reconnecting.hidden = status === 'open';
+  reconnecting.hidden = status !== 'reconnecting';
   if (status === 'denied') location.replace(`/${slug}/login?as=presenter`);
+  if (status === 'presenters-full') presentersFull();
 });
 
 function act(action) {

@@ -26,6 +26,11 @@ moves with you: the projector, your phone, your audience's laptops.
   and a button to black out every screen. It also works on a phone.
 - **Viewers in sync**: every screen follows your slides within a second.
 - **Any remote**: keyboard, a presentation clicker, or your phone.
+- **An audience that takes part**: viewers raise their hand, with an optional
+  note, and you queue and answer them from the presenter view. They can give
+  a name only you see, or stay anonymous.
+- **Rooms you open and close**: open the deck you are about to present with
+  one click; the main address takes everyone to it.
 - **Notes in the browser**: write them slide by slide in the admin panel;
   they are saved next to the deck.
 - **Made for AI decks**: a deck is just a folder with an `index.html`. The
@@ -123,7 +128,11 @@ slidecast prints the addresses other devices can use, something like
 
 - **On your phone**, open `http://192.168.1.20:4321/<deck>/present` and type
   the presenter password.
-- **Your audience** opens `http://192.168.1.20:4321/<deck>/view`; no password.
+- **Open the room**: in the admin page click **Open** (or **Open only this
+  one**) next to the deck. Rooms start closed, so nobody can watch before
+  you are ready.
+- **Your audience** opens `http://192.168.1.20:4321` (it goes straight to the
+  open room) or `http://192.168.1.20:4321/<deck>/view`; no password.
 
 `<deck>` is the deck's *Name in URL* in the admin page. You can also share
 just `http://192.168.1.20:4321/<deck>`: it opens a page where each person
@@ -196,13 +205,44 @@ view:
   of you; a *Back to live* button returns to your slide.
 - **Free**: viewers can browse the whole deck.
 
+### Your audience: names, hands and the room
+
+Each deck is a **room**. The admin opens and closes it (in the admin panel,
+or with **Open room** / **Close room** in the presenter view); **Open only
+this one** closes the others. The main address follows the open room: with
+one open it goes straight there, with several it shows a list to choose from
+(this can be turned off), and with none a page asking for the link. Viewers
+cannot enter a closed room: they wait and join by themselves when it opens.
+Presenters can always enter, to get ready. Closing a room sends everyone out
+and forgets them.
+
+On joining, viewers are asked for a name, or join anonymously as
+"Participant 007". Only presenters see the names; viewers see only their own.
+They can **raise their hand**, with a note of up to 280 characters. In the
+presenter view:
+
+- **Hands** lists them: *Queue* puts one in the queue, *Attend* moves it to
+  the top and tells the viewer you are attending to them, *Resolve* lowers
+  the hand and deletes the note. *Lower all* clears them all, and the switch
+  turns hands off (during an exam, say).
+- **People** lists who is in the room. *Remove* takes someone out, and
+  reloading the page does not bring them back. If they come back with a new
+  identity (another browser, a private window), tick **Do not admit more
+  people**: whoever is in stays, nobody new gets in.
+- The admin can also remove another presenter's device; that device then
+  needs the password again.
+
+In each deck's **Settings** you can set how many presenters (devices, 1–20,
+20 by default) and viewers (1–1000, 200 by default) a room takes at once, and
+turn off names or hands. The admin is never turned away by the presenter
+limit.
+
 ### Admin panel
 
 At `/admin` you can upload and replace decks (replacing keeps the notes),
 delete them (they go to a trash folder, never erased), edit notes, set
-passwords, rename decks, choose each deck's viewer mode, and choose what
-visitors see at the main address: one deck, the list of decks, or a page
-asking for the link.
+passwords, rename decks, open and close rooms, and set each deck's viewer
+mode and room limits.
 
 Under **Appearance** you can give the site your own name (browser tab, top of
 each page, home page), change the home page message and the accent colour,
@@ -231,6 +271,10 @@ Decks run in a sandbox: a deck written by an AI or downloaded from the
 Internet cannot read your passwords or act as the admin. Details in
 [docs/security.md](docs/security.md).
 
+Viewers' names and hand notes are kept in memory only while the room is open:
+they are never written to disk or to the logs, never shown to other viewers,
+and they are gone when the room closes or slidecast restarts.
+
 ## Updating
 
 - Downloaded as a ZIP: download the new version and copy your `decks` and
@@ -246,7 +290,7 @@ Internet cannot read your passwords or act as the admin. Details in
 
 | Address | Who | What |
 | --- | --- | --- |
-| `/` | everyone | The deck chosen in the admin panel, or the only deck; otherwise the list of decks or a page asking for the link. A signed-in admin always gets the list. |
+| `/` | everyone | The open room; with several open, the list of them (or a page asking for the link); with none, that page. A signed-in admin always gets the list of decks. |
 | `/<deck>` | everyone | Choose viewer or presenter. |
 | `/<deck>/view` | viewers | The deck, full window, following the presenter. |
 | `/<deck>/present` | presenter | Current and next step, notes, timer, clock, controls. |

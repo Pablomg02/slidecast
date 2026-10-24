@@ -23,6 +23,8 @@ const current = (page) => deckFrame(page).evaluate(() => window.SLIDECAST_DECK.c
 const viewerNav = (page, mode) => expect(page.locator('body')).toHaveAttribute('data-nav', mode);
 
 async function openViewer(page) {
+  // Joined anonymously before: no name prompt takes the keyboard.
+  await page.addInitScript(() => localStorage.setItem('slidecast.name', '{"name":null}'));
   await page.goto(`${srv.url}/demo/view`);
   await expect.poll(() => deckFrame(page)?.evaluate(() => Boolean(window.SLIDECAST_DECK)).catch(() => false)).toBe(true);
   // The shell keeps the focus after load, so page.keyboard reaches it (a click

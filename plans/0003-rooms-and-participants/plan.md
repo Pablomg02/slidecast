@@ -59,7 +59,7 @@ strings `public/i18n.js`, styles `public/style.css`. Tests: `npm test`,
 | D5 | Every viewer without presenter rights is a participant. Its first message is `join` with a token (random 32 bytes, issued by the server, kept in `localStorage` per deck, sent in the message, never in the URL). Unknown or no token → new participant with the next number. Viewers with presenter rights (projector) are never participants. | Identity survives reloads; cannot be guessed. | agreed |
 | D6 | Name: up to 40 characters, NFC, control characters removed, spaces collapsed; empty = anonymous, shown as "Participant 007" in the presenter's language. Presenters always see the number too. Names and notes are never sent to other viewers, never written to disk or logs. | Duplicates and impersonation; data minimisation (GDPR). | agreed |
 | D7 | A participant whose sockets are all gone is kept for 2 minutes (hand included), then removed. | Phone screen locks. | agreed |
-| D8 | Presenter limit counts devices (a session, or the local computer), not windows. The owner (`canAdmin`) is never refused. A refused presenter gets close code 4410 and an offer to join as a viewer. Lowering a limit never disconnects anyone. | Laptop + projector + phone is the normal setup. | author |
+| D8 | Presenter limit counts devices (a session, or the local computer) with a window that controls (presenter view, or the projector while controlling), not windows; a display that stopped controlling neither counts nor is refused. The owner (`canAdmin`) is never refused. A refused presenter gets close code 4410 and an offer to join as a viewer. Lowering a limit never disconnects anyone. | Laptop + projector + phone is the normal setup. | author |
 | D9 | Viewer limit counts participant sockets; full → close code 4409, the page retries. Participants records (online or in grace) are capped at 2 × max viewers + 50. New participants per address: 200 per minute. | Server load; scripted identities. | agreed |
 | D10 | Global WebSocket caps: 500 per address, 1 200 in total, plus 100 reserved for presenter connections. | Classroom behind one NAT address; presenters never locked out by a full server. | author |
 | D11 | Kick a participant (any presenter): its token is banned in the room until it closes; its sockets close with 4403 and the page shows "removed" without retrying. "No more people" (any presenter): new tokens are parked until it is turned off; known tokens may reconnect. | Volatile users: a reload must not undo a kick. | author |
@@ -104,3 +104,16 @@ Mode: single agent
 ## Implementation
 
 Baseline (2026-10-24): `npm test` 89 passed; `npm run test:e2e` 48 passed.
+
+- [x] T1 — rooms, open/close, `/` — `src/rooms.js`, `PATCH /api/admin/rooms/:slug`; `test/routes.test.js` redirect matrix, `test/rooms.test.js` "rooms start closed…", "single-deck mode…".
+- [x] T2 — live hub — `src/live.js`, `src/participants.js`, `auth.sessionKey` / `auth.dropPresent`; 16 tests in `test/rooms.test.js` (join, token, grace, names, hands flow and limits, kick and ban, lock, viewer and presenter limits, kick presenter, closing wipes, flood, join limit).
+- [x] T3 — client — `public/participant.js` (name prompt, hand, notices), `public/presenter-room.js` (Hands and People tabs), `public/viewer.js`, `public/presenter.js`, `public/admin.js` (Room column, room settings, live counts); `test/e2e/room.spec.js` 6 tests; screenshots checked at desktop and phone sizes.
+- [x] T4 — docs — `README.md`, `docs/security.md`, `docs/deploy-raspberry.md`, `docs/remote-access.md`, `CHANGELOG.md`, website setup step (en/es).
+
+Deviations:
+- D8 refined during implementation: only windows that can drive the deck count as presenter devices; a display (projector with *Stop controlling*) is never refused, so a refused presenter can still watch.
+- Room counts in the admin panel are refreshed every 5 s by polling, not pushed.
+
+## Results
+
+- All goals delivered. `npm test` 105 passed; `npm run check` clean; `npm run test:e2e` 54 passed (Chromium, also with `--repeat-each 2`).

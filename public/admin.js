@@ -1,4 +1,5 @@
-// Admin panel: decks (upload, delete, featured, settings) and passwords.
+// Admin panel: decks (upload, delete, settings), their rooms (open or closed,
+// limits) and passwords.
 import { t, el, api, setTitle, brand } from './shell.js';
 
 setTitle(t('admin'));
@@ -84,31 +85,20 @@ function render({ decks, single }) {
   const table = el('table.deck-table', {},
     el('thead', {}, el('tr', {},
       el('th', {}, t('title')), el('th', {}, t('slug')), el('th', {}, t('size')),
-      single ? null : el('th', {}, t('featured')), el('th', {}, t('actions')))),
+      el('th', {}, t('room')), el('th', {}, t('actions')))),
     el('tbody', {}, decks.map((d) => el('tr', { dataset: { slug: d.slug } },
       el('td.deck-title', {}, el('a', { href: `/${d.slug}` }, d.title)),
       el('td.deck-slug', {}, el('code', {}, d.slug)),
       el('td.deck-size', {}, fmtSize(d.size)),
-      // On phones the table becomes cards with no header row, so the radio
-      // carries its own label there.
-      single ? null : el('td.deck-featured', {}, el('label.inline', {}, el('input', {
-        type: 'radio', name: 'featured', value: d.slug, checked: settings.featured === d.slug,
-        title: t('featured'), onchange: () => setFeatured(d.slug),
-      }), el('span.phone-only', {}, t('featured')))),
+      el('td.deck-room', {}, roomCell(d, { single, several: decks.length > 1 })),
       el('td.actions', {},
         el('a', { href: `/${d.slug}/view` }, t('viewer')),
         el('a', { href: `/${d.slug}/present` }, t('presenter')),
         el('a', { href: `/admin/edit/${d.slug}`, className: 'edit-link' }, t('edit')),
         el('button.small', { onclick: () => openSettings(d) }, t('settings')),
-        single ? null : el('button.small.danger', { onclick: () => confirmDelete(d.slug) }, t('delete')))))),
-    single ? null : el('tfoot', {}, el('tr', {},
-      el('td', { colSpan: 3 }),
-      el('td', {}, el('label.inline', {}, el('span.phone-only', {}, `${t('featured')}:`), el('input', {
-        type: 'radio', name: 'featured', value: '', checked: !settings.featured, onchange: () => setFeatured(null),
-      }), ` ${t('none')}`)),
-      el('td'))));
+        single ? null : el('button.small.danger', { onclick: () => confirmDelete(d.slug) }, t('delete')))))));
   app.append(el('h2', {}, t('decks')), decks.length ? el('div.table-wrap', {}, table) : el('p.muted', {}, t('noDecks')));
-  if (decks.length && !single) app.append(el('p.hint.muted.featured-hint', {}, t('featuredHint', { site })));
+  if (decks.length && !single) app.append(el('p.hint.muted.room-hint', {}, t('roomHint', { site })));
 
   if (!single) app.append(uploadForm());
 
@@ -227,10 +217,37 @@ function uploadForm() {
   return el('div', {}, el('h2', {}, t('upload')), form);
 }
 
-async function setFeatured(slug) {
-  await api('/api/admin/settings', { method: 'PUT', body: { featured: slug } });
-  settings.featured = slug;
+// Open / closed switch, live counts and "open only this one" (D1, D3 of 0003).
+// In single-deck mode the room is always open.
+function roomCell(d, { single, several }) {
+  const { room } = d;
+  const counts = el('span.room-counts.muted', { hidden: !room.open },
+    t('roomCounts', { v: room.viewers, p: room.presenters, h: room.raised }));
+  const toggle = el(`button.small.room-toggle${room.open ? '.is-open' : ''}`, {
+    type: 'button', disabled: single, 'aria-pressed': String(room.open),
+    onclick: () => setRoom(d.slug, { open: !room.open }),
+  }, el('span.dot'), room.open ? t('roomOpen') : t('roomClosed'));
+  const only = several && !single
+    ? el('button.small.room-only', { type: 'button', onclick: () => setRoom(d.slug, { only: true }) }, t('openOnly'))
+    : null;
+  return el('div.room-cell', {}, toggle, only, counts);
 }
+
+async function setRoom(slug, patch) {
+  const res = await api(`/api/admin/rooms/${encodeURIComponent(slug)}`, { method: 'PATCH', body: patch });
+  if (res.ok) await load();
+}
+
+// Live counts, refreshed in place (a full redraw would reset the forms).
+setInterval(async () => {
+  if (document.hidden || document.querySelector('dialog[open]')) return;
+  const res = await api('/api/admin/decks');
+  if (!res.ok) return;
+  for (const d of res.data.decks) {
+    const cell = document.querySelector(`tr[data-slug="${d.slug}"] .room-counts`);
+    if (cell) cell.textContent = t('roomCounts', { v: d.room.viewers, p: d.room.presenters, h: d.room.raised });
+  }
+}, 5000);
 
 function confirmDelete(slug) {
   const input = el('input', { type: 'text', id: 'confirm-slug', autocomplete: 'off' });
@@ -263,6 +280,10 @@ function openSettings(d) {
   const mode = el('select', { id: 'deck-mode' },
     ['follow', 'back', 'free'].map((m) => el('option', { value: m, selected: d.viewerNav === m },
       t({ follow: 'modeFollow', back: 'modeBack', free: 'modeFree' }[m]))));
+  const maxPresenters = el('input', { type: 'number', id: 'room-presenters', min: 1, max: 20, step: 1, value: d.room.maxPresenters });
+  const maxViewers = el('input', { type: 'number', id: 'room-viewers', min: 1, max: 1000, step: 1, value: d.room.maxViewers });
+  const askNames = el('input', { type: 'checkbox', id: 'room-names', checked: d.room.askNames });
+  const hands = el('input', { type: 'checkbox', id: 'room-hands', checked: d.room.hands });
   const msg = el('span.status');
   const save = el('button.primary', {
     type: 'button',
@@ -270,13 +291,29 @@ function openSettings(d) {
       const res = await api(`/api/admin/decks/${encodeURIComponent(d.slug)}`, {
         method: 'PATCH', body: { title: title.value, viewerNav: mode.value },
       });
-      status(msg, res.ok ? t('saved') : errorText(res), res.ok ? 'ok' : 'error');
+      const room = res.ok && await api(`/api/admin/rooms/${encodeURIComponent(d.slug)}`, {
+        method: 'PATCH',
+        body: {
+          maxPresenters: Number(maxPresenters.value),
+          maxViewers: Number(maxViewers.value),
+          askNames: askNames.checked,
+          hands: hands.checked,
+        },
+      });
+      const failed = !res.ok ? res : !room.ok ? room : null;
+      status(msg, failed ? errorText(failed) : t('saved'), failed ? 'error' : 'ok');
     },
   }, t('save'));
   const dialog = el('dialog.card.deck-settings', {},
     el('h2', {}, `${t('settings')} · ${d.slug}`),
     el('label', { htmlFor: 'deck-title' }, t('title')), title,
     el('label', { htmlFor: 'deck-mode' }, t('defaultViewerMode')), mode,
+    el('h3.settings-sub', {}, t('roomSettings')),
+    el('div.room-limits', {},
+      el('div', {}, el('label', { htmlFor: 'room-presenters' }, t('maxPresenters')), maxPresenters),
+      el('div', {}, el('label', { htmlFor: 'room-viewers' }, t('maxViewers')), maxViewers)),
+    el('label.inline', { htmlFor: 'room-names' }, askNames, ` ${t('askNamesSetting')}`),
+    el('label.inline', { htmlFor: 'room-hands' }, hands, ` ${t('handsSetting')}`),
     el('div.row', {}, save, msg),
     passwordControl({ label: t('deckPresenterPassword'), scope: 'deckPresenter', deck: d.slug, isSet: d.hasPresenterPassword }),
     passwordControl({ label: t('deckViewerPassword'), scope: 'deckViewer', deck: d.slug, isSet: d.hasViewerPassword }),

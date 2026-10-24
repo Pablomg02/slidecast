@@ -116,7 +116,7 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
     const settings = ctx.rooms.settings(s.slug);
     const devices = new Map();
     for (const c of s.clients) {
-      if (!isPresenterKind(c)) continue;
+      if (c.kind !== 'presenter') continue;
       const d = devices.get(c.device) ?? { id: deviceId(c.device), owner: false, windows: 0 };
       d.owner ||= c.owner;
       d.windows++;
@@ -251,11 +251,12 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
         client.joinTimer.unref?.();
       }
     } else {
-      // D8: count devices, not windows; the owner always gets in.
+      // D8: count devices that control, not windows; the owner always gets
+      // in. A display cannot control anything, so it is never refused.
       client.device = ctx.auth.sessionKey(req) ?? 'local';
       client.owner = ctx.auth.canAdmin(req);
-      const devices = new Set([...s.clients].filter(isPresenterKind).map((c) => c.device));
-      if (!devices.has(client.device) && devices.size >= settings.maxPresenters && !client.owner) {
+      const devices = new Set([...s.clients].filter((c) => c.kind === 'presenter').map((c) => c.device));
+      if (kind === 'presenter' && !devices.has(client.device) && devices.size >= settings.maxPresenters && !client.owner) {
         return socket.close(CLOSE.presentersFull, 'presenters-full');
       }
       s.clients.add(client);

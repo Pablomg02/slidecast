@@ -8,9 +8,9 @@ presents and administers. This page lists what it protects, from whom, and how.
 
 | Who | Can | Must not be able to |
 | --- | --- | --- |
-| Anyone with the URL | watch decks that have no viewer password | present, administer, read speaker notes |
-| Viewer with a deck's viewer password | watch that deck | anything else |
-| Presenter | drive the decks their password covers, read their notes | administer |
+| Anyone with the URL | watch open rooms of decks that have no viewer password, give a name, raise a hand | present, administer, read speaker notes, see other viewers' names or notes, watch a closed room |
+| Viewer with a deck's viewer password | the same, for that deck | anything else |
+| Presenter | drive the decks their password covers, read their notes, see the room's names and hands, remove viewers | administer, open or close rooms, remove other presenters |
 | Admin | everything | — |
 | A deck's own code (written by an AI, downloaded…) | run inside its slide | read sessions, call the API, act as the person viewing it |
 | Another website the admin visits | — | make the admin's browser change anything in slidecast |
@@ -70,9 +70,40 @@ entry; without it these headers are ignored. That is right for Cloudflare,
 which overwrites `Cf-Connecting-IP`; another proxy must overwrite both
 headers, or clients can pick their own address.
 
-**Connections.** At most 100 live (WebSocket) connections per client address
-and 1 000 in total; further ones are closed with code 4429 and the page retries
-later. 100 leaves room for a whole class behind one school address.
+**Connections.** At most 500 live (WebSocket) connections per client address
+and 1 200 in total, plus 100 more kept for presenters so a full audience
+cannot lock them out; further ones are closed with code 4429 and the page
+retries later. 500 leaves room for a large class behind one school address.
+
+**Rooms and participants.** A deck's room is closed until the admin opens it.
+In a closed room viewers get no deck link and their connection only waits to
+be told the room opened; presenters may still enter. As with viewer
+passwords, deck links handed out before the room closed keep serving the
+deck's files (never its notes) until they expire. Each room takes at most
+1–1 000 viewers (200 by default; extra connections are closed with 4409 and
+retry) and 1–20 presenter devices (20 by default; a device is a session, or
+the computer running slidecast, with a window that can drive the deck); the
+admin is never refused.
+
+A viewer without presenter rights joins as a participant: the server gives
+it a random 32-byte token, which the page keeps in `localStorage` for that
+deck and sends inside the WebSocket (never in a URL, so it cannot end up in
+logs); the server stores only its SHA-256. Presenters see a separate random
+id, never the token. Removing a participant bans its token until the room
+closes, so reloading does not undo it; a new token (another browser) gets
+in unless a presenter turned on *do not admit more people*. There is no ban
+by IP address: a whole class may share one. The admin can remove a
+presenter's device, which takes that deck (and the global grant) out of its
+session. Abuse limits, all enforced by the server: new participants, 200 per
+minute per address and twice the viewer limit (plus 50) per room; raising a
+hand, 2 per 5 s and 4 per 30 s; renaming, 5 per 30 s; any participant
+message, 30 per 10 s, beyond which the socket is closed.
+
+Names (up to 40 characters) and hand notes (up to 280) are cleaned of control
+and direction-override characters, shown as text (never HTML), kept in
+memory only, sent only to presenters of that deck, and never written to disk
+or logged. A participant whose page is gone is forgotten after two minutes;
+closing the room, or restarting the server, forgets everyone.
 
 **Decks are untrusted code.** Each deck runs in `<iframe sandbox="allow-scripts">`
 without `allow-same-origin`, so it gets an opaque origin: it cannot read

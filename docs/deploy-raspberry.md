@@ -219,9 +219,10 @@ journalctl -u slidecast | grep -E "login (failed|locked)"
 ## Using it
 
 - `https://slides.example.com/admin` — sign in, upload decks (a `.zip` with
-  `index.html`, or a single `.html`), write notes, choose the deck that opens at `/`.
-- `https://slides.example.com/` — visitors are sent to the deck chosen to
-  open at `/` (or to the only deck). Share `https://slides.example.com/<deck>/view` with the
+  `index.html`, or a single `.html`), write notes, open the room you are
+  about to present (rooms start closed).
+- `https://slides.example.com/` — visitors are sent to the open room. Share
+  this address, or `https://slides.example.com/<deck>/view`, with the
   audience.
 - `https://slides.example.com/<deck>/present` — the presenter view, on your
   phone or laptop.

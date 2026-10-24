@@ -1,9 +1,11 @@
 // Viewer: full-window deck that follows the live step (D15), or drives it when
-// this session can present (projector case, D16).
+// this session can present (projector case, D16). Without presenter rights the
+// viewer is a participant of the room (0003): name, hand, room notices.
 import {
   t, el, api, slugFromPath, setTitle, connectLive, createDeckFrame, keyActionFromEvent,
   toggleFullscreen,
 } from './shell.js';
+import { createParticipant } from './participant.js';
 
 const slug = slugFromPath();
 const app = document.getElementById('app');
@@ -39,14 +41,17 @@ const controlToggle = el('button.badge.control-toggle', {
 badges.append(controlBadge, controlToggle, reconnecting);
 app.append(stage, blank, idleCover, liveBtn, badges, message);
 
-const frame = createDeckFrame(stage, info.data.deckUrl, { mode: 'live' });
+const participant = info.data.canPresent ? null : createParticipant(app, info.data);
+// A closed room gives its audience no deck: wait for it to open (D4 of 0003).
+const frame = info.data.deckUrl ? createDeckFrame(stage, info.data.deckUrl, { mode: 'live' }) : null;
+if (!frame) participant.showNotice('closed');
 const live = { index: 0, total: 0, blank: false, viewerNav: info.data.viewerNav, rev: -1 };
 let local = 0; // step shown here
 let attached = true;
 let ready = false;
 
 function total() {
-  return frame.steps.length || live.total;
+  return frame?.steps.length || live.total;
 }
 
 function show(index) {
@@ -76,7 +81,11 @@ function localMove(target) {
 }
 
 const conn = connectLive(slug, controlling ? 'presenter' : 'viewer', (msg) => {
-  if (msg.t !== 'state') return;
+  if (msg.t !== 'state') {
+    participant?.onMessage(msg);
+    return;
+  }
+  participant?.state(msg);
   const navChanged = msg.viewerNav !== live.viewerNav;
   Object.assign(live, msg);
   document.body.dataset.nav = live.viewerNav; // lets the tests wait for a mode change
@@ -90,17 +99,24 @@ const conn = connectLive(slug, controlling ? 'presenter' : 'viewer', (msg) => {
     show(local);
   }
 }, (status) => {
-  reconnecting.hidden = status === 'open';
-  if (status === 'denied') location.reload();
-});
+  reconnecting.hidden = status !== 'reconnecting';
+  if (participant?.status(status)) {
+    stage.hidden = true;
+    return;
+  }
+  // No presenter place left for this device: keep showing the deck, without control.
+  if (status === 'presenters-full') setControl(false);
+  else if (status === 'denied' || status === 'again') location.reload();
+}, { hello: participant?.hello });
+participant?.attach((msg) => conn.send(msg));
 
-frame.onReady(({ steps }) => {
+frame?.onReady(({ steps }) => {
   ready = true;
   if (controlling) conn.send({ t: 'meta', total: steps.length });
   show(attached ? live.index : local);
 });
 
-frame.onError((code) => {
+frame?.onError((code) => {
   if (code === 'no-deck-api') {
     message.textContent = t('noDeckApi');
     message.hidden = false;
@@ -109,7 +125,7 @@ frame.onError((code) => {
 
 // The deck moved by itself (e.g. its own index overlay): accept it only if the
 // policy allows it, otherwise put it back.
-frame.onChanged((index, own) => {
+frame?.onChanged((index, own) => {
   if (own || index === local) return;
   if (controlling) {
     conn.send({ t: 'goto', index });
@@ -142,7 +158,7 @@ function onAction(action) {
   return undefined;
 }
 
-frame.onInput(onAction);
+frame?.onInput(onAction);
 window.addEventListener('keydown', (e) => {
   const action = keyActionFromEvent(e);
   if (!action) return;

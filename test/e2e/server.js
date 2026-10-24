@@ -10,7 +10,8 @@ import { issueDeckToken } from '../../src/tokens.js';
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = join(here, '..', '..');
 
-export async function startServer({ extraDecks = {}, config = {}, single = false, passwords = {} } = {}) {
+// Rooms start closed (D1 of 0003); the specs open them all unless `closed`.
+export async function startServer({ extraDecks = {}, config = {}, single = false, passwords = {}, closed = false } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'slidecast-e2e-'));
   const dataDir = join(root, 'decks');
   const stateDir = join(root, 'state');
@@ -34,6 +35,9 @@ export async function startServer({ extraDecks = {}, config = {}, single = false
       a.get('/__test/harness.html', (req, reply) => reply.type('text/html; charset=utf-8').send(harness));
     },
   });
+  if (!closed) {
+    for (const slug of ['demo', 'legacy-pres', ...Object.keys(extraDecks)]) await app.slidecast.rooms.update(slug, { open: true });
+  }
   for (const [kind, pw] of Object.entries(passwords)) {
     const [k, slug] = kind.split(':');
     await app.slidecast.auth.setPassword(k, slug ?? null, pw);

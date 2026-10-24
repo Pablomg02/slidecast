@@ -105,8 +105,9 @@ cloudflared tunnel --url http://localhost:4321
 
 After a few seconds it prints an address like
 `https://random-words-here.trycloudflare.com`. Share
-`https://random-words-here.trycloudflare.com/<deck>/view` with your audience,
-and open `…/<deck>/present` on your phone.
+`https://random-words-here.trycloudflare.com/<deck>/view` with your audience
+(open its room in the admin page first), and open `…/<deck>/present` on your
+phone.
 
 Keep in mind:
 
