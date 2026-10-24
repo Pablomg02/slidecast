@@ -31,7 +31,7 @@ const DECKS = [
     slug: 'demo',
     adapter: 'native',
     steps: [['intro', 0], ['how', 0], ['how', 1], ['how', 2], ['roles', 0], ['keys', 0], ['end', 0]],
-    current: () => window.SYNCDECK_DECK.current(),
+    current: () => window.SLIDECAST_DECK.current(),
     // index 3 = how:2 — the slide is shown with both step lines revealed
     visibleAt3: async (frame) => {
       await expect(frame.locator('#how')).toBeVisible();
@@ -152,7 +152,7 @@ test('a page without a deck API reports no-deck-api', async ({ page }) => {
 });
 
 test('the deck runs on an opaque origin: no cookies, no same-origin API', async ({ page, context }) => {
-  await context.addCookies([{ name: 'sd_session', value: 'secret-value', url: srv.url }]);
+  await context.addCookies([{ name: 'sc_session', value: 'secret-value', url: srv.url }]);
   const frame = await openHarness(page, 'demo');
   const result = await frame.evaluate(async () => {
     let cookie;

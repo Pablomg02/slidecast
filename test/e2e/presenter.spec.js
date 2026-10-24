@@ -7,7 +7,7 @@ test.beforeAll(async () => { srv = await startServer(); });
 test.afterAll(async () => srv?.close());
 
 const frames = (page) => page.frames().filter((f) => f.url().includes('/_deck/'));
-const currentOf = (f) => f.evaluate(() => window.SYNCDECK_DECK.current());
+const currentOf = (f) => f.evaluate(() => window.SLIDECAST_DECK.current());
 async function liveFrame(page) {
   return frames(page).find((f) => !f.url().includes('?static'));
 }
@@ -53,15 +53,15 @@ test('the last step shows the End placeholder', async ({ page }) => {
 
 test('notes for the slide and the step, updated by a notes message', async ({ page }) => {
   await openPresenter(page);
-  await expect(page.locator('#notes')).toContainText('served by syncdeck');
-  await expect(page.locator('#notes strong')).toHaveText('served by syncdeck');
+  await expect(page.locator('#notes')).toContainText('served by slidecast');
+  await expect(page.locator('#notes strong')).toHaveText('served by slidecast');
   await page.click('#next');
   await page.click('#next');
   await expect(page.locator('#counter')).toHaveText('3 / 7');
   await expect(page.locator('#notes')).toContainText('Three steps on this slide');
   await expect(page.locator('.p-note-step')).toContainText('PageDown');
-  const slides = (await srv.app.syncdeck.decks.readMeta('demo')).slides;
-  srv.app.syncdeck.live.notifyNotes('demo', { ...slides, how: { notes: 'Fresh <b>note</b>', steps: { 1: 'Fresh step' } } });
+  const slides = (await srv.app.slidecast.decks.readMeta('demo')).slides;
+  srv.app.slidecast.live.notifyNotes('demo', { ...slides, how: { notes: 'Fresh <b>note</b>', steps: { 1: 'Fresh step' } } });
   await expect(page.locator('#notes')).toContainText('Fresh <b>note</b>');
   await expect(page.locator('#notes b')).toHaveCount(0); // raw HTML is escaped
   await expect(page.locator('.p-note-step')).toHaveText('Fresh step');

@@ -1,12 +1,12 @@
-# syncdeck behind Cloudflare Tunnel. Run from this folder:
-#   docker compose up -d --build                      # syncdeck only
+# slidecast behind Cloudflare Tunnel. Run from this folder:
+#   docker compose up -d --build                      # slidecast only
 #   docker compose --profile tunnel up -d --build     # with cloudflared
 # The tunnel token goes in deploy/.env (never commit it): TUNNEL_TOKEN=...
 # See docs/deploy-raspberry.md.
 services:
-  syncdeck:
+  slidecast:
     build: ..
-    image: syncdeck:local
+    image: slidecast:local
     restart: unless-stopped
     volumes:
       - ./data/decks:/data
@@ -24,4 +24,4 @@ services:
     environment:
       - TUNNEL_TOKEN=${TUNNEL_TOKEN:?set TUNNEL_TOKEN in deploy/.env}
     depends_on:
-      - syncdeck
+      - slidecast

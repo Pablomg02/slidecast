@@ -21,7 +21,7 @@ export function onCleanup(t, fn) {
 
 // Fresh data and state folders, removed when the test ends.
 export async function tempDirs(t) {
-  const root = await mkdtemp(join(tmpdir(), 'syncdeck-test-'));
+  const root = await mkdtemp(join(tmpdir(), 'slidecast-test-'));
   const dataDir = join(root, 'decks');
   const stateDir = join(root, 'state');
   await mkdir(dataDir);

@@ -6,7 +6,7 @@ import { zipSync, strToU8 } from 'fflate';
 import { buildServer } from '../src/server.js';
 import { onCleanup, tempDirs, makeDeck, listen, wsClient } from './helpers.js';
 
-const HOST = 'syncdeck.test';
+const HOST = 'slidecast.test';
 const ORIGIN = `http://${HOST}`;
 const REMOTE = { host: HOST, origin: ORIGIN, 'cf-connecting-ip': '203.0.113.7' };
 
@@ -15,10 +15,10 @@ async function setup(t, { single = false } = {}) {
   await makeDeck(dirs.dataDir, 'talk');
   const app = await buildServer({ ...dirs, singleDeck: single ? join(dirs.dataDir, 'talk') : null });
   onCleanup(t, () => app.close());
-  await app.syncdeck.auth.setPassword('admin', null, 'admin-password');
+  await app.slidecast.auth.setPassword('admin', null, 'admin-password');
   const login = await app.inject({ method: 'POST', url: '/api/login', headers: REMOTE, payload: { scope: 'admin', password: 'admin-password' } });
   assert.equal(login.statusCode, 204);
-  const cookie = `sd_session=${login.cookies[0].value}`;
+  const cookie = `sc_session=${login.cookies[0].value}`;
   const as = (opts) => app.inject({ ...opts, headers: { ...REMOTE, cookie, ...opts.headers } });
   return { app, dirs, as, cookie };
 }
@@ -42,9 +42,9 @@ test('every admin route answers 403 without an admin session', async (t) => {
     assert.equal(res.statusCode, 403, `${method} ${url}`);
   }
   // A presenter session is not an admin session.
-  await app.syncdeck.auth.setPassword('presenter', null, 'presenter-pass');
+  await app.slidecast.auth.setPassword('presenter', null, 'presenter-pass');
   const p = await app.inject({ method: 'POST', url: '/api/login', headers: REMOTE, payload: { scope: 'presenter', password: 'presenter-pass' } });
-  const res = await app.inject({ url: '/api/admin/decks', headers: { ...REMOTE, cookie: `sd_session=${p.cookies[0].value}` } });
+  const res = await app.inject({ url: '/api/admin/decks', headers: { ...REMOTE, cookie: `sc_session=${p.cookies[0].value}` } });
   assert.equal(res.statusCode, 403);
   assert.deepEqual(await readdir(dirs.dataDir), ['talk'], 'nothing deleted');
 });
@@ -80,7 +80,7 @@ test('upload and delete in single-deck mode → 409', async (t) => {
 
 test('PUT slide notes writes deck.json, keeps unknown fields and notifies presenters', async (t) => {
   const { app, dirs, as } = await setup(t);
-  await writeFile(join(dirs.dataDir, 'talk', 'deck.json'), JSON.stringify({ syncdeck: 1, extra: 1, slides: { intro: { other: true } } }));
+  await writeFile(join(dirs.dataDir, 'talk', 'deck.json'), JSON.stringify({ slidecast: 1, extra: 1, slides: { intro: { other: true } } }));
   const urls = await listen(app);
   const presenter = wsClient(`${urls.ws}/ws/talk?role=presenter`); // loopback: local direct, no presenter password
   onCleanup(t, () => presenter.close());
@@ -105,14 +105,14 @@ test('passwords: short → 400, admin cannot be cleared, deck scopes need a deck
   assert.equal((await put({ scope: 'deckViewer', deck: 'talk', password: 'long-enough1' })).statusCode, 204);
   assert.equal((await as({ url: '/api/admin/decks' })).json().decks[0].hasViewerPassword, true);
   assert.equal((await put({ scope: 'deckViewer', deck: 'talk', password: null })).statusCode, 204);
-  assert.equal(app.syncdeck.config.decks.talk, undefined);
+  assert.equal(app.slidecast.config.decks.talk, undefined);
 });
 
 test('changing the admin password keeps the requester signed in on a new session', async (t) => {
   const { app, cookie } = await setup(t);
   const res = await app.inject({ method: 'PUT', url: '/api/admin/passwords', headers: { ...REMOTE, cookie }, payload: { scope: 'admin', password: 'new-admin-password1' } });
   assert.equal(res.statusCode, 204);
-  const fresh = `sd_session=${res.cookies[0].value}`;
+  const fresh = `sc_session=${res.cookies[0].value}`;
   assert.notEqual(fresh, cookie);
   assert.equal((await app.inject({ url: '/api/admin/settings', headers: { ...REMOTE, cookie } })).statusCode, 403);
   assert.equal((await app.inject({ url: '/api/admin/settings', headers: { ...REMOTE, cookie: fresh } })).statusCode, 200);
@@ -130,7 +130,7 @@ test('settings, featured, PATCH and DELETE', async (t) => {
   assert.equal(del.statusCode, 204);
   assert.deepEqual(await readdir(dirs.dataDir), []);
   assert.match((await readdir(join(dirs.stateDir, 'trash')))[0], /^talk-/);
-  assert.equal(app.syncdeck.config.featured, null);
+  assert.equal(app.slidecast.config.featured, null);
   assert.equal((await as({ method: 'DELETE', url: '/api/admin/decks/talk' })).statusCode, 404);
 });
 
@@ -141,7 +141,7 @@ test('/admin serves the panel to admins and the login page otherwise, never fram
   assert.match(anon.body, /admin-login\.js/);
   assert.match(anon.headers['content-security-policy'], /frame-ancestors 'none'/);
   const adm = await app.inject({ url: '/admin', headers: { ...REMOTE, cookie } });
-  assert.match(adm.body, /\/_syncdeck\/admin\.js/);
+  assert.match(adm.body, /\/_slidecast\/admin\.js/);
   const edit = await app.inject({ url: '/admin/edit/talk', headers: REMOTE });
   assert.equal(edit.statusCode, 302);
   assert.equal((await app.inject({ url: '/admin/edit/talk', headers: { ...REMOTE, cookie } })).statusCode, 200);

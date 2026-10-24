@@ -104,7 +104,7 @@ test('updateSlide preserves unknown fields', async (t) => {
   const { store, dataDir } = await setup(t);
   await store.upload('talk', Buffer.from(html('x')), 'html');
   await writeFile(join(dataDir, 'talk', 'deck.json'), JSON.stringify({
-    syncdeck: 1, extra: 1, slides: { intro: { notes: 'old', extra: 1 } },
+    slidecast: 1, extra: 1, slides: { intro: { notes: 'old', extra: 1 } },
   }));
   await store.updateSlide('talk', 'intro', { notes: 'new', steps: { 2: 'step two' } });
   const meta = JSON.parse(await readFile(join(dataDir, 'talk', 'deck.json'), 'utf8'));

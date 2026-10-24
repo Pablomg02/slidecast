@@ -1,17 +1,17 @@
 {
-  "name": "syncdeck",
+  "name": "slidecast",
   "version": "0.1.0",
   "description": "Serve single-file HTML presentations with synced presenter and audience views.",
   "type": "module",
   "license": "MIT",
   "author": "Pablomg02 (https://github.com/Pablomg02)",
-  "homepage": "https://github.com/Pablomg02/syncdeck#readme",
+  "homepage": "https://github.com/Pablomg02/slidecast#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Pablomg02/syncdeck.git"
+    "url": "git+https://github.com/Pablomg02/slidecast.git"
   },
   "bugs": {
-    "url": "https://github.com/Pablomg02/syncdeck/issues"
+    "url": "https://github.com/Pablomg02/slidecast/issues"
   },
   "keywords": [
     "presentation",
@@ -26,7 +26,7 @@
     "node": ">=20"
   },
   "bin": {
-    "syncdeck": "bin/syncdeck.js"
+    "slidecast": "bin/slidecast.js"
   },
   "files": [
     "bin/",
@@ -35,7 +35,7 @@
     "examples/"
   ],
   "scripts": {
-    "start": "node bin/syncdeck.js serve",
+    "start": "node bin/slidecast.js serve",
     "test": "node --test --test-timeout=30000 test/*.test.js",
     "test:e2e": "playwright test",
     "check": "node -e \"const fs=require('fs'),p=require('path'),cp=require('child_process');const w=d=>fs.readdirSync(d,{withFileTypes:true}).flatMap(e=>e.isDirectory()?w(p.join(d,e.name)):e.name.endsWith('.js')?[p.join(d,e.name)]:[]);for(const f of ['bin','src','public'].flatMap(w))cp.execFileSync(process.execPath,['--check',f],{stdio:'inherit'})\""

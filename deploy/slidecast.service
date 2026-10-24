@@ -1,0 +1,34 @@
+# systemd unit for slidecast on a Raspberry Pi (or any Linux host).
+# Install: see docs/deploy-raspberry.md, option B.
+[Unit]
+Description=slidecast presentation server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=slidecast
+Group=slidecast
+WorkingDirectory=/opt/slidecast
+Environment=NODE_ENV=production
+Environment=SLIDECAST_HOST=127.0.0.1
+Environment=SLIDECAST_PORT=4321
+Environment=SLIDECAST_DATA=/var/lib/slidecast/decks
+Environment=SLIDECAST_STATE=/var/lib/slidecast/state
+ExecStart=/usr/bin/node /opt/slidecast/bin/slidecast.js serve --trust-proxy
+Restart=on-failure
+RestartSec=3
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+ReadWritePaths=/var/lib/slidecast/decks /var/lib/slidecast/state
+
+[Install]
+WantedBy=multi-user.target

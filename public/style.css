@@ -1,4 +1,4 @@
-/* syncdeck UI. No inline styles anywhere: the shell CSP forbids them. */
+/* slidecast UI. No inline styles anywhere: the shell CSP forbids them. */
 
 :root {
   --bg: #f5f6f8;

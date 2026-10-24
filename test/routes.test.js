@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { buildServer } from '../src/server.js';
 import { onCleanup, tempDirs, makeDeck } from './helpers.js';
 
-const HOST = 'syncdeck.test';
+const HOST = 'slidecast.test';
 const ORIGIN = `http://${HOST}`;
 // Not local direct: as seen through a tunnel.
 const REMOTE = { host: HOST, 'cf-connecting-ip': '203.0.113.7' };
@@ -13,17 +13,17 @@ async function setup(t, slugs = ['talk']) {
   for (const s of slugs) await makeDeck(dirs.dataDir, s);
   const app = await buildServer(dirs);
   onCleanup(t, () => app.close());
-  return { app, ctx: app.syncdeck, dirs };
+  return { app, ctx: app.slidecast, dirs };
 }
 
 async function adminCookie(app) {
-  await app.syncdeck.auth.setPassword('admin', null, 'admin-password');
+  await app.slidecast.auth.setPassword('admin', null, 'admin-password');
   const res = await app.inject({
     method: 'POST', url: '/api/login', headers: { host: HOST, origin: ORIGIN },
     payload: { scope: 'admin', password: 'admin-password' },
   });
   assert.equal(res.statusCode, 204);
-  return `sd_session=${res.cookies[0].value}`;
+  return `sc_session=${res.cookies[0].value}`;
 }
 
 // What GET / should do, per D7.
@@ -47,8 +47,8 @@ test('root redirect matrix (D7)', async (t) => {
           if (admin) headers.cookie = await adminCookie(app);
           const res = await app.inject({ url: '/', headers });
           const got = res.statusCode === 302 ? `302 ${res.headers.location}`
-            : res.body.includes('/_syncdeck/list.js') ? 'list'
-              : res.body.includes('/_syncdeck/landing.js') ? 'landing' : `?${res.statusCode}`;
+            : res.body.includes('/_slidecast/list.js') ? 'list'
+              : res.body.includes('/_slidecast/landing.js') ? 'landing' : `?${res.statusCode}`;
           const want = expected({ decks, featured, admin, publicListing });
           assert.equal(got, want, JSON.stringify({ decks, featured, admin, publicListing }));
           const adm = await app.inject({ url: '/admin', headers });
@@ -83,7 +83,7 @@ test('deck API hides notes from viewers and shows them to presenters', async (t)
     method: 'POST', url: '/api/login', headers: { ...REMOTE, origin: ORIGIN },
     payload: { scope: 'presenter', password: 'presenter-pass' },
   });
-  const cookie = `sd_session=${login.cookies[0].value}`;
+  const cookie = `sc_session=${login.cookies[0].value}`;
   const pres = await app.inject({ url: '/api/decks/talk', headers: { ...REMOTE, cookie } });
   assert.equal(pres.json().canPresent, true);
   assert.deepEqual(pres.json().notes, { intro: { notes: 'secret notes' } });
@@ -106,7 +106,7 @@ test('a deck with a viewer password is closed to anonymous clients', async (t) =
     payload: { scope: 'viewer', deck: 'talk', password: 'viewer-pass' },
   });
   assert.equal(login.statusCode, 204);
-  const cookie = `sd_session=${login.cookies[0].value}`;
+  const cookie = `sc_session=${login.cookies[0].value}`;
   assert.equal((await app.inject({ url: '/talk', headers: { ...REMOTE, cookie } })).statusCode, 200);
 });
 
@@ -115,7 +115,7 @@ test('deck pages, login page, 404 and headers', async (t) => {
   await ctx.auth.setPassword('presenter', null, 'presenter-pass');
   const sel = await app.inject({ url: '/talk', headers: REMOTE });
   assert.equal(sel.statusCode, 200);
-  assert.match(sel.body, /\/_syncdeck\/selector\.js/);
+  assert.match(sel.body, /\/_slidecast\/selector\.js/);
   assert.match(sel.headers['content-security-policy'], /default-src 'self'; script-src 'self'/);
   assert.equal(sel.headers['x-content-type-options'], 'nosniff');
   assert.equal(sel.headers['referrer-policy'], 'same-origin');
@@ -131,10 +131,10 @@ test('deck pages, login page, 404 and headers', async (t) => {
   assert.deepEqual(Object.keys(listed).sort(), ['aspect', 'cover', 'deckUrl', 'slug', 'title']);
   assert.equal(listed.cover, null);
   assert.match(listed.deckUrl, /^\/_deck\/talk\/\d+\.[\w-]+\/$/);
-  const md = await app.inject('/_syncdeck/vendor/markdown-it.min.js');
+  const md = await app.inject('/_slidecast/vendor/markdown-it.min.js');
   assert.equal(md.statusCode, 200);
   assert.match(md.body, /markdownit/);
-  const bridge = await app.inject('/_syncdeck/bridge.js');
+  const bridge = await app.inject('/_slidecast/bridge.js');
   assert.equal(bridge.statusCode, 200);
 });
 

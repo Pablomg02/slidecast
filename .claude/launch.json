@@ -2,20 +2,20 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "syncdeck-demo",
+      "name": "slidecast-demo",
       "runtimeExecutable": "node",
       "runtimeArgs": [
-        "bin/syncdeck.js",
+        "bin/slidecast.js",
         "serve",
         "examples/demo"
       ],
       "port": 4321
     },
     {
-      "name": "syncdeck-network",
+      "name": "slidecast-network",
       "runtimeExecutable": "node",
       "runtimeArgs": [
-        "bin/syncdeck.js",
+        "bin/slidecast.js",
         "serve",
         "examples/demo",
         "--host",

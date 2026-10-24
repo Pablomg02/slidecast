@@ -140,7 +140,7 @@ function render({ decks, single }) {
         isSet: settings.hasAdminPassword,
         canClear: false,
         hint: settings.hasAdminPassword
-          ? t('adminPasswordSetHint', { cmd: 'syncdeck passwd admin --clear' })
+          ? t('adminPasswordSetHint', { cmd: 'slidecast passwd admin --clear' })
           : t('adminPasswordUnsetHint'),
         onDone: load,
       })));

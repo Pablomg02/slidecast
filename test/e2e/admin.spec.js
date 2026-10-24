@@ -32,10 +32,10 @@ test('log in, upload, feature, redirect, delete', async ({ page, browser }) => {
   await expect(page.locator('#upload-slug')).toHaveValue('demo2');
   await page.click('.upload-form button[type=submit]');
   await expect(page.locator('tr[data-slug=demo2]')).toBeVisible();
-  await expect(page.locator('tr[data-slug=demo2] td').first()).toHaveText('syncdeck demo');
+  await expect(page.locator('tr[data-slug=demo2] td').first()).toHaveText('slidecast demo');
 
   await page.check('tr[data-slug=demo2] input[name=featured]');
-  await expect.poll(() => srv.app.syncdeck.config.featured).toBe('demo2');
+  await expect.poll(() => srv.app.slidecast.config.featured).toBe('demo2');
 
   // An anonymous visitor (no admin session) is sent to the featured deck.
   const anon = await browser.newContext();
@@ -58,7 +58,7 @@ test('log in, upload, feature, redirect, delete', async ({ page, browser }) => {
   await expect(page.locator('tr[data-slug=demo2]')).toHaveCount(0);
   const trash = await readdir(join(srv.stateDir, 'trash'));
   expect(trash.some((n) => n.startsWith('demo2-'))).toBe(true);
-  expect(srv.app.syncdeck.config.featured).toBe(null);
+  expect(srv.app.slidecast.config.featured).toBe(null);
 });
 
 test('deck settings dialog sets a viewer password', async ({ page }) => {
@@ -90,7 +90,7 @@ test('multi-deck panel: listing hint, admin password removal hint, sign out', as
   await expect(page.locator('.page-admin')).not.toContainText(' / ');
   await expect(page.locator('th', { hasText: 'Home page' })).toBeVisible();
   await expect(page.locator('.password-control:has(#pw-admin-all) .hint'))
-    .toContainText('syncdeck passwd admin --clear');
+    .toContainText('slidecast passwd admin --clear');
   await expect(page.locator('#logout')).toBeVisible();
 });
 
@@ -124,7 +124,7 @@ test('single-deck panel hides featured and the public list; no sign out without 
     await expect(page.locator('th', { hasText: 'Destacada' })).toHaveCount(0);
     await expect(page.locator('#logout')).toHaveCount(0);
     await expect(page.locator('.password-control:has(#pw-admin-all) .hint'))
-      .toHaveText('Sin ella, el panel de administración solo funciona en el ordenador donde corre syncdeck.');
+      .toHaveText('Sin ella, el panel de administración solo funciona en el ordenador donde corre slidecast.');
     await context.close();
   } finally {
     await single.close();

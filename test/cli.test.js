@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { tempDirs, onCleanup } from './helpers.js';
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), '..');
-const BIN = join(repo, 'bin', 'syncdeck.js');
+const BIN = join(repo, 'bin', 'slidecast.js');
 
 function run(args, { input, cwd = repo, env } = {}) {
   return new Promise((resolve) => {
@@ -71,7 +71,7 @@ test('new creates a deck from the demo', async (t) => {
 });
 
 test('--help and --version', async () => {
-  assert.match((await run(['--help'])).stdout, /syncdeck serve \[path\]/);
+  assert.match((await run(['--help'])).stdout, /slidecast serve \[path\]/);
   assert.match((await run(['--version'])).stdout, /^\d+\.\d+\.\d+\n$/);
   assert.equal((await run(['nope'])).code, 1);
 });
@@ -106,23 +106,23 @@ test('serve on 0.0.0.0 lists LAN URLs and warns about missing passwords', async 
   const { stateDir, dataDir } = await tempDirs(t);
   const { out } = await serve([dataDir, '--host', '0.0.0.0', '--port', '0', '--state', stateDir], t);
   assert.match(out, /Warning: listening on 0\.0\.0\.0 with no presenter or admin password/);
-  assert.match(out, /syncdeck passwd presenter --state /);
+  assert.match(out, /slidecast passwd presenter --state /);
 });
 
 test('from inside a deck folder the state goes to the user config folder, not into the deck', async (t) => {
   const { root } = await tempDirs(t);
   const deck = join(root, 'my-talk');
   await cp(join(repo, 'examples', 'demo'), deck, { recursive: true });
-  await mkdir(join(deck, '.syncdeck'));
-  await writeFile(join(deck, '.syncdeck', 'config.json'), JSON.stringify({ secret: 'old-secret' }));
+  await mkdir(join(deck, '.slidecast'));
+  await writeFile(join(deck, '.slidecast', 'config.json'), JSON.stringify({ secret: 'old-secret' }));
   const env = { ...process.env, XDG_CONFIG_HOME: join(root, 'xdg') };
-  delete env.SYNCDECK_STATE;
-  const userState = join(root, 'xdg', 'syncdeck');
+  delete env.SLIDECAST_STATE;
+  const userState = join(root, 'xdg', 'slidecast');
 
   const r = await run(['passwd', 'admin'], { input: 'password123\n', cwd: deck, env });
   assert.equal(r.code, 0, r.stderr);
   assert.match(r.stderr, /moved the state folder out of the deck/);
-  assert.equal(existsSync(join(deck, '.syncdeck')), false);
+  assert.equal(existsSync(join(deck, '.slidecast')), false);
   const c = await config(userState);
   assert.equal(c.secret, 'old-secret');
   assert.match(c.adminHash, /^scrypt\$/);
@@ -130,5 +130,5 @@ test('from inside a deck folder the state goes to the user config folder, not in
   const { base } = await serve(['.', '--port', '0'], t, { cwd: deck, env });
   const session = await (await fetch(`${base}/api/session`)).json();
   assert.equal(session.admin, false, 'the admin password from the user folder applies');
-  assert.equal(existsSync(join(deck, '.syncdeck')), false);
+  assert.equal(existsSync(join(deck, '.slidecast')), false);
 });

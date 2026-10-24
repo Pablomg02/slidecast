@@ -1,4 +1,4 @@
-// Starts a real syncdeck server for one e2e spec, with a temp data folder
+// Starts a real slidecast server for one e2e spec, with a temp data folder
 // holding copies of the demo deck and the legacy fixture.
 import { cp, mkdtemp, mkdir, rm, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -11,7 +11,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repo = join(here, '..', '..');
 
 export async function startServer({ extraDecks = {}, config = {}, single = false, passwords = {} } = {}) {
-  const root = await mkdtemp(join(tmpdir(), 'syncdeck-e2e-'));
+  const root = await mkdtemp(join(tmpdir(), 'slidecast-e2e-'));
   const dataDir = join(root, 'decks');
   const stateDir = join(root, 'state');
   await mkdir(dataDir);
@@ -36,7 +36,7 @@ export async function startServer({ extraDecks = {}, config = {}, single = false
   });
   for (const [kind, pw] of Object.entries(passwords)) {
     const [k, slug] = kind.split(':');
-    await app.syncdeck.auth.setPassword(k, slug ?? null, pw);
+    await app.slidecast.auth.setPassword(k, slug ?? null, pw);
   }
   await app.listen({ host: '127.0.0.1', port: 0 });
   const { port } = app.server.address();
@@ -50,13 +50,13 @@ export async function startServer({ extraDecks = {}, config = {}, single = false
       body: JSON.stringify({ scope, password, deck }),
     });
     if (res.status !== 204) throw new Error(`login ${scope}: ${res.status}`);
-    return /sd_session=([^;]+)/.exec(res.headers.get('set-cookie'))[1];
+    return /sc_session=([^;]+)/.exec(res.headers.get('set-cookie'))[1];
   }
 
   // A presenter connection from the test process; state() waits for a match.
   function socket(slug, { role = 'presenter', cookie } = {}) {
     const headers = { Origin: url };
-    if (cookie) headers.Cookie = `sd_session=${cookie}`;
+    if (cookie) headers.Cookie = `sc_session=${cookie}`;
     const ws = new WebSocket(`${url.replace('http', 'ws')}/ws/${slug}?role=${role}`, { headers });
     const states = [];
     let waiters = [];
@@ -91,7 +91,7 @@ export async function startServer({ extraDecks = {}, config = {}, single = false
     root,
     dataDir,
     stateDir,
-    deckUrl: (slug) => `/_deck/${slug}/${issueDeckToken(app.syncdeck.config.secret, slug)}/`,
+    deckUrl: (slug) => `/_deck/${slug}/${issueDeckToken(app.slidecast.config.secret, slug)}/`,
     async close() {
       await app.close();
       await rm(root, { recursive: true, force: true });

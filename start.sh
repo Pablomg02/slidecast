@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Starts syncdeck on this computer and opens the admin page in the browser.
+# Starts slidecast on this computer and opens the admin page in the browser.
 # It runs until you press Ctrl+C or close the window.
 #
 #   ./start.sh             only this computer can connect
 #   ./start.sh --network   also other devices on your network or Tailscale
 #
-# Decks go to ./decks and settings to ./.syncdeck (both git-ignored).
+# Decks go to ./decks and settings to ./.slidecast (both git-ignored).
 set -euo pipefail
 cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 
-PORT="${SYNCDECK_PORT:-4321}"
+PORT="${SLIDECAST_PORT:-4321}"
 HOST=127.0.0.1
 
 die() { printf '\033[31merror:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -42,7 +42,7 @@ up() { node -e 'fetch(`http://127.0.0.1:${process.argv[1]}/health`).then((r) => 
 
 ADMIN="http://127.0.0.1:$PORT/admin"
 if up; then
-  echo "syncdeck is already running on port $PORT; opening it."
+  echo "slidecast is already running on port $PORT; opening it."
   open_url "$ADMIN"
   exit 0
 fi
@@ -50,5 +50,5 @@ fi
 # Open the browser once the server answers.
 ( for _ in $(seq 1 40); do if up; then open_url "$ADMIN"; break; fi; sleep 0.25; done ) &
 
-echo "Press Ctrl+C (or close this window) to stop syncdeck."
-exec node bin/syncdeck.js serve --host "$HOST" --port "$PORT"
+echo "Press Ctrl+C (or close this window) to stop slidecast."
+exec node bin/slidecast.js serve --host "$HOST" --port "$PORT"

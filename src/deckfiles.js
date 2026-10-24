@@ -8,7 +8,7 @@ import { verifyDeckToken } from './tokens.js';
 const gzipAsync = promisify(gzip);
 
 export const DECK_CSP = "sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox; frame-ancestors 'self'";
-export const BRIDGE_TAG = '<script src="/_syncdeck/bridge.js"></script>';
+export const BRIDGE_TAG = '<script src="/_slidecast/bridge.js"></script>';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.htm': 'text/html; charset=utf-8',
@@ -99,7 +99,7 @@ export function registerDeckFiles(app, ctx) {
     if (!st.isFile() || (await isNotesFile(deckDir, target, st))) return reply.code(404).send('Not found');
 
     // Every deck file gets the sandbox CSP: an HTML or SVG file opened directly
-    // must not run on syncdeck's origin either.
+    // must not run on slidecast's origin either.
     reply.header('Content-Security-Policy', DECK_CSP);
     reply.header('X-Content-Type-Options', 'nosniff');
     reply.header('Referrer-Policy', 'no-referrer');

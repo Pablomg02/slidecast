@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>syncdeck demo</title>
+<title>slidecast demo</title>
 <style>
   :root { --ink: #1d232b; --muted: #5b6673; --accent: #2f6fdf; --paper: #f7f5f0; }
   html, body { margin: 0; height: 100%; background: #111; overflow: hidden; }
@@ -36,7 +36,7 @@
 <body>
 <div id="stage">
   <section class="slide" id="intro">
-    <h1>syncdeck</h1>
+    <h1>slidecast</h1>
     <p class="muted">HTML presentations with a presenter view,<br>synced screens and speaker notes.</p>
     <p class="footer">Press <kbd>→</kbd> or <kbd>Space</kbd> to advance</p>
   </section>
@@ -78,7 +78,7 @@
 </div>
 
 <script>
-// --- syncdeck native deck API: minimal engine -------------------------------
+// --- slidecast native deck API: minimal engine -------------------------------
 (function () {
   var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
   var steps = [];
@@ -101,18 +101,18 @@
   function go(index) {
     current = Math.max(0, Math.min(steps.length - 1, Math.floor(index) || 0));
     render();
-    window.dispatchEvent(new CustomEvent('syncdeck:change', { detail: { index: current } }));
+    window.dispatchEvent(new CustomEvent('slidecast:change', { detail: { index: current } }));
   }
 
-  window.SYNCDECK_DECK = {
+  window.SLIDECAST_DECK = {
     version: 1,
     steps: steps,
     go: go,
     current: function () { return current; },
   };
 
-  // Own navigation only when opened directly; inside syncdeck the shell drives.
-  if (!window.__SYNCDECK__) {
+  // Own navigation only when opened directly; inside slidecast the shell drives.
+  if (!window.__SLIDECAST__) {
     window.addEventListener('keydown', function (e) {
       if (['ArrowRight', 'ArrowDown', 'PageDown', ' '].indexOf(e.key) >= 0) go(current + 1);
       else if (['ArrowLeft', 'ArrowUp', 'PageUp'].indexOf(e.key) >= 0) go(current - 1);

@@ -8,7 +8,7 @@ import { readZip } from './unzip.js';
 
 export const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
 export const RESERVED_SLUGS = new Set([
-  'admin', 'api', 'ws', '_syncdeck', '_deck', 'health', 'favicon.ico', 'robots.txt',
+  'admin', 'api', 'ws', '_slidecast', '_deck', 'health', 'favicon.ico', 'robots.txt',
 ]);
 export const VIEWER_NAV = ['follow', 'back', 'free'];
 const ASPECT_RE = /^\d+:\d+$/;
@@ -78,7 +78,7 @@ async function dirSize(dir) {
 
 export function normalizeMeta(raw) {
   const m = raw && typeof raw === 'object' && !Array.isArray(raw) ? { ...raw } : {};
-  m.syncdeck = 1;
+  m.slidecast = 1;
   if (typeof m.title !== 'string') delete m.title;
   if (typeof m.aspect !== 'string' || !ASPECT_RE.test(m.aspect)) m.aspect = '16:9';
   if (!VIEWER_NAV.includes(m.viewerNav)) m.viewerNav = 'back';

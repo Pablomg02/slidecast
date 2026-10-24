@@ -1,6 +1,6 @@
 # Deck format
 
-A syncdeck deck is a folder:
+A slidecast deck is a folder:
 
 ```
 my-talk/
@@ -12,7 +12,7 @@ my-talk/
 
 The folder name is the deck's name in URLs (`/my-talk`): lowercase letters,
 digits and hyphens, starting with a letter or digit, at most 63 characters.
-`admin`, `api`, `ws`, `_syncdeck`, `_deck` and `health` are reserved.
+`admin`, `api`, `ws`, `_slidecast`, `_deck` and `health` are reserved.
 
 A single self-contained `index.html` (images inlined as `data:` URLs) is the
 simplest deck: upload it as a `.html` file from the admin panel.
@@ -21,7 +21,7 @@ simplest deck: upload it as a `.html` file from the admin panel.
 
 ```json
 {
-  "syncdeck": 1,
+  "slidecast": 1,
   "title": "Electric rockets",
   "aspect": "16:9",
   "viewerNav": "back",
@@ -36,7 +36,7 @@ simplest deck: upload it as a `.html` file from the admin panel.
 
 | Field | Meaning | Default |
 | --- | --- | --- |
-| `syncdeck` | Format version, always `1`. | `1` |
+| `slidecast` | Format version, always `1`. | `1` |
 | `title` | Shown in lists and the browser tab. | the `<title>` of `index.html`, else the folder name |
 | `aspect` | Shape of the slide in the presenter and editor views, `"W:H"`. | `"16:9"` |
 | `viewerNav` | What viewers may do: `follow` (locked to the presenter), `back` (may look back, never past the live step), `free` (anywhere). The presenter can change it live. | `"back"` |
@@ -44,19 +44,19 @@ simplest deck: upload it as a `.html` file from the admin panel.
 | `slides` | Notes per slide id: `notes` for the whole slide, `steps` for individual steps (keys are step numbers). | `{}` |
 
 Notes are Markdown. Raw HTML in notes is shown as text, not rendered. Any other
-field, at the top level or inside a slide, is kept untouched when syncdeck
+field, at the top level or inside a slide, is kept untouched when slidecast
 saves the file, so you can store your own data there. The admin panel's notes
 editor writes this file for you.
 
-## How syncdeck drives a deck
+## How slidecast drives a deck
 
-syncdeck shows `index.html` inside a sandboxed iframe and injects a small
+slidecast shows `index.html` inside a sandboxed iframe and injects a small
 script (the *bridge*) before any of the deck's own scripts. The bridge needs
 the deck to expose its steps and a way to jump to one of them. A deck is a flat
 list of **steps**; each step belongs to a slide (`slide` is the slide's id,
 `step` its number inside that slide, from 0).
 
-Navigation always comes from syncdeck: arrows, space, PageUp/PageDown (most
+Navigation always comes from slidecast: arrows, space, PageUp/PageDown (most
 presentation clickers), on-screen buttons and swipes are captured by the
 bridge and sent to the presenter's live state, which then tells the deck where
 to go. A deck therefore must not move by itself.
@@ -64,18 +64,18 @@ to go. A deck therefore must not move by itself.
 ### Native API (for new decks)
 
 ```js
-window.SYNCDECK_DECK = {
+window.SLIDECAST_DECK = {
   version: 1,
   steps: [{ slide: 'intro', step: 0 }, { slide: 'how', step: 0 }, { slide: 'how', step: 1 }],
   go(index) { /* show steps[index]; no animation needed */ },
   current() { return 0; /* index shown now */ },
 };
 // After every change, including those caused by go():
-window.dispatchEvent(new CustomEvent('syncdeck:change', { detail: { index } }));
+window.dispatchEvent(new CustomEvent('slidecast:change', { detail: { index } }));
 ```
 
 Define it before the page's `load` event. The bridge also sets
-`window.__SYNCDECK__ = { embedded: true }` before your scripts run: when it is
+`window.__SLIDECAST__ = { embedded: true }` before your scripts run: when it is
 present, do **not** bind your own keyboard, click or swipe navigation (your
 deck can keep it for when the file is opened directly).
 
@@ -83,7 +83,7 @@ A complete, working example is the engine of [`examples/demo`](../examples/demo/
 
 <!-- demo-api:start -->
 ```js
-// --- syncdeck native deck API: minimal engine -------------------------------
+// --- slidecast native deck API: minimal engine -------------------------------
 (function () {
   var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
   var steps = [];
@@ -106,18 +106,18 @@ A complete, working example is the engine of [`examples/demo`](../examples/demo/
   function go(index) {
     current = Math.max(0, Math.min(steps.length - 1, Math.floor(index) || 0));
     render();
-    window.dispatchEvent(new CustomEvent('syncdeck:change', { detail: { index: current } }));
+    window.dispatchEvent(new CustomEvent('slidecast:change', { detail: { index: current } }));
   }
 
-  window.SYNCDECK_DECK = {
+  window.SLIDECAST_DECK = {
     version: 1,
     steps: steps,
     go: go,
     current: function () { return current; },
   };
 
-  // Own navigation only when opened directly; inside syncdeck the shell drives.
-  if (!window.__SYNCDECK__) {
+  // Own navigation only when opened directly; inside slidecast the shell drives.
+  if (!window.__SLIDECAST__) {
     window.addEventListener('keydown', function (e) {
       if (['ArrowRight', 'ArrowDown', 'PageDown', ' '].indexOf(e.key) >= 0) go(current + 1);
       else if (['ArrowLeft', 'ArrowUp', 'PageUp'].indexOf(e.key) >= 0) go(current - 1);
@@ -140,14 +140,14 @@ jump and `PRES.actual()` to read the current step, and detects changes through
 ### Rules inside the iframe
 
 The sandbox (`allow-scripts`, no `allow-same-origin`) keeps a deck away from
-syncdeck's sessions, so a downloaded or AI-written deck cannot act as the
+slidecast's sessions, so a downloaded or AI-written deck cannot act as the
 admin. Consequences:
 
 - no `localStorage`, `sessionStorage`, IndexedDB or cookies;
-- no `fetch`/XHR to the syncdeck server (relative `<img>`, `<link>`,
+- no `fetch`/XHR to the slidecast server (relative `<img>`, `<link>`,
   `<script>` and `<video>` URLs do work: they are served with the deck);
 - links that open new tabs work; the deck cannot navigate the presenter's page;
-- full screen is handled by syncdeck (`F`), not by the deck.
+- full screen is handled by slidecast (`F`), not by the deck.
 
 Clicks anywhere on a slide mean "next". Clicks on links, buttons, form fields,
 `<summary>`, or any element inside one marked `data-interactive`, reach the
@@ -162,27 +162,27 @@ deck normally:
 Paste this when asking an AI to write a deck:
 
 ```text
-Write a presentation as ONE self-contained index.html file for syncdeck.
+Write a presentation as ONE self-contained index.html file for slidecast.
 - A fixed 1600×900 stage scaled to the window (transform: scale), one
   <section class="slide" id="…"> per slide with a short, unique, stable id.
 - Reveal content in steps inside a slide with data-step="1", data-step="2"…;
   a slide's step count is its highest data-step + 1 (set data-steps="N" on the
   section).
-- Expose the syncdeck native API, defined before the load event:
-    window.SYNCDECK_DECK = { version: 1, steps: [{slide, step}, …],
+- Expose the slidecast native API, defined before the load event:
+    window.SLIDECAST_DECK = { version: 1, steps: [{slide, step}, …],
       go(index) {…}, current() {…} };
   and after every change dispatch
-    window.dispatchEvent(new CustomEvent('syncdeck:change', {detail: {index}})).
-- If window.__SYNCDECK__ exists, do not bind any keyboard, click or swipe
+    window.dispatchEvent(new CustomEvent('slidecast:change', {detail: {index}})).
+- If window.__SLIDECAST__ exists, do not bind any keyboard, click or swipe
   navigation; otherwise ArrowRight/Space/PageDown go forward and
   ArrowLeft/PageUp go back.
 - No external network requests, no localStorage, no cookies, no fetch.
   Inline images as data: URLs or reference files next to index.html.
 - Interactive widgets (buttons, sliders, canvases) go inside an element with
   the data-interactive attribute.
-- Also write deck.json with {"syncdeck": 1, "title": "…", "slides": {"<slide id>":
+- Also write deck.json with {"slidecast": 1, "title": "…", "slides": {"<slide id>":
   {"notes": "speaker notes in Markdown", "steps": {"1": "note for step 1"}}}}.
 ```
 
-Start from `syncdeck new my-talk`, which copies the demo deck, if you prefer
+Start from `slidecast new my-talk`, which copies the demo deck, if you prefer
 editing a working example.

@@ -26,7 +26,7 @@ const markdownIt = readFileSync(join(require.resolve('markdown-it/package.json')
 export async function buildServer(opts = {}) {
   const o = {
     dataDir: './decks',
-    stateDir: './.syncdeck',
+    stateDir: './.slidecast',
     singleDeck: null,
     trustProxy: false,
     logger: false,
@@ -51,7 +51,7 @@ export async function buildServer(opts = {}) {
   };
   ctx.auth = await createAuth(ctx);
   ctx.live = await createLive(ctx, { heartbeatMs: o.heartbeatMs });
-  app.decorate('syncdeck', ctx);
+  app.decorate('slidecast', ctx);
 
   await app.register(fastifyCookie);
   await app.register(fastifyRateLimit, { global: false });
@@ -59,19 +59,19 @@ export async function buildServer(opts = {}) {
   registerSecurity(app);
 
   app.get('/health', async () => ({ status: 'ok' }));
-  await app.register(fastifyStatic, { root: PUBLIC_DIR, prefix: '/_syncdeck/', index: false });
+  await app.register(fastifyStatic, { root: PUBLIC_DIR, prefix: '/_slidecast/', index: false });
   registerDeckFiles(app, ctx);
   registerAuthRoutes(app, ctx);
   registerLive(app, ctx);
   registerApi(app, ctx);
-  app.get('/_syncdeck/vendor/markdown-it.min.js', (req, reply) => reply
+  app.get('/_slidecast/vendor/markdown-it.min.js', (req, reply) => reply
     .type('text/javascript; charset=utf-8')
     .header('Cache-Control', 'public, max-age=86400')
     .send(markdownIt));
   registerAdmin(app, ctx);
   registerPages(app, ctx);
 
-  // `syncdeck passwd` edits config.json while the server may be running.
+  // `slidecast passwd` edits config.json while the server may be running.
   const configPath = join(stateDir, 'config.json');
   watchFile(configPath, { interval: 2000, persistent: false }, async (cur, prev) => {
     if (cur.mtimeMs === prev.mtimeMs) return;

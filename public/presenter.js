@@ -147,22 +147,22 @@ function renderNotes() {
 }
 
 let fontSize = 20;
-try { fontSize = Number(localStorage.getItem('syncdeck.notesFont')) || 20; } catch { /* storage blocked */ }
+try { fontSize = Number(localStorage.getItem('slidecast.notesFont')) || 20; } catch { /* storage blocked */ }
 function setFont(px) {
   fontSize = Math.max(12, Math.min(48, px));
   notesBody.style.fontSize = `${fontSize}px`;
-  try { localStorage.setItem('syncdeck.notesFont', String(fontSize)); } catch { /* storage blocked */ }
+  try { localStorage.setItem('slidecast.notesFont', String(fontSize)); } catch { /* storage blocked */ }
 }
 setFont(fontSize);
 
 let slideFolded = false;
-try { slideFolded = localStorage.getItem('syncdeck.slideFolded') === '1'; } catch { /* storage blocked */ }
+try { slideFolded = localStorage.getItem('slidecast.slideFolded') === '1'; } catch { /* storage blocked */ }
 function setSlideFolded(on) {
   slideFolded = on;
   document.body.classList.toggle('p-slide-folded', on);
   slideToggle.setAttribute('aria-expanded', String(!on));
   slideToggle.querySelector('.label').textContent = on ? t('showSlide') : t('hideSlide');
-  try { localStorage.setItem('syncdeck.slideFolded', on ? '1' : '0'); } catch { /* storage blocked */ }
+  try { localStorage.setItem('slidecast.slideFolded', on ? '1' : '0'); } catch { /* storage blocked */ }
 }
 setSlideFolded(slideFolded);
 

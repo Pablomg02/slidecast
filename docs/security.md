@@ -1,6 +1,6 @@
 # Security
 
-syncdeck is meant to be reachable from the Internet (for example through
+slidecast is meant to be reachable from the Internet (for example through
 Cloudflare Tunnel) by an audience that should only *watch*, while one person
 presents and administers. This page lists what it protects, from whom, and how.
 
@@ -13,7 +13,7 @@ presents and administers. This page lists what it protects, from whom, and how.
 | Presenter | drive the decks their password covers, read their notes | administer |
 | Admin | everything | — |
 | A deck's own code (written by an AI, downloaded…) | run inside its slide | read sessions, call the API, act as the person viewing it |
-| Another website the admin visits | — | make the admin's browser change anything in syncdeck |
+| Another website the admin visits | — | make the admin's browser change anything in slidecast |
 
 Out of scope: an attacker with a shell on the server, or with the `config.json`
 file (it holds the secret that signs deck links).
@@ -23,7 +23,7 @@ file (it holds the secret that signs deck links).
 **Passwords.** Admin, presenter (global or per deck) and per-deck viewer
 passwords are hashed with scrypt (N=16384, r=8, p=1, 16-byte random salt,
 64-byte key) and compared in constant time. They are set with
-`syncdeck passwd` or from the admin panel, must have 8 characters or more with
+`slidecast passwd` or from the admin panel, must have 8 characters or more with
 at least one letter and one digit, and are never stored or logged in clear.
 (Passwords set before this rule keep working.)
 
@@ -37,7 +37,7 @@ always adds `Cf-Connecting-IP`, so a fresh install exposed through a tunnel
 refuses presenters and admins until passwords are set. `serve` warns when it
 listens on a non-loopback address without passwords.
 
-**Sessions.** One cookie, `sd_session`: 32 random bytes. The server stores only
+**Sessions.** One cookie, `sc_session`: 32 random bytes. The server stores only
 its SHA-256, so a leaked `sessions.json` gives no usable cookie. Flags:
 `HttpOnly`, `SameSite=Lax`, `Path=/`, and `Secure` on HTTPS (also behind a proxy
 with `--trust-proxy` and `X-Forwarded-Proto: https`). Sessions expire after
@@ -76,7 +76,7 @@ later. 100 leaves room for a whole class behind one school address.
 
 **Decks are untrusted code.** Each deck runs in `<iframe sandbox="allow-scripts">`
 without `allow-same-origin`, so it gets an opaque origin: it cannot read
-syncdeck's cookies, storage or API. Every file under `/_deck/` is also sent with
+slidecast's cookies, storage or API. Every file under `/_deck/` is also sent with
 `Content-Security-Policy: sandbox allow-scripts allow-popups
 allow-popups-to-escape-sandbox; frame-ancestors 'self'`, so an HTML or SVG file
 inside a deck stays sandboxed even when opened directly. The iframe gets its
@@ -96,7 +96,7 @@ deck (the projector), those reach everyone, as real key presses inside the
 deck must. So a hostile deck shown on the projector can move or blank its own
 deck for the audience; it cannot touch other decks, notes or sessions.
 
-**Pages.** syncdeck's own pages send `Content-Security-Policy: default-src
+**Pages.** slidecast's own pages send `Content-Security-Policy: default-src
 'self'; script-src 'self'; style-src 'self'; …` (no inline scripts or styles),
 `X-Content-Type-Options: nosniff` and `Referrer-Policy: same-origin`; admin
 pages also forbid framing (`frame-ancestors 'none'`, `X-Frame-Options: DENY`).
@@ -119,19 +119,19 @@ starting with `.`, such as `.git/` or `.env`) are never served. A deck's
 repeated requests for a large deck cannot stall the server.
 
 **Secrets on disk.** The state folder is created with mode 0700 and its files
-with mode 0600. `decks/` and `.syncdeck/` are git-ignored so personal decks and
+with mode 0600. `decks/` and `.slidecast/` are git-ignored so personal decks and
 secrets do not end up in a repository by accident. The state folder never
 defaults to a place inside the deck being served: run from inside a deck
-folder, `serve` and `passwd` use `~/.config/syncdeck`.
+folder, `serve` and `passwd` use `~/.config/slidecast`.
 
 **At the edge.** With Cloudflare in front, Cloudflare Access on the admin
 paths and a managed challenge on the sign-in pages stop most automated attacks
-before they reach syncdeck; see the Raspberry Pi guide.
+before they reach slidecast; see the Raspberry Pi guide.
 
 ## Reporting a vulnerability
 
 Please report security problems privately through GitHub's
-[*Report a vulnerability*](https://github.com/Pablomg02/syncdeck/security/advisories/new)
+[*Report a vulnerability*](https://github.com/Pablomg02/slidecast/security/advisories/new)
 form, not in a public issue.
 Include what you found, how to reproduce it and its impact. You will get an
 answer as soon as possible.

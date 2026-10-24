@@ -6,7 +6,7 @@ import { buildServer } from '../src/server.js';
 import { hashPassword, verifyPassword, isLocalDirect, revokeScope } from '../src/auth.js';
 import { onCleanup, tempDirs, makeDeck } from './helpers.js';
 
-const HOST = 'syncdeck.test';
+const HOST = 'slidecast.test';
 const ORIGIN = `http://${HOST}`;
 
 async function setup(t, { trustProxy = false } = {}) {
@@ -14,7 +14,7 @@ async function setup(t, { trustProxy = false } = {}) {
   await makeDeck(dirs.dataDir, 'talk');
   const app = await buildServer({ ...dirs, trustProxy });
   onCleanup(t, () => app.close());
-  const auth = app.syncdeck.auth;
+  const auth = app.slidecast.auth;
   return { app, auth, dirs };
 }
 
@@ -29,8 +29,8 @@ function login(app, body, headers = {}) {
 }
 
 const cookieOf = (res) => {
-  const c = res.cookies.find((x) => x.name === 'sd_session');
-  return c && `sd_session=${c.value}`;
+  const c = res.cookies.find((x) => x.name === 'sc_session');
+  return c && `sc_session=${c.value}`;
 };
 
 test('hashes use scrypt and verify in constant-time compare', async () => {
@@ -47,7 +47,7 @@ test('correct password sets a HttpOnly, Lax, non-Secure cookie over HTTP', async
   await auth.setPassword('presenter', null, 'presenter-pass');
   const res = await login(app, { scope: 'presenter', password: 'presenter-pass' });
   assert.equal(res.statusCode, 204);
-  const c = res.cookies.find((x) => x.name === 'sd_session');
+  const c = res.cookies.find((x) => x.name === 'sc_session');
   assert.equal(c.httpOnly, true);
   assert.equal(c.sameSite, 'Lax');
   assert.equal(c.path, '/');
@@ -67,12 +67,12 @@ test('with trustProxy and X-Forwarded-Proto https the cookie is Secure', async (
   await auth.setPassword('admin', null, 'admin-password');
   const res = await login(app, { scope: 'admin', password: 'admin-password' }, { 'x-forwarded-proto': 'https' });
   assert.equal(res.statusCode, 204);
-  assert.equal(res.cookies.find((x) => x.name === 'sd_session').secure, true);
+  assert.equal(res.cookies.find((x) => x.name === 'sc_session').secure, true);
   // Without trustProxy the header is ignored.
   const plain = await setup(t);
   await plain.auth.setPassword('admin', null, 'admin-password');
   const res2 = await login(plain.app, { scope: 'admin', password: 'admin-password' }, { 'x-forwarded-proto': 'https' });
-  assert.equal(res2.cookies.find((x) => x.name === 'sd_session').secure, undefined);
+  assert.equal(res2.cookies.find((x) => x.name === 'sc_session').secure, undefined);
 });
 
 test('wrong password → 401, the 6th attempt in a minute → 429', async (t) => {
@@ -104,7 +104,7 @@ test('changing the presenter password revokes presenter sessions', async (t) => 
   await auth.setPassword('presenter', null, 'presenter-pass');
   const cookie = cookieOf(await login(app, { scope: 'presenter', password: 'presenter-pass' }));
   const proxied = { cookie, 'cf-connecting-ip': '203.0.113.1', host: HOST };
-  const req = (c) => ({ cookies: { sd_session: c.split('=')[1] }, headers: proxied, raw: { socket: { remoteAddress: '127.0.0.1' } } });
+  const req = (c) => ({ cookies: { sc_session: c.split('=')[1] }, headers: proxied, raw: { socket: { remoteAddress: '127.0.0.1' } } });
   assert.equal(auth.canPresent(req(cookie), 'talk'), true);
   await auth.setPassword('presenter', null, 'another-pass');
   assert.equal(auth.canPresent(req(cookie), 'talk'), false);
@@ -116,7 +116,7 @@ test('a deck password overrides a global presenter session', async (t) => {
   const { app, auth } = await setup(t);
   await auth.setPassword('presenter', null, 'presenter-pass');
   const cookie = cookieOf(await login(app, { scope: 'presenter', password: 'presenter-pass' }));
-  const req = { cookies: { sd_session: cookie.split('=')[1] }, headers: { 'x-forwarded-for': '1.2.3.4' }, raw: { socket: { remoteAddress: '127.0.0.1' } } };
+  const req = { cookies: { sc_session: cookie.split('=')[1] }, headers: { 'x-forwarded-for': '1.2.3.4' }, raw: { socket: { remoteAddress: '127.0.0.1' } } };
   assert.equal(auth.canPresent(req, 'talk'), true);
   await auth.setPassword('deckPresenter', 'talk', 'deck-only-pass');
   assert.equal(auth.canPresent(req, 'talk'), false);
@@ -190,7 +190,7 @@ test('the Origin check also covers percent-encoded paths', async (t) => {
 test('POST without a matching Origin → 403', async (t) => {
   const { app } = await setup(t);
   const base = { method: 'POST', url: '/api/login', payload: { scope: 'admin', password: 'x' } };
-  for (const origin of [undefined, 'http://evil.example', 'null', 'http://syncdeck.test.evil.example']) {
+  for (const origin of [undefined, 'http://evil.example', 'null', 'http://slidecast.test.evil.example']) {
     const headers = { host: HOST, 'content-type': 'application/json' };
     if (origin) headers.origin = origin;
     const res = await app.inject({ ...base, headers });
@@ -249,7 +249,7 @@ test('a running server picks up a password changed by the CLI and revokes sessio
   const cookie = cookieOf(await login(app, { scope: 'presenter', password: 'presenter-pass' }));
   const { loadConfig, saveConfig } = await import('../src/config.js');
   const { applyPasswordHash } = await import('../src/auth.js');
-  // What `syncdeck passwd presenter` does, from another process.
+  // What `slidecast passwd presenter` does, from another process.
   await new Promise((r) => setTimeout(r, 1100)); // distinct mtime
   const onDisk = await loadConfig(dirs.stateDir);
   applyPasswordHash(onDisk, 'presenter', null, await hashPassword('changed-by-cli'));
@@ -275,7 +275,7 @@ test('20 failed logins in an hour lock that address out, and failures are logged
     ...dirs, trustProxy: true, logger: { level: 'warn', stream }, loginLimits: { perMinute: 100 },
   });
   onCleanup(t, () => app.close());
-  await app.syncdeck.auth.setPassword('admin', null, 'admin-password1');
+  await app.slidecast.auth.setPassword('admin', null, 'admin-password1');
   const ip = { 'cf-connecting-ip': '203.0.113.50' };
   for (let i = 0; i < 20; i++) {
     assert.equal((await login(app, { scope: 'admin', password: `wrong-guess-${i}` }, ip)).statusCode, 401);

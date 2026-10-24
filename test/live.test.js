@@ -6,7 +6,7 @@ import { onCleanup, tempDirs, makeDeck, listen, wsClient } from './helpers.js';
 
 async function setup(t, dirs) {
   dirs ??= await tempDirs(t);
-  await makeDeck(dirs.dataDir, 'talk', { meta: { syncdeck: 1, viewerNav: 'follow', slides: { a: { notes: 'n' } } } });
+  await makeDeck(dirs.dataDir, 'talk', { meta: { slidecast: 1, viewerNav: 'follow', slides: { a: { notes: 'n' } } } });
   const app = await buildServer(dirs);
   const urls = await listen(app);
   const clients = [];
@@ -147,7 +147,7 @@ test('clients that miss two pings are dropped', async (t) => {
   await listen(app);
   const state = { missed: 0 };
   const fake = { readyState: 1, ping() {}, terminate() { state.terminated = true; }, send() {}, close() {} };
-  const live = app.syncdeck.live;
+  const live = app.slidecast.live;
   // Drive the heartbeat directly with a socket that never answers.
   const listeners = {};
   fake.on = (ev, fn) => { listeners[ev] = fn; };
@@ -174,18 +174,18 @@ test('changing the default viewer mode in the admin panel reaches connected view
 test('a presenter whose rights were revoked gets no more notes', async (t) => {
   const { app, connect } = await setup(t);
   const local = { host: 'localhost:4321', origin: 'http://localhost:4321' };
-  await app.syncdeck.auth.setPassword('presenter', null, 'presenter-pass1');
+  await app.slidecast.auth.setPassword('presenter', null, 'presenter-pass1');
   const login = await app.inject({
     method: 'POST',
     url: '/api/login',
     headers: local,
     payload: { scope: 'presenter', password: 'presenter-pass1' },
   });
-  const c = login.cookies.find((x) => x.name === 'sd_session');
+  const c = login.cookies.find((x) => x.name === 'sc_session');
   // A remote presenter (through a proxy), so only the session grants the rights.
-  const presenter = connect('presenter', { cookie: `sd_session=${c.value}`, headers: { 'X-Forwarded-For': '203.0.113.5' } });
+  const presenter = connect('presenter', { cookie: `sc_session=${c.value}`, headers: { 'X-Forwarded-For': '203.0.113.5' } });
   await presenter.next((m) => m.t === 'notes');
-  await app.syncdeck.auth.setPassword('presenter', null, 'presenter-pass2');
+  await app.slidecast.auth.setPassword('presenter', null, 'presenter-pass2');
   const res = await app.inject({
     method: 'PUT',
     url: '/api/admin/decks/talk/slides/a',

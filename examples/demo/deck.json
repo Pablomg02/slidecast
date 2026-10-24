@@ -1,11 +1,11 @@
 {
-  "syncdeck": 1,
-  "title": "syncdeck demo",
+  "slidecast": 1,
+  "title": "slidecast demo",
   "aspect": "16:9",
   "viewerNav": "back",
   "slides": {
     "intro": {
-      "notes": "Welcome. This deck is **served by syncdeck**: open it as a viewer on the projector and as a presenter on your laptop or phone."
+      "notes": "Welcome. This deck is **served by slidecast**: open it as a viewer on the projector and as a presenter on your laptop or phone."
     },
     "how": {
       "notes": "Three steps on this slide; each press reveals one line.",
@@ -15,7 +15,7 @@
       }
     },
     "roles": {
-      "notes": "Presenter and admin need a password unless you run syncdeck on your own machine."
+      "notes": "Presenter and admin need a password unless you run slidecast on your own machine."
     },
     "keys": {
       "notes": "`B` blanks every viewer screen. Press it again to come back."

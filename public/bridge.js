@@ -1,4 +1,4 @@
-/* syncdeck bridge — injected as the first script of every deck's index.html.
+/* slidecast bridge — injected as the first script of every deck's index.html.
  * Runs inside the sandboxed iframe. Finds the deck's navigation API, reports
  * steps and changes to the shell, obeys "go", and captures navigation input so
  * the deck never moves on its own. Protocol: every message carries sd: 1.
@@ -8,7 +8,7 @@
   if (window.parent === window) return; // deck opened directly: do nothing
 
   var shell = window.parent;
-  window.__SYNCDECK__ = { embedded: true };
+  window.__SLIDECAST__ = { embedded: true };
 
   var mode = 'live';
   var adapter = null;
@@ -42,10 +42,10 @@
   };
 
   function nativeAdapter() {
-    var d = window.SYNCDECK_DECK;
+    var d = window.SLIDECAST_DECK;
     if (!d || d.version !== 1 || !Array.isArray(d.steps)
       || typeof d.go !== 'function' || typeof d.current !== 'function') return null;
-    window.addEventListener('syncdeck:change', function () { report(false); });
+    window.addEventListener('slidecast:change', function () { report(false); });
     return {
       name: 'native',
       steps: d.steps.map(function (s) { return { slide: String(s.slide), step: Number(s.step) || 0 }; }),

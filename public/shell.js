@@ -1,5 +1,5 @@
 // Shared shell library: i18n, API calls, the live WebSocket, the sandboxed
-// deck frame and the key table. Every syncdeck page imports it.
+// deck frame and the key table. Every slidecast page imports it.
 import { t, lang } from './i18n.js';
 
 export { t, lang };
@@ -71,7 +71,7 @@ export function icon(name, cls = 'icon') {
 }
 
 export function brand() {
-  return el('a.brand', { href: '/' }, el('span.brand-mark', {}, icon('deck')), 'syncdeck');
+  return el('a.brand', { href: '/' }, el('span.brand-mark', {}, icon('deck')), 'slidecast');
 }
 
 // A deck's thumbnail: its cover image when it has one, otherwise the deck
@@ -112,7 +112,7 @@ export function deckThumb({ cover, deckUrl, aspect = '16:9', locked }) {
 }
 
 export function setTitle(title) {
-  document.title = title ? `${title} · syncdeck` : 'syncdeck';
+  document.title = title ? `${title} · slidecast` : 'slidecast';
 }
 
 // ---- live connection -------------------------------------------------------

@@ -87,7 +87,7 @@ export function isHttps(req, trustProxy) {
 
 // ---- sessions (D11) --------------------------------------------------------
 
-export const COOKIE = 'sd_session';
+export const COOKIE = 'sc_session';
 const IDLE_MS = 7 * 24 * 3600 * 1000;
 const ABSOLUTE_MS = 30 * 24 * 3600 * 1000;
 const TOUCH_MS = 60 * 1000;

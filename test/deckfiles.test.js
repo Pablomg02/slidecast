@@ -15,13 +15,13 @@ async function setup(t) {
     await mkdir(join(dirs.dataDir, slug, 'img'), { recursive: true });
     await writeFile(join(dirs.dataDir, slug, 'index.html'),
       '<!doctype html><html lang="en"><HEAD data-x="1"><title>T</title><script>var a=1</script></head><body>hi</body></html>');
-    await writeFile(join(dirs.dataDir, slug, 'deck.json'), '{"syncdeck":1}');
+    await writeFile(join(dirs.dataDir, slug, 'deck.json'), '{"slidecast":1}');
     await writeFile(join(dirs.dataDir, slug, 'img', 'a.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
   }
   await writeFile(join(dirs.root, 'secret.txt'), 'TOP SECRET');
   const app = await buildServer(dirs);
   onCleanup(t, () => app.close());
-  const token = (slug = 'talk', now) => issueDeckToken(app.syncdeck.config.secret, slug, now);
+  const token = (slug = 'talk', now) => issueDeckToken(app.slidecast.config.secret, slug, now);
   return { app, token, ...dirs };
 }
 
@@ -29,7 +29,7 @@ test('index.html gets the bridge first in <head> and the sandbox CSP', async (t)
   const { app, token } = await setup(t);
   const res = await app.inject(`/_deck/talk/${token()}/`);
   assert.equal(res.statusCode, 200);
-  assert.match(res.body, /<HEAD data-x="1"><script src="\/_syncdeck\/bridge\.js"><\/script><title>/);
+  assert.match(res.body, /<HEAD data-x="1"><script src="\/_slidecast\/bridge\.js"><\/script><title>/);
   assert.equal(res.headers['content-security-policy'], CSP);
   assert.equal(res.headers['content-type'], 'text/html; charset=utf-8');
   assert.equal(res.headers['cache-control'], 'no-cache');
@@ -78,7 +78,7 @@ test('deck.json is not served under another name either', async (t) => {
   const { app, token, dataDir } = await setup(t);
   // Case-insensitive file systems (macOS, Windows) open deck.json for these.
   for (const name of ['DECK.JSON', 'Deck.json', 'deck.json.', 'deck.json%3A%3A%24DATA']) {
-    await writeFile(join(dataDir, 'talk', decodeURIComponent(name)), '{"syncdeck":1}');
+    await writeFile(join(dataDir, 'talk', decodeURIComponent(name)), '{"slidecast":1}');
     assert.equal((await app.inject(`/_deck/talk/${token()}/${name}`)).statusCode, 404, name);
   }
   // Any other link to the same file, such as a Windows short name.
@@ -88,12 +88,12 @@ test('deck.json is not served under another name either', async (t) => {
 
 test('hidden files and folders are never served', async (t) => {
   const { app, token, dataDir } = await setup(t);
-  await mkdir(join(dataDir, 'talk', '.syncdeck'));
-  await writeFile(join(dataDir, 'talk', '.syncdeck', 'config.json'), '{"secret":"s"}');
+  await mkdir(join(dataDir, 'talk', '.slidecast'));
+  await writeFile(join(dataDir, 'talk', '.slidecast', 'config.json'), '{"secret":"s"}');
   await writeFile(join(dataDir, 'talk', '.env'), 'KEY=1');
   await mkdir(join(dataDir, 'talk', 'img', '.git'));
   await writeFile(join(dataDir, 'talk', 'img', '.git', 'config'), 'x');
-  for (const p of ['.syncdeck/config.json', '.env', 'img/.git/config', '%2esyncdeck/config.json', '.syncdeck%5cconfig.json']) {
+  for (const p of ['.slidecast/config.json', '.env', 'img/.git/config', '%2eslidecast/config.json', '.slidecast%5cconfig.json']) {
     assert.equal((await app.inject(`/_deck/talk/${token()}/${p}`)).statusCode, 404, p);
   }
 });

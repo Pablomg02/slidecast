@@ -36,7 +36,7 @@ test('write a slide note and a step note; saved to deck.json and pushed to the p
   expect(meta.slides.how.notes).toBe('Edited **slide** note');
   expect(meta.slides.how.steps['1']).toBe('Edited step note');
   expect(meta.slides.how.steps['2']).toBe('Open a second tab as a viewer to see the sync.');
-  expect(meta.title).toBe('syncdeck demo');
+  expect(meta.title).toBe('slidecast demo');
 
   await expect(presenter.locator('#notes')).toContainText('Edited slide note');
   await expect(presenter.locator('.p-note-step')).toHaveText('Edited step note');
@@ -44,7 +44,7 @@ test('write a slide note and a step note; saved to deck.json and pushed to the p
 });
 
 test('arrow keys edit text inside the textareas and navigate outside them', async ({ page }) => {
-  const before = srv.app.syncdeck.live.getState('demo')?.index ?? 0;
+  const before = srv.app.slidecast.live.getState('demo')?.index ?? 0;
   await page.goto(`${srv.url}/admin/edit/demo`);
   await expect(page.locator('#counter')).toHaveText('1 / 7');
   await page.click('#slide-notes');
@@ -56,7 +56,7 @@ test('arrow keys edit text inside the textareas and navigate outside them', asyn
   await expect(page.locator('#counter')).toHaveText('2 / 7');
   // The live presentation is not touched by the editor.
   await page.waitForTimeout(200);
-  expect(srv.app.syncdeck.live.getState('demo')?.index ?? 0).toBe(before);
+  expect(srv.app.slidecast.live.getState('demo')?.index ?? 0).toBe(before);
 });
 
 test('Ctrl+S saves immediately', async ({ page }) => {
