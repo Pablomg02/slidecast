@@ -19,7 +19,9 @@ on a small server), open the **presenter view** on your screen and the
 **viewer** on the projector, and from then on every screen showing the deck
 moves with you: the projector, your phone, your audience's laptops.
 
-<p align="center"><img src="docs/assets/presenter.png" alt="The presenter view: the current slide, the next one, speaker notes, timer, clock and controls" width="860"></p>
+<p align="center"><img src="docs/assets/how-it-works.svg" alt="Diagram: the presenter view on your screen sends the next slide to slidecast, which shows the same slide live on the projector, the audience's laptops and phones" width="760"></p>
+
+<p align="center"><img src="docs/assets/presenter.png" alt="The presenter view: the current slide, the next one, speaker notes, timer, clock and controls" width="640"><br><sub>The presenter view</sub></p>
 
 - **Presenter view**: current and next slide, speaker notes, timer, clock,
   and a button to black out every screen. It also works on a phone.
@@ -122,7 +124,12 @@ slidecast prints the addresses other devices can use, something like
   the presenter password.
 - **Your audience** opens `http://192.168.1.20:4321/<deck>/view`; no password.
 
-`<deck>` is the deck's *Name in URL* in the admin page. If you also want to
+`<deck>` is the deck's *Name in URL* in the admin page. You can also share
+just `http://192.168.1.20:4321/<deck>`: it opens a page where each person
+chooses to watch or to present.
+
+<p align="center"><img src="docs/assets/selector.png" alt="The deck page: a preview of the first slide, a Watch button for viewers and a smaller Presenter link" width="420"></p>
+ If you also want to
 upload decks from another device, set an admin password too:
 `node bin/slidecast.js passwd admin`.
 
