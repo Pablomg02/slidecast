@@ -117,6 +117,30 @@ test('phone layout: big prev/next bar, no next preview', async ({ browser }) => 
   await context.close();
 });
 
+test('phone layout: fits one screen, slide folds, extras open on demand', async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  const page = await context.newPage();
+  await openPresenter(page);
+  expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(844);
+  await expect(page.locator('#timer')).toBeVisible();
+  await expect(page.locator('#clock')).toBeHidden();
+  await expect(page.locator('#blank')).toBeHidden();
+  await expect(page.locator('#viewer-mode')).toBeHidden();
+  await page.locator('#more').tap();
+  await expect(page.locator('#clock')).toBeVisible();
+  await expect(page.locator('#blank')).toBeVisible();
+  await expect(page.locator('#viewer-mode')).toBeVisible();
+  const notesBefore = (await page.locator('.p-notes').boundingBox()).height;
+  await page.locator('#slide-toggle').tap();
+  await expect(page.locator('.p-current')).toBeHidden();
+  expect((await page.locator('.p-notes').boundingBox()).height).toBeGreaterThan(notesBefore + 100);
+  await page.reload();
+  await expect(page.locator('.p-current')).toBeHidden(); // remembered
+  await page.locator('#slide-toggle').tap();
+  await expect(page.locator('.p-current')).toBeVisible();
+  await context.close();
+});
+
 test('clicking a preview does not steal the keyboard', async ({ page }) => {
   await openPresenter(page);
   const viewer = srv.socket('demo', { role: 'viewer' });

@@ -56,6 +56,8 @@ const ICONS = {
   presenter: '<rect x="3" y="3" width="18" height="12" rx="2"/><path d="M7 8h6M7 11h10M8 21l4-6 4 6"/>',
   lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  chevron: '<path d="M6 15l6-6 6 6"/>',
+  more: '<circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/>',
   deck: '<rect x="3" y="5" width="14" height="10" rx="2"/><path d="M7 19h12a2 2 0 0 0 2-2V9"/>',
 };
 

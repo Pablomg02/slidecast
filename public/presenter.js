@@ -3,7 +3,7 @@
 // create it at all and shows large prev/next buttons instead.
 import {
   t, el, api, slugFromPath, setTitle, connectLive, createDeckFrame, keyActionFromEvent,
-  toggleFullscreen, isOwnKey,
+  toggleFullscreen, isOwnKey, icon,
 } from './shell.js';
 import { renderMarkdown } from './markdown.js';
 
@@ -25,12 +25,14 @@ const currentBox = el('div.p-frame.p-current');
 const nextBox = el('div.p-frame.p-next');
 const endCard = el('div.p-end', { hidden: true }, t('end'));
 nextBox.append(endCard);
-for (const box of [currentBox, nextBox]) box.style.aspectRatio = `${aw} / ${ah}`;
+for (const box of [currentBox, nextBox]) {
+  box.style.aspectRatio = `${aw} / ${ah}`;
+  box.style.setProperty('--ar', String(aw / ah));
+}
 
 const counter = el('span.p-counter', { id: 'counter' }, '–');
 const slideId = el('span.p-slide-id', { id: 'slide-id' });
 const notesBody = el('div.p-notes-body', { id: 'notes' });
-const notesBox = el('section.p-notes', {}, notesBody);
 const reconnecting = el('span.badge.badge-warn', { hidden: true }, t('reconnecting'));
 
 const btnPrev = el('button.p-prev', { id: 'prev', title: t('prev'), onclick: () => act('prev') }, '◀', el('span.label', {}, t('prev')));
@@ -47,15 +49,44 @@ const timerToggle = el('button', { id: 'timer-toggle', onclick: () => toggleTime
 const timerReset = el('button', { id: 'timer-reset', onclick: () => resetTimer() }, t('reset'));
 const fontMinus = el('button', { title: t('fontSmaller'), onclick: () => setFont(fontSize - 2) }, 'A−');
 const fontPlus = el('button', { title: t('fontBigger'), onclick: () => setFont(fontSize + 2) }, 'A+');
+const fontSteps = el('span.p-font-steps', { hidden: true }, fontMinus, fontPlus);
+const fontToggle = el('button.p-font-toggle', {
+  title: t('textSize'), 'aria-expanded': 'false',
+  onclick: () => {
+    fontSteps.hidden = !fontSteps.hidden;
+    fontToggle.setAttribute('aria-expanded', String(!fontSteps.hidden));
+  },
+}, 'Aa');
 const openViewer = el('a.button', { href: `/${slug}/view`, target: '_blank', rel: 'noopener' }, t('openViewer'));
 
+// Phone only: fold the current slide away to give the notes more room.
+const slideToggle = el('button.p-slide-toggle', { id: 'slide-toggle', onclick: () => setSlideFolded(!slideFolded) },
+  icon('chevron'), el('span.label'));
+
+// The slide id lives above the notes, not in the toolbar, so its changing
+// width never shifts the toolbar.
+const notesBox = el('section.p-notes', {},
+  el('div.p-notes-head', {}, slideId, slideToggle),
+  notesBody,
+  el('div.p-font', {}, fontSteps, fontToggle));
+
+// Phone only: clock, viewer settings and blank stay folded behind this button.
+const moreToggle = el('button.p-more-toggle', {
+  id: 'more', title: t('more'), 'aria-expanded': 'false',
+  onclick: () => {
+    const open = toolbar.classList.toggle('p-more-open');
+    moreToggle.setAttribute('aria-expanded', String(open));
+  },
+}, icon('more', 'icon icon-fill'));
+
 const toolbar = el('div.p-toolbar', {},
-  el('div.p-group', {}, btnPrev, counter, btnNext),
-  el('div.p-group', {}, slideId),
-  el('div.p-group.p-timer', {}, timerText, timerToggle, timerReset),
-  el('div.p-group', {}, clock),
-  el('div.p-group', {}, btnBlank, modeSelect, viewers, reconnecting),
-  el('div.p-group.p-extra', {}, fontMinus, fontPlus, openViewer));
+  el('div.p-group.p-nav', {}, btnPrev, counter, btnNext),
+  el('div.p-group.p-timer', {}, timerText, timerToggle, timerReset, moreToggle),
+  el('div.p-group.p-secondary', {}, clock),
+  el('div.p-group.p-secondary', {}, modeSelect, viewers),
+  el('div.p-group.p-secondary', {}, btnBlank),
+  el('div.p-group.p-extra', {}, openViewer),
+  reconnecting);
 
 const side = el('div.p-side', {}, nextBox, notesBox);
 app.append(el('div.p-main', {}, currentBox), side, toolbar);
@@ -124,6 +155,17 @@ function setFont(px) {
 }
 setFont(fontSize);
 
+let slideFolded = false;
+try { slideFolded = localStorage.getItem('syncdeck.slideFolded') === '1'; } catch { /* storage blocked */ }
+function setSlideFolded(on) {
+  slideFolded = on;
+  document.body.classList.toggle('p-slide-folded', on);
+  slideToggle.setAttribute('aria-expanded', String(!on));
+  slideToggle.querySelector('.label').textContent = on ? t('showSlide') : t('hideSlide');
+  try { localStorage.setItem('syncdeck.slideFolded', on ? '1' : '0'); } catch { /* storage blocked */ }
+}
+setSlideFolded(slideFolded);
+
 // ---- live state ------------------------------------------------------------
 
 function render() {
@@ -172,18 +214,20 @@ window.addEventListener('keydown', (e) => {
   if (!e.repeat) act(action);
 });
 
-// Swipe on the notes (phone): left = next, right = previous.
+// Swipe on the notes (phone): left = next, right = previous. One finger only
+// and clearly horizontal, so scrolling and pinching never change the slide.
 let touch = null;
 notesBox.addEventListener('touchstart', (e) => {
-  touch = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  touch = e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null;
 }, { passive: true });
 notesBox.addEventListener('touchend', (e) => {
-  if (!touch) return;
+  if (!touch || e.touches.length) return;
   const dx = e.changedTouches[0].clientX - touch.x;
   const dy = e.changedTouches[0].clientY - touch.y;
   touch = null;
-  if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) act(dx < 0 ? 'next' : 'prev');
+  if (Math.abs(dx) > 60 && Math.abs(dx) > 1.5 * Math.abs(dy)) act(dx < 0 ? 'next' : 'prev');
 });
+notesBox.addEventListener('touchcancel', () => { touch = null; });
 
 // ---- timer and clock -------------------------------------------------------
 
