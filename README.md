@@ -242,10 +242,19 @@ limit.
 
 ### Admin panel
 
-At `/admin` you can upload and replace decks (replacing keeps the notes),
-delete them (they go to a trash folder, never erased), edit notes, set
-passwords, rename decks, open and close rooms, and set each deck's viewer
-mode and room limits.
+At `/admin` you can upload decks, delete them (they go to a trash folder,
+never erased), edit notes, set passwords, rename decks, open and close rooms,
+and set each deck's viewer mode and room limits.
+
+**Download** gives you a deck as one `.zip` with its files and its notes
+(`deck.json`); uploading that zip again gives back the same deck. **Update**
+replaces a deck with a new version and keeps the notes by slide id: before
+anything changes it loads the new version, shows which notes are kept and
+which are deleted (those of slides or steps the new version no longer has),
+and, if the zip brings its own `deck.json`, lets you choose which notes to use.
+The previous version stays in the trash folder. Keep slide ids stable (names
+like `intro`, not positions like `s3`) so notes stay on the right slide; the
+ⓘ next to **Update** explains the rules.
 
 Under **Appearance** you can give the site your own name (browser tab, top of
 each page, home page), change the home page message and the accent colour,

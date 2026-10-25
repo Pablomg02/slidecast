@@ -143,6 +143,20 @@ moved to `trash/` in the state folder, never deleted. The zip is inflated in
 memory before it is written, so a large upload briefly needs as much RAM as
 its uncompressed size (up to 300 MB): mind it on a small Raspberry Pi.
 
+An update from the admin panel is staged first: the new version is unpacked
+(same checks) into a hidden `.stage-<id>` folder of the decks folder, which is
+never listed as a deck. It lives at most 30 minutes, one per deck, and leftover
+staging folders are removed when the server starts. While it waits, it is
+served only at `/_stage/<id>/<token>/`, with a signed token whose subject
+(`stage:<id>`) can never be a deck name, and with the same sandbox, headers and
+`deck.json` refusal as any deck. Confirming re-reads the current notes under
+the deck's lock and refuses (409) if the deck was replaced in the meantime.
+
+**Download.** `GET /api/admin/decks/<slug>/download` is admin-only, and it is
+the only way to read a deck's `deck.json` over HTTP. The zip leaves out hidden
+files and folders (any path part starting with `.`) and anything that is not
+a regular file, symlinks included.
+
 **Deck files.** Paths are resolved and checked to stay inside the deck folder,
 also after resolving symlinks. Hidden files and folders (any path part
 starting with `.`, such as `.git/` or `.env`) are never served. A deck's

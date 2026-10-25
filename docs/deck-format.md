@@ -48,6 +48,14 @@ field, at the top level or inside a slide, is kept untouched when slidecast
 saves the file, so you can store your own data there. The admin panel's notes
 editor writes this file for you.
 
+Notes belong to a slide's **id**, so give slides stable names (`intro`,
+`results`), not positions (`s1`, `s2`, `s3`): when you update a deck from the
+admin panel, notes are kept for every slide id the new version still has, and
+deleted for the ids it no longer has. Renaming an id loses its notes; ids
+numbered by position point to a different slide as soon as one is inserted.
+Step notes go by step number, so add new steps at the end of a slide. When
+asking an AI to change a deck, ask it to keep the same slide ids.
+
 ## How slidecast drives a deck
 
 slidecast shows `index.html` inside a sandboxed iframe and injects a small

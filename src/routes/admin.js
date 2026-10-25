@@ -1,4 +1,7 @@
-import { DeckError, isValidSlug } from '../decks.js';
+import { DeckError, isValidSlug, normalizeMeta } from '../decks.js';
+import { zipStream } from '../zipwrite.js';
+import { parseSteps } from '../notes.js';
+import { issueDeckToken } from '../tokens.js';
 import { saveConfig } from '../config.js';
 import { checkPasswordInput } from '../auth.js';
 import { sendPage } from './pages.js';
@@ -6,6 +9,9 @@ import { parseAppearance } from '../appearance.js';
 import { parseRoomPatch } from '../rooms.js';
 
 const UPLOAD_LIMIT = 100 * 1024 * 1024;
+// The zip writer has no zip64 (D14 of 0004).
+const ZIP_MAX_FILES = 65_535;
+const ZIP_MAX_BYTES = 4_000_000_000;
 const PASSWORD_SCOPES = new Set(['admin', 'presenter', 'deckPresenter', 'deckViewer']);
 
 const ERRORS = {
@@ -16,6 +22,8 @@ const ERRORS = {
   ERR_NOT_FOUND: [404, 'not-found'],
   ERR_SINGLE_DECK: [409, 'single-deck'],
   ERR_BAD_META: [409, 'bad-deck-json'],
+  ERR_CONFLICT: [409, 'deck-changed'],
+  ERR_STAGE_GONE: [404, 'stage-gone'],
 };
 
 function sendError(reply, err) {
@@ -64,17 +72,98 @@ export function registerAdmin(app, ctx) {
 
     scope.get('/api/admin/decks', async () => ({ decks: await deckRows(), single: Boolean(decks.single) }));
 
-    scope.post('/api/admin/decks', async (req, reply) => {
+    const uploadKind = (req) => {
       const type = String(req.headers['content-type'] ?? '').split(';')[0].trim();
-      const kind = type === 'application/zip' ? 'zip' : 'html';
-      if (!Buffer.isBuffer(req.body) || !req.body.length) return reply.code(400).send({ error: 'empty-body' });
+      return type === 'application/zip' ? 'zip' : 'html';
+    };
+    const hasBody = (req) => Buffer.isBuffer(req.body) && req.body.length > 0;
+
+    scope.post('/api/admin/decks', async (req, reply) => {
+      if (!hasBody(req)) return reply.code(400).send({ error: 'empty-body' });
       try {
-        const result = await decks.upload(String(req.query.slug ?? ''), req.body, kind);
+        const result = await decks.upload(String(req.query.slug ?? ''), req.body, uploadKind(req));
         live.resetDeck(result.slug);
         return reply.code(201).send(result);
       } catch (err) {
         return sendError(reply, err);
       }
+    });
+
+    // The deck with its notes, as a zip that uploads back as is. This is the
+    // only way to read deck.json over HTTP.
+    scope.get('/api/admin/decks/:slug/download', async (req, reply) => {
+      const { slug } = req.params;
+      let files;
+      let version;
+      try {
+        files = await decks.files(slug);
+        version = await decks.version(slug);
+      } catch (err) {
+        return sendError(reply, err);
+      }
+      const entries = files.map((f) => ({ path: f.path, mtime: f.mtime, file: f.file }));
+      if (!files.some((f) => f.path === 'deck.json')) {
+        entries.push({ path: 'deck.json', mtime: new Date(), data: Buffer.from(`${JSON.stringify(normalizeMeta({}), null, 2)}\n`) });
+      }
+      const bytes = files.reduce((n, f) => n + f.size, 0);
+      if (entries.length > ZIP_MAX_FILES || bytes > ZIP_MAX_BYTES) return reply.code(413).send({ error: 'too-big' });
+      return reply
+        .type('application/zip')
+        .header('Content-Disposition', `attachment; filename="${slug}.zip"`)
+        .send(zipStream(entries, {
+          // An update or upload during a slow download: fail rather than
+          // deliver a zip mixing the old and new versions.
+          check: async () => {
+            if (await decks.version(slug).catch(() => null) !== version) throw new Error(`deck ${slug} changed during the download`);
+          },
+        }));
+    });
+
+    // Update in two phases (0004): stage the new version, let the browser
+    // report its slides and show what happens to the notes, then commit.
+    scope.post('/api/admin/decks/:slug/stage', async (req, reply) => {
+      const { slug } = req.params;
+      if (!hasBody(req)) return reply.code(400).send({ error: 'empty-body' });
+      try {
+        const st = await decks.stage(slug, req.body, uploadKind(req));
+        const token = issueDeckToken(config.secret, `stage:${st.id}`);
+        return reply.code(201).send({
+          id: st.id,
+          deckUrl: `/_stage/${st.id}/${token}/`,
+          hasIncoming: st.hasIncoming,
+          incomingInvalid: st.incomingInvalid,
+          same: st.same,
+          live: live.counts(slug),
+        });
+      } catch (err) {
+        return sendError(reply, err);
+      }
+    });
+
+    scope.post('/api/admin/stages/:id/diff', async (req, reply) => {
+      try {
+        return await decks.stageSummary(req.params.id, parseSteps(req.body?.steps ?? null));
+      } catch (err) {
+        return sendError(reply, err);
+      }
+    });
+
+    scope.post('/api/admin/stages/:id/commit', async (req, reply) => {
+      const { notes, steps } = req.body ?? {};
+      try {
+        const r = await decks.commitStage(req.params.id, { notes, steps: parseSteps(steps ?? null) });
+        live.resetDeck(r.slug);
+        live.setViewerNav(r.slug, r.meta.viewerNav);
+        live.notifyNotes(r.slug, r.meta.slides);
+        return { slug: r.slug, removedSlides: r.removedSlides, removedSteps: r.removedSteps };
+      } catch (err) {
+        return sendError(reply, err);
+      }
+    });
+
+    scope.delete('/api/admin/stages/:id', async (req, reply) => {
+      await decks.discardStage(req.params.id);
+      return reply.code(204).send();
     });
 
     scope.delete('/api/admin/decks/:slug', async (req, reply) => {

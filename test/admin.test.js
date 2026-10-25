@@ -2,8 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { zipSync, strToU8 } from 'fflate';
+import { zipSync, unzipSync, strToU8 } from 'fflate';
 import { buildServer } from '../src/server.js';
+import { DECK_CSP } from '../src/deckfiles.js';
+import { issueDeckToken } from '../src/tokens.js';
 import { onCleanup, tempDirs, makeDeck, listen, wsClient } from './helpers.js';
 
 const HOST = 'slidecast.test';
@@ -33,6 +35,11 @@ const ROUTES = [
   ['PUT', '/api/admin/settings'],
   ['PUT', '/api/admin/passwords'],
   ['PATCH', '/api/admin/rooms/talk'],
+  ['GET', '/api/admin/decks/talk/download'],
+  ['POST', '/api/admin/decks/talk/stage'],
+  ['POST', '/api/admin/stages/aaaaaaaaaaaa/diff'],
+  ['POST', '/api/admin/stages/aaaaaaaaaaaa/commit'],
+  ['DELETE', '/api/admin/stages/aaaaaaaaaaaa'],
 ];
 
 test('every admin route answers 403 without an admin session', async (t) => {
@@ -182,4 +189,153 @@ test('/admin serves the panel to admins and the login page otherwise, never fram
   const edit = await app.inject({ url: '/admin/edit/talk', headers: REMOTE });
   assert.equal(edit.statusCode, 302);
   assert.equal((await app.inject({ url: '/admin/edit/talk', headers: { ...REMOTE, cookie } })).statusCode, 200);
+});
+
+test('download gives a zip that uploads back to the same deck', async (t) => {
+  const { as, dirs } = await setup(t);
+  const zip = zipSync({
+    'index.html': strToU8('<title>Round</title>'),
+    'img/a.png': new Uint8Array([9, 8, 7]),
+    'deck.json': strToU8('{"slidecast":1,"title":"Round trip","slides":{"a":{"notes":"n"}},"extra":true}'),
+  });
+  await as({ method: 'POST', url: '/api/admin/decks?slug=round', headers: { 'content-type': 'application/zip' }, payload: Buffer.from(zip) });
+  const before = await readFile(join(dirs.dataDir, 'round', 'deck.json'));
+  const res = await as({ url: '/api/admin/decks/round/download' });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.headers['content-type'], 'application/zip');
+  assert.equal(res.headers['content-disposition'], 'attachment; filename="round.zip"');
+  assert.deepEqual(Object.keys(unzipSync(new Uint8Array(res.rawPayload))).sort(), ['deck.json', 'img/a.png', 'index.html']);
+
+  assert.equal((await as({ method: 'DELETE', url: '/api/admin/decks/round' })).statusCode, 204);
+  const up = await as({ method: 'POST', url: '/api/admin/decks?slug=round', headers: { 'content-type': 'application/zip' }, payload: res.rawPayload });
+  assert.equal(up.statusCode, 201);
+  assert.ok((await readFile(join(dirs.dataDir, 'round', 'deck.json'))).equals(before));
+  assert.deepEqual([...await readFile(join(dirs.dataDir, 'round', 'img', 'a.png'))], [9, 8, 7]);
+
+  assert.equal((await as({ url: '/api/admin/decks/nope/download' })).statusCode, 404);
+});
+
+test('download of a deck without deck.json includes the defaults', async (t) => {
+  const { as } = await setup(t);
+  const res = await as({ url: '/api/admin/decks/talk/download' });
+  const meta = JSON.parse(Buffer.from(unzipSync(new Uint8Array(res.rawPayload))['deck.json']).toString());
+  assert.deepEqual(meta, { slidecast: 1, aspect: '16:9', viewerNav: 'back', slides: {} });
+});
+
+test('download works in single-deck mode', async (t) => {
+  const { as } = await setup(t, { single: true });
+  const res = await as({ url: '/api/admin/decks/talk/download' });
+  assert.equal(res.statusCode, 200);
+  assert.ok(unzipSync(new Uint8Array(res.rawPayload))['index.html']);
+});
+
+// ---- update in two phases (0004) ------------------------------------------
+
+const DECK_V1 = {
+  'index.html': strToU8('<title>V1</title>'),
+  'deck.json': strToU8(JSON.stringify({ slidecast: 1, slides: { a: { notes: 'A', steps: { 1: 'a1', 2: 'a2' } }, b: { notes: 'B' } } })),
+};
+
+async function stageAs(as, slug, files) {
+  return as({ method: 'POST', url: `/api/admin/decks/${slug}/stage`, headers: { 'content-type': 'application/zip' }, payload: Buffer.from(zipSync(files)) });
+}
+
+test('stage, diff and commit update the deck and prune notes', async (t) => {
+  const { app, as, dirs } = await setup(t);
+  await as({ method: 'POST', url: '/api/admin/decks?slug=up', headers: { 'content-type': 'application/zip' }, payload: Buffer.from(zipSync(DECK_V1)) });
+  const st = await stageAs(as, 'up', { 'index.html': strToU8('<title>V2</title>') });
+  assert.equal(st.statusCode, 201);
+  const body = st.json();
+  assert.match(body.id, /^[0-9a-f]{12}$/);
+  assert.match(body.deckUrl, new RegExp(`^/_stage/${body.id}/[^/]+/$`));
+  assert.deepEqual({ ...body, id: 0, deckUrl: 0 }, {
+    id: 0, deckUrl: 0, hasIncoming: false, incomingInvalid: false, same: false, live: { viewers: 0, presenters: 0, raised: 0 },
+  });
+  const steps = [{ slide: 'a', step: 0 }, { slide: 'a', step: 1 }];
+  const diff = await as({ method: 'POST', url: `/api/admin/stages/${body.id}/diff`, payload: { steps } });
+  assert.equal(diff.statusCode, 200);
+  assert.deepEqual(diff.json(), {
+    current: { kept: 1, removedSlides: ['b'], removedSteps: [{ slide: 'a', step: 2 }], positional: false, checked: true },
+    incoming: null,
+  });
+  assert.equal((await as({ method: 'POST', url: `/api/admin/stages/${body.id}/diff`, payload: { steps: 'x' } })).statusCode, 400);
+  const commit = await as({ method: 'POST', url: `/api/admin/stages/${body.id}/commit`, payload: { notes: 'current', steps } });
+  assert.equal(commit.statusCode, 200);
+  assert.deepEqual(commit.json(), { slug: 'up', removedSlides: ['b'], removedSteps: [{ slide: 'a', step: 2 }] });
+  const meta = JSON.parse(await readFile(join(dirs.dataDir, 'up', 'deck.json'), 'utf8'));
+  assert.deepEqual(meta.slides, { a: { notes: 'A', steps: { 1: 'a1' } } });
+  const again = await as({ method: 'POST', url: `/api/admin/stages/${body.id}/commit`, payload: { notes: 'current', steps } });
+  assert.equal(again.statusCode, 404);
+  assert.equal(again.json().error, 'stage-gone');
+  assert.equal((await as({ url: '/api/admin/decks' })).json().decks.find((d) => d.slug === 'up').title, 'V2');
+  assert.equal((await stageAs(as, 'nope', DECK_V1)).statusCode, 404);
+  const empty = await as({ method: 'POST', url: '/api/admin/decks/up/stage', headers: { 'content-type': 'text/html' }, payload: '' });
+  assert.equal(empty.json().error, 'empty-body');
+  assert.ok(app);
+});
+
+test('a commit after the deck was replaced answers 409 deck-changed', async (t) => {
+  const { as } = await setup(t);
+  const { id } = (await stageAs(as, 'talk', { 'index.html': strToU8('<title>V2</title>') })).json();
+  await as({ method: 'POST', url: '/api/admin/decks?slug=talk', headers: { 'content-type': 'text/html' }, payload: '<title>Other</title>' });
+  const res = await as({ method: 'POST', url: `/api/admin/stages/${id}/commit`, payload: { notes: 'current', steps: null } });
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.json().error, 'deck-changed');
+});
+
+test('choosing the zip deck.json applies its viewer mode live', async (t) => {
+  const { app, as } = await setup(t);
+  const urls = await listen(app);
+  const presenter = wsClient(`${urls.ws}/ws/talk?role=presenter`);
+  onCleanup(t, () => presenter.close());
+  await presenter.next((m) => m.t === 'notes');
+  assert.equal(app.slidecast.live.getState('talk').viewerNav, 'back');
+  const st = (await stageAs(as, 'talk', {
+    'index.html': strToU8('<title>V2</title>'),
+    'deck.json': strToU8('{"slidecast":1,"viewerNav":"free","slides":{}}'),
+  })).json();
+  assert.equal(st.hasIncoming, true);
+  assert.equal(st.live.presenters, 1);
+  const res = await as({ method: 'POST', url: `/api/admin/stages/${st.id}/commit`, payload: { notes: 'incoming', steps: null } });
+  assert.equal(res.statusCode, 200);
+  assert.equal(app.slidecast.live.getState('talk').viewerNav, 'free');
+});
+
+test('staged files are served like a deck, only with their own token', async (t) => {
+  const { app, as } = await setup(t);
+  const { id, deckUrl } = (await stageAs(as, 'talk', {
+    'index.html': strToU8('<!doctype html><html><head><title>S</title></head></html>'),
+    'deck.json': strToU8('{}'),
+  })).json();
+  const page = await app.inject(deckUrl);
+  assert.equal(page.statusCode, 200);
+  assert.match(page.body, /<head><script src="\/_slidecast\/bridge\.js"><\/script><title>S/);
+  assert.equal(page.headers['content-security-policy'], DECK_CSP);
+  assert.equal((await app.inject(`${deckUrl}deck.json`)).statusCode, 404);
+  assert.equal((await app.inject(`/_stage/${id}/123.abc/`)).statusCode, 403);
+  const slugToken = issueDeckToken(app.slidecast.config.secret, `stage-${id}`);
+  assert.equal((await app.inject(`/_stage/${id}/${slugToken}/`)).statusCode, 403);
+  assert.equal((await as({ method: 'DELETE', url: `/api/admin/stages/${id}` })).statusCode, 204);
+  assert.equal((await app.inject(deckUrl)).statusCode, 404);
+  assert.equal((await as({ method: 'DELETE', url: `/api/admin/stages/${id}` })).statusCode, 204);
+});
+
+test('stage in single-deck mode → 409', async (t) => {
+  const { as } = await setup(t, { single: true });
+  const res = await stageAs(as, 'talk', DECK_V1);
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.json().error, 'single-deck');
+});
+
+test('a download fails rather than mix versions when the deck is replaced meanwhile', async (t) => {
+  const { app, as, cookie } = await setup(t);
+  const zip = zipSync({ 'index.html': strToU8('<title>Big</title>'), 'img/a.png': new Uint8Array(8 * 1024 * 1024) });
+  await as({ method: 'POST', url: '/api/admin/decks?slug=big', headers: { 'content-type': 'application/zip' }, payload: Buffer.from(zip) });
+  const urls = await listen(app);
+  const res = await fetch(`${urls.http}/api/admin/decks/big/download`, { headers: { cookie } });
+  assert.equal(res.status, 200);
+  const reader = res.body.getReader();
+  await reader.read();
+  await as({ method: 'POST', url: '/api/admin/decks?slug=big', headers: { 'content-type': 'text/html' }, payload: '<title>New</title>' });
+  await assert.rejects((async () => { for (;;) if ((await reader.read()).done) break; })());
 });

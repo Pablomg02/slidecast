@@ -1,6 +1,6 @@
-// Admin panel: decks (upload, delete, settings), their rooms (open or closed,
-// limits) and passwords.
-import { t, el, api, setTitle, brand } from './shell.js';
+// Admin panel: decks (upload, update, download, delete, settings), their
+// rooms (open or closed, limits) and passwords.
+import { t, el, api, setTitle, brand, icon, createDeckFrame } from './shell.js';
 
 setTitle(t('admin'));
 const app = document.getElementById('app');
@@ -61,6 +61,47 @@ let settings = null;
 const DEFAULT_ACCENT = '#4f46e5';
 
 const roomCells = new Map(); // slug → redraws that deck's room cell (roomCell)
+let lastDecks = []; // the decks of the last render(), for the upload form
+
+// "How updating works" (D20 of 0004): one popover for every ⓘ button, kept
+// outside #app because render() empties it.
+const updateInfo = el('div.card.info-pop', { id: 'update-info' },
+  el('h3', {}, t('updateInfoTitle')),
+  el('ul', {}, [1, 2, 3, 4, 5].map((n) => el('li', {}, t(`updateInfo${n}`)))));
+updateInfo.setAttribute('popover', 'auto');
+document.body.append(updateInfo);
+let updateInfoFor = null; // the button it was last opened from
+
+function updateInfoButton() {
+  // Light dismiss closes the popover on pointerdown, before the click: without
+  // this, a second click on the button would open it again.
+  let wasOpen = false;
+  const button = el('button.small.icon-btn.update-info-btn', {
+    type: 'button',
+    'aria-label': t('updateInfoLabel'),
+    title: t('updateInfoLabel'),
+    onpointerdown: () => { wasOpen = updateInfo.matches(':popover-open') && updateInfoFor === button; },
+    onclick: () => {
+      const closing = wasOpen || (updateInfo.matches(':popover-open') && updateInfoFor === button);
+      wasOpen = false;
+      if (closing) {
+        if (updateInfo.matches(':popover-open')) updateInfo.hidePopover();
+        return;
+      }
+      updateInfoFor = button;
+      // Measured at the left edge: its width shrinks to the room left of it.
+      updateInfo.style.left = '16px';
+      updateInfo.showPopover();
+      const r = button.getBoundingClientRect();
+      const w = updateInfo.offsetWidth;
+      const left = Math.min(Math.max(16, r.right - w), window.innerWidth - w - 16);
+      updateInfo.style.left = `${Math.max(16, left)}px`;
+      updateInfo.style.top = `${r.bottom + 6}px`;
+      updateInfo.style.maxHeight = `${Math.max(160, window.innerHeight - r.bottom - 22)}px`;
+    },
+  }, icon('info'));
+  return button;
+}
 
 async function load() {
   const [decksRes, settingsRes] = await Promise.all([api('/api/admin/decks'), api('/api/admin/settings')]);
@@ -75,6 +116,7 @@ async function load() {
 function render({ decks, single }) {
   app.replaceChildren();
   roomCells.clear();
+  lastDecks = decks;
   app.append(el('header.admin-header', {},
     el('div.admin-title', {}, brand(), el('h1', {}, t('admin'))),
     el('div.row', {},
@@ -98,7 +140,10 @@ function render({ decks, single }) {
         el('a', { href: `/${d.slug}/view` }, t('viewer')),
         el('a', { href: `/${d.slug}/present` }, t('presenter')),
         el('a', { href: `/admin/edit/${d.slug}`, className: 'edit-link' }, t('edit')),
+        el('a.download-link', { href: `/api/admin/decks/${encodeURIComponent(d.slug)}/download`, download: `${d.slug}.zip` }, t('download')),
         el('button.small', { onclick: () => openSettings(d) }, t('settings')),
+        single ? null : el('button.small.update-btn', { onclick: () => openUpdate(d) }, t('update')),
+        single ? null : updateInfoButton(),
         single ? null : el('button.small.danger', { onclick: () => confirmDelete(d.slug) }, t('delete')))))));
   app.append(el('h2', {}, t('decks')), decks.length ? el('div.table-wrap', {}, table) : el('p.muted', {}, t('noDecks')));
   if (decks.length && !single) app.append(el('p.hint.muted.room-hint', {}, t('roomHint', { site })));
@@ -188,6 +233,8 @@ function appearanceForm() {
   return form;
 }
 
+const uploadType = (f) => (/\.zip$/i.test(f.name) ? 'application/zip' : 'text/html');
+
 function uploadForm() {
   const file = el('input', { type: 'file', id: 'upload-file', accept: '.zip,.html,.htm', required: true });
   const slug = el('input', { type: 'text', id: 'upload-slug', required: true, pattern: '[a-z0-9][a-z0-9-]{0,62}', autocomplete: 'off' });
@@ -205,7 +252,14 @@ function uploadForm() {
     e.preventDefault();
     const f = file.files[0];
     if (!f) return;
-    const type = /\.zip$/i.test(f.name) ? 'application/zip' : 'text/html';
+    // An existing name goes through the update, which shows what happens to
+    // its notes before anything changes (D16 of 0004).
+    const existing = lastDecks.find((d) => d.slug === slug.value);
+    if (existing) {
+      openUpdate(existing, f);
+      return;
+    }
+    const type = uploadType(f);
     button.disabled = true;
     status(msg, t('uploading'));
     const res = await api(`/api/admin/decks?slug=${encodeURIComponent(slug.value)}`, { method: 'POST', raw: f, type });
@@ -284,6 +338,178 @@ function confirmDelete(slug) {
   document.body.append(dialog);
   dialog.showModal();
   input.focus();
+}
+
+// The new deck may never report its slides (no deck API): after this long the
+// notes are kept unchecked (D8 of 0004).
+const PROBE_TIMEOUT = 15000;
+
+// Update a deck in two phases (0004): stage the new version, load it in a
+// preview to learn its slides, show what happens to the notes, then commit.
+function openUpdate(d, initialFile = null) {
+  let stage = null; // the stage POST answer, while the stage exists
+  let diff = null;
+  let steps = null;
+  let source = 'current';
+  let frame = null;
+  let closed = false;
+  let committing = false;
+
+  const input = el('input', { type: 'file', id: 'update-file', accept: '.zip,.html,.htm' });
+  const check = el('button', { type: 'button', id: 'update-check', onclick: () => start(input.files[0]) }, t('updateCheck'));
+  const picker = el('div.row.update-picker', {}, input, check);
+  const fileName = el('p.update-file-name', { hidden: true });
+  const msg = el('p.status');
+  const probe = el('div.stage-probe', { hidden: true });
+  const sourceBox = el('div.notes-source', { hidden: true });
+  const summary = el('div.update-summary', { hidden: true });
+  const outcome = el('div.update-outcome', { hidden: true });
+  const confirm = el('button.primary', { type: 'button', id: 'update-confirm', disabled: true, onclick: commit }, t('updateConfirm'));
+  const close = el('button', { type: 'button', onclick: () => dialog.close() }, t('close'));
+  const dialog = el('dialog.card.update-dialog', {},
+    el('h2', {}, t('updateTitle', { slug: d.slug })),
+    el('p.hint.muted.update-intro', {}, t('updateIntro')),
+    picker, fileName, msg, probe, sourceBox, summary, outcome,
+    el('div.row.end', {}, close, confirm));
+
+  const live = () => stage.live.presenters + stage.live.viewers > 0;
+  const choice = () => stage.hasIncoming && !stage.same && !stage.incomingInvalid;
+
+  // The new deck's slides, from the preview: null when it reports none.
+  function probeSteps(deckUrl) {
+    probe.hidden = false;
+    frame = createDeckFrame(probe, deckUrl, { mode: 'preview' });
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => resolve(null), PROBE_TIMEOUT);
+      frame.onReady((m) => {
+        clearTimeout(timer);
+        resolve((m.steps ?? []).map(({ slide, step }) => ({ slide, step })));
+      });
+      frame.onError(() => {
+        clearTimeout(timer);
+        resolve(null);
+      });
+    });
+  }
+
+  async function start(f) {
+    if (!f) return;
+    check.disabled = true;
+    input.disabled = true;
+    status(msg, t('updateChecking'));
+    const res = await api(`/api/admin/decks/${encodeURIComponent(d.slug)}/stage`, { method: 'POST', raw: f, type: uploadType(f) });
+    if (closed) {
+      if (res.status === 201) api(`/api/admin/stages/${res.data.id}`, { method: 'DELETE' });
+      return;
+    }
+    if (res.status !== 201) {
+      status(msg, errorText(res), 'error');
+      check.disabled = false;
+      input.disabled = false;
+      return;
+    }
+    stage = res.data;
+    steps = await probeSteps(stage.deckUrl);
+    if (closed) return;
+    const sum = await api(`/api/admin/stages/${stage.id}/diff`, { method: 'POST', body: { steps } });
+    if (closed) return;
+    if (!sum.ok) {
+      status(msg, sum.data?.error === 'stage-gone' ? t('updateExpired') : errorText(sum), 'error');
+      return;
+    }
+    diff = sum.data;
+    status(msg, '');
+    if (choice()) drawSource();
+    draw();
+  }
+
+  function drawSource() {
+    const radio = (value, label) => el('label.inline', {},
+      el('input', {
+        type: 'radio', name: 'notes-source', value, checked: value === source,
+        onchange: () => { source = value; draw(); },
+      }), ` ${label}`);
+    sourceBox.replaceChildren(
+      radio('current', t('notesCurrent')),
+      radio('incoming', t('notesIncoming')),
+      el('p.hint.muted', {}, t('notesSourceHint')));
+    sourceBox.hidden = false;
+  }
+
+  function draw() {
+    const sum = source === 'incoming' ? diff.incoming : diff.current;
+    const p = (text) => el('p', {}, text);
+    const list = (items) => items.join(', ');
+    const stepItems = sum.removedSteps.map((s) => `${s.slide}·${s.step}`);
+    // replaceChildren() would print a null as "null".
+    summary.replaceChildren(...[
+      p(t('updateKept', { n: sum.kept })),
+      sum.removedSlides.length ? p(t('updateRemovedSlides', { list: list(sum.removedSlides) })) : null,
+      stepItems.length ? p(t('updateRemovedSteps', { list: list(stepItems) })) : null,
+      sum.checked ? null : el('p.notice', {}, t('updateUnchecked')),
+      sum.positional ? el('p.notice', {}, t('updatePositional')) : null,
+      live() ? el('p.notice', {}, t('updateLive', { v: stage.live.viewers, p: stage.live.presenters })) : null,
+      stage.incomingInvalid ? el('p.notice', {}, t('updateIncomingInvalid')) : null,
+    ].filter(Boolean));
+    summary.hidden = false;
+
+    const removed = [...sum.removedSlides, ...stepItems];
+    const items = [t('outcomeReplace')];
+    if (sum.checked) {
+      items.push(t('outcomeKeep', { n: sum.kept }));
+      items.push(removed.length ? t('outcomeDelete', { list: list(removed) }) : t('outcomeDeleteNone'));
+    } else {
+      items.push(t('outcomeKeepAll'));
+    }
+    if (source === 'incoming') items.push(t('outcomeSettingsIncoming'));
+    else if (stage.hasIncoming && !stage.same) items.push(t('outcomeSettingsCurrent'));
+    if (live()) items.push(t('outcomeReload'));
+    items.push(t('outcomeTrash'));
+    outcome.replaceChildren(el('strong', {}, t('updateOutcome')), el('ul', {}, items.map((x) => el('li', {}, x))));
+    outcome.hidden = false;
+    confirm.disabled = false;
+  }
+
+  async function commit() {
+    committing = true;
+    confirm.disabled = true;
+    close.disabled = true;
+    const res = await api(`/api/admin/stages/${stage.id}/commit`, { method: 'POST', body: { notes: source, steps } });
+    committing = false;
+    close.disabled = false;
+    const code = res.data?.error;
+    // These answers mean the server no longer has this stage; after any other
+    // error the dialog's close still discards it.
+    if (res.ok || ['stage-gone', 'deck-changed', 'bad-deck-json'].includes(code)) stage = null;
+    else confirm.disabled = false;
+    if (res.ok) {
+      dialog.close();
+      await load();
+      const node = document.querySelector('.upload-form .status');
+      if (node) status(node, t('updated'), 'ok');
+      return;
+    }
+    status(msg, code === 'stage-gone' ? t('updateExpired') : code === 'deck-changed' ? t('updateConflict') : errorText(res), 'error');
+  }
+
+  dialog.addEventListener('cancel', (e) => {
+    if (committing) e.preventDefault();
+  });
+  dialog.addEventListener('close', () => {
+    closed = true;
+    frame?.destroy();
+    if (stage) api(`/api/admin/stages/${stage.id}`, { method: 'DELETE' });
+    stage = null;
+    dialog.remove();
+  });
+  document.body.append(dialog);
+  dialog.showModal();
+  if (initialFile) {
+    picker.hidden = true;
+    fileName.textContent = initialFile.name;
+    fileName.hidden = false;
+    start(initialFile);
+  }
 }
 
 const MODE_LABELS = { follow: 'modeFollow', back: 'modeBack', free: 'modeFree' };

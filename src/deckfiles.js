@@ -61,23 +61,19 @@ export function registerDeckFiles(app, ctx) {
   // index.html with the bridge injected, plain and gzipped, per file version:
   // building it on every request would let anyone stall the server.
   const pages = new Map(); // path → {version, html, gz}
-  async function deckPage(target, st) {
+  // Staged versions are not cached: each has its own path, used for minutes.
+  async function deckPage(target, st, { cache = true } = {}) {
     const version = `${st.size}-${st.mtimeMs}`;
     const hit = pages.get(target);
     if (hit?.version === version) return hit;
     const html = Buffer.from(injectBridge(await readFile(target, 'utf8')));
     const page = { version, html, gz: await gzipAsync(html) };
-    pages.set(target, page);
+    if (cache) pages.set(target, page);
     return page;
   }
 
-  app.get('/_deck/:slug/:token/*', async (req, reply) => {
-    const { slug, token } = req.params;
-    if (!verifyDeckToken(ctx.config.secret, slug, token)) return reply.code(403).send('Forbidden');
-    const deckDir = ctx.decks.dirOf(slug);
-    if (!deckDir || !(await ctx.decks.exists(slug))) return reply.code(404).send('Not found');
-
-    const rel = req.params['*'] ?? '';
+  // Serves one file of the deck in `deckDir`; the caller checked the token.
+  async function serveFrom(req, reply, deckDir, rel, { cache = true } = {}) {
     if (rel.includes('\0')) return reply.code(403).send('Forbidden');
     // Hidden files and folders (.git, .env, a state folder) are never deck content.
     if (rel.split(/[\\/]/).some((part) => part.startsWith('.'))) return reply.code(404).send('Not found');
@@ -106,7 +102,7 @@ export function registerDeckFiles(app, ctx) {
     reply.header('Vary', 'Accept-Encoding');
 
     if (target === join(deckDir, 'index.html')) {
-      const page = await deckPage(target, st);
+      const page = await deckPage(target, st, { cache });
       const etag = `W/"${page.version}"`;
       reply.header('ETag', etag);
       reply.header('Content-Type', 'text/html; charset=utf-8');
@@ -132,5 +128,23 @@ export function registerDeckFiles(app, ctx) {
     }
     reply.header('Content-Length', st.size);
     return reply.send(stream);
+  }
+
+  app.get('/_deck/:slug/:token/*', async (req, reply) => {
+    const { slug, token } = req.params;
+    if (!verifyDeckToken(ctx.config.secret, slug, token)) return reply.code(403).send('Forbidden');
+    const deckDir = ctx.decks.dirOf(slug);
+    if (!deckDir || !(await ctx.decks.exists(slug))) return reply.code(404).send('Not found');
+    return serveFrom(req, reply, deckDir, req.params['*'] ?? '');
+  });
+
+  // A new version waiting to be confirmed (0004), in the same sandbox. The
+  // token subject cannot be a slug: slugs have no ":".
+  app.get('/_stage/:id/:token/*', async (req, reply) => {
+    const { id, token } = req.params;
+    if (!verifyDeckToken(ctx.config.secret, `stage:${id}`, token)) return reply.code(403).send('Forbidden');
+    const deckDir = ctx.decks.stageDir(id);
+    if (!deckDir) return reply.code(404).send('Not found');
+    return serveFrom(req, reply, deckDir, req.params['*'] ?? '', { cache: false });
   });
 }

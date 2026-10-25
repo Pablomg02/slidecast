@@ -6,6 +6,15 @@ include breaking changes, always listed here.
 
 ## [Unreleased]
 
+- Admin panel: **Download** a deck as one `.zip` with its files and its
+  notes (`deck.json`), ready to upload again.
+- Admin panel: **Update** a deck with a new version, keeping notes by slide
+  id. Before anything changes it shows which notes are kept and which are
+  deleted (slides or steps the new version no longer has), and, when the zip
+  brings its own `deck.json`, asks which notes (and settings) to use. An ⓘ
+  button explains the rules. Uploading over an existing name in the upload
+  form now opens this update instead of replacing silently.
+
 - Viewer: when nobody with a presenter session is connected (presenter
   view, or a viewer tab of a presenter, controlling or not), a small notice
   says so. It can be closed, and goes away by itself when a presenter
