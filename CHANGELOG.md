@@ -6,6 +6,10 @@ include breaking changes, always listed here.
 
 ## [Unreleased]
 
+- Viewer on a phone: "Back to live" no longer covers the name and
+  raise-hand buttons; it sits above them, and steps aside while the hand
+  note is open.
+
 ## [0.2.0] - 2026-10-25
 
 - Rooms: each deck is a room the admin opens and closes, from the admin

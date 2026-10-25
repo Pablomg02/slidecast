@@ -87,7 +87,11 @@ export function createParticipant(app, { slug, askNames, hands }) {
     if (Date.now() < slowUntil) return;
     send({ t: 'hand', up: true, note: note.value });
   });
-  const bar = el('div.participant-bar', { hidden: true }, panel, el('div.row', {}, who, handBtn, handStatus));
+  const barRow = el('div.row', {}, who, handBtn, handStatus);
+  const bar = el('div.participant-bar', { hidden: true }, panel, barRow);
+  // The row wraps on a narrow phone: whatever sits above the bar ("Back to live")
+  // needs its real height.
+  new ResizeObserver(() => { app.style.setProperty('--p-bar-h', `${barRow.offsetHeight}px`); }).observe(barRow);
 
   const toast = el('div.toast', { hidden: true, role: 'status' });
   let toastTimer = null;

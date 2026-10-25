@@ -358,6 +358,10 @@ body.idle .badge-control, body.idle .control-toggle { opacity: 0; }
 /* Dimmed while idle, but always tappable: on a phone the first tap must reach
    the button, not the idle cover (which would turn the slide). */
 body.idle .participant-bar:not(.has-hand):not(:focus-within) { opacity: .45; }
+/* "Back to live" sits above the bar, not on it: on a phone the two collide. While
+   the hand note is open it would land on the panel, so it steps aside. */
+#app:has(.participant-bar:not([hidden])) .back-to-live { bottom: calc(24px + var(--p-bar-h, 2.25rem)); }
+#app:has(.participant-bar:not([hidden]) .hand-panel:not([hidden])) .back-to-live { display: none; }
 .hand-panel { width: min(22rem, calc(100vw - 24px)); padding: 1rem; }
 .hand-panel textarea { resize: none; margin-bottom: .6rem; }
 .hand-panel .row { flex-wrap: nowrap; }
