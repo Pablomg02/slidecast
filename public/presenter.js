@@ -43,6 +43,10 @@ const modeSelect = el('select', { id: 'viewer-mode', title: t('viewerMode'), onc
   el('option', { value: 'follow' }, t('modeFollow')),
   el('option', { value: 'back' }, t('modeBack')),
   el('option', { value: 'free' }, t('modeFree')));
+// The tooltip says what the chosen mode lets viewers do.
+const MODE_HINTS = { follow: 'modeFollowHint', back: 'modeBackHint', free: 'modeFreeHint' };
+const describeMode = () => { modeSelect.title = `${t('viewerMode')}: ${t(MODE_HINTS[modeSelect.value])}`; };
+modeSelect.addEventListener('change', describeMode);
 const viewers = el('span.p-viewers', { id: 'viewers' }, t('viewersCount', { n: 0 }));
 const roomClosed = el('span.badge.badge-warn.p-room-closed', { id: 'room-closed', hidden: true }, t('roomClosedBadge'));
 // Only the admin opens and closes rooms (D3 of 0003); closing asks once more.
@@ -194,6 +198,7 @@ function render() {
   btnBlank.textContent = live.blank ? t('unblank') : t('blank');
   btnBlank.classList.toggle('active', live.blank);
   modeSelect.value = live.viewerNav;
+  describeMode();
   btnPrev.disabled = live.index <= 0;
   btnNext.disabled = n > 0 && live.index >= n - 1;
   if (current.readyState && current.index !== live.index) current.go(live.index);

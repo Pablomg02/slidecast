@@ -286,11 +286,18 @@ function confirmDelete(slug) {
   input.focus();
 }
 
+const MODE_LABELS = { follow: 'modeFollow', back: 'modeBack', free: 'modeFree' };
+const MODE_HINTS = { follow: 'modeFollowHint', back: 'modeBackHint', free: 'modeFreeHint' };
+
 function openSettings(d) {
   const title = el('input', { type: 'text', id: 'deck-title', value: d.title, maxLength: 200 });
   const mode = el('select', { id: 'deck-mode' },
     ['follow', 'back', 'free'].map((m) => el('option', { value: m, selected: d.viewerNav === m },
-      t({ follow: 'modeFollow', back: 'modeBack', free: 'modeFree' }[m]))));
+      t(MODE_LABELS[m]))));
+  const modeHint = el('p.hint.muted.mode-hint');
+  const describeMode = () => { modeHint.textContent = `${t(MODE_HINTS[mode.value])} ${t('modeDefaultHint')}`; };
+  mode.addEventListener('change', describeMode);
+  describeMode();
   const maxPresenters = el('input', { type: 'number', id: 'room-presenters', min: 1, max: 20, step: 1, value: d.room.maxPresenters });
   const maxViewers = el('input', { type: 'number', id: 'room-viewers', min: 1, max: 1000, step: 1, value: d.room.maxViewers });
   const askNames = el('input', { type: 'checkbox', id: 'room-names', checked: d.room.askNames });
@@ -314,11 +321,11 @@ function openSettings(d) {
       const failed = !res.ok ? res : !room.ok ? room : null;
       status(msg, failed ? errorText(failed) : t('saved'), failed ? 'error' : 'ok');
     },
-  }, t('save'));
+  }, t('saveDeckSettings'));
   const dialog = el('dialog.card.deck-settings', {},
     el('h2', {}, `${t('settings')} · ${d.slug}`),
     el('label', { htmlFor: 'deck-title' }, t('title')), title,
-    el('label', { htmlFor: 'deck-mode' }, t('defaultViewerMode')), mode,
+    el('label', { htmlFor: 'deck-mode' }, t('defaultViewerMode')), mode, modeHint,
     el('h3.settings-sub', {}, t('roomSettings')),
     el('div.room-limits', {},
       el('div', {}, el('label', { htmlFor: 'room-presenters' }, t('maxPresenters')), maxPresenters),
@@ -326,6 +333,8 @@ function openSettings(d) {
     el('label.inline', { htmlFor: 'room-names' }, askNames, ` ${t('askNamesSetting')}`),
     el('label.inline', { htmlFor: 'room-hands' }, hands, ` ${t('handsSetting')}`),
     el('div.row', {}, save, msg),
+    el('h3.settings-sub', {}, t('passwordsHeading')),
+    el('p.hint.muted', {}, t('passwordsHint')),
     passwordControl({ label: t('deckPresenterPassword'), scope: 'deckPresenter', deck: d.slug, isSet: d.hasPresenterPassword }),
     passwordControl({ label: t('deckViewerPassword'), scope: 'deckViewer', deck: d.slug, isSet: d.hasViewerPassword }),
     el('div.row.end', {}, el('button', { type: 'button', onclick: () => dialog.close() }, t('close'))));

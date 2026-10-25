@@ -9,6 +9,13 @@ include breaking changes, always listed here.
 - Viewer on a phone: "Back to live" no longer covers the name and
   raise-hand buttons; it sits above them, and steps aside while the hand
   note is open.
+- Viewer modes have clearer names ("Follow the presenter", "Can go back",
+  "Browse freely"), and the deck settings explain what each one allows.
+- Viewer: trying to move where the mode does not allow (any move in
+  "Follow the presenter", ahead of the presenter in "Can go back") shows a
+  short notice instead of doing nothing.
+- Deck settings: the main button now says what it saves (title, mode and
+  room); passwords sit under their own heading and keep their own buttons.
 
 ## [0.2.0] - 2026-10-25
 

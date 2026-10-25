@@ -57,6 +57,7 @@ test('follow: the viewer cannot move', async ({ page }) => {
   await presenter.state((s) => s.viewerNav === 'follow');
   await viewerNav(page, 'follow');
   await page.keyboard.press('ArrowRight');
+  await expect(page.locator('.nav-hint')).toHaveText('The presenter controls the slides: you cannot move.');
   await page.keyboard.press('ArrowLeft');
   // Keys pressed inside the deck are forwarded too, and ignored as well.
   await deckFrame(page).evaluate(() => window.focus());
@@ -78,6 +79,7 @@ test('back: may go back, never past live; "Back to live" re-attaches', async ({ 
   await page.keyboard.press('ArrowRight');
   await page.keyboard.press('ArrowRight');
   await expect.poll(() => current(page)).toBe(3);
+  await expect(page.locator('.nav-hint')).toHaveText('You cannot go ahead of the presenter.');
   await page.waitForTimeout(200);
   expect(await current(page)).toBe(3);
   await expect(live).toBeHidden();
@@ -101,6 +103,7 @@ test('free: the viewer can go ahead of live', async ({ page }) => {
   await page.keyboard.press('ArrowRight');
   await page.keyboard.press('ArrowRight');
   await expect.poll(() => current(page)).toBe(2);
+  await expect(page.locator('.nav-hint')).toBeHidden();
   await page.keyboard.press('l');
   await expect.poll(() => current(page)).toBe(0);
 });

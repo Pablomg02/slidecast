@@ -368,11 +368,13 @@ body.idle .participant-bar:not(.has-hand):not(:focus-within) { opacity: .45; }
 .hand-panel button { background: var(--surface); color: var(--ink); border-color: var(--line-strong); backdrop-filter: none; }
 .hand-panel button.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
 .hand-count { font-size: .8rem; font-variant-numeric: tabular-nums; }
-.toast {
+.toast, .nav-hint {
   position: absolute; top: 16px; left: 50%; transform: translateX(-50%); z-index: 10; max-width: calc(100% - 32px);
   padding: .6rem 1.1rem; border-radius: 999px; font-weight: 600; font-size: .95rem;
   background: rgba(10, 12, 17, .85); color: #fff; box-shadow: 0 10px 30px rgba(0, 0, 0, .4);
 }
+/* Below the participant toasts, so both can show at once. */
+.nav-hint { top: 64px; pointer-events: none; }
 .toast-accent { background: var(--accent); color: var(--accent-ink); }
 .room-notice {
   position: absolute; inset: 0; z-index: 11; display: flex; align-items: center; justify-content: center;

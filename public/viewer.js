@@ -33,13 +33,14 @@ const reconnecting = el('span.badge.badge-warn', { hidden: true }, t('reconnecti
 const controlBadge = el('span.badge.badge-control', { hidden: !controlling }, t('controlling'));
 const liveBtn = el('button.back-to-live', { hidden: true, onclick: () => attach() }, t('backToLive'));
 const message = el('div.deck-message', { hidden: true });
+const navHint = el('div.nav-hint', { hidden: true, role: 'status' });
 const controlToggle = el('button.badge.control-toggle', {
   type: 'button',
   hidden: !info.data.canPresent,
   onclick: () => setControl(!controlling),
 }, t(controlling ? 'stopControlling' : 'takeControl'));
 badges.append(controlBadge, controlToggle, reconnecting);
-app.append(stage, blank, idleCover, liveBtn, badges, message);
+app.append(stage, blank, idleCover, liveBtn, badges, message, navHint);
 
 const participant = info.data.canPresent ? null : createParticipant(app, info.data);
 // A closed room gives its audience no deck: wait for it to open (D4 of 0003).
@@ -73,9 +74,22 @@ function allowed(index) {
   return true;
 }
 
+// Says briefly why a move did nothing: the mode set by the presenter forbids it.
+let navHintTimer = null;
+function refuse() {
+  navHint.textContent = t(live.viewerNav === 'follow' ? 'navLocked' : 'navNoAhead');
+  navHint.hidden = false;
+  clearTimeout(navHintTimer);
+  navHintTimer = setTimeout(() => { navHint.hidden = true; }, 2500);
+}
+
 function localMove(target) {
   target = Math.max(0, Math.min(total() - 1, target));
-  if (!allowed(target)) return;
+  if (target === local) return; // first or last step: nothing to refuse
+  if (!allowed(target)) {
+    refuse();
+    return;
+  }
   attached = target === live.index;
   show(target);
 }
@@ -144,6 +158,7 @@ frame?.onChanged((index, own) => {
     liveBtn.hidden = attached;
   } else {
     frame.go(local);
+    refuse();
   }
 });
 

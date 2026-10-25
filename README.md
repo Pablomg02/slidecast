@@ -200,10 +200,13 @@ a plain viewer.
 Chosen per deck in the admin panel, and switchable live from the presenter
 view:
 
-- **Follow**: viewers always see your slide.
-- **May go back** (default): viewers can look at earlier slides, never ahead
+- **Follow the presenter**: viewers always see your slide.
+- **Can go back** (default): viewers can look at earlier slides, never ahead
   of you; a *Back to live* button returns to your slide.
-- **Free**: viewers can browse the whole deck.
+- **Browse freely**: viewers can browse the whole deck.
+
+A viewer who tries a move the mode does not allow gets a short notice saying
+why.
 
 ### Your audience: names, hands and the room
 
