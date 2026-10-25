@@ -1,6 +1,6 @@
 {
   "name": "slidecast",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Present any HTML slide deck, including AI-generated ones, with a presenter view, speaker notes, a phone remote and audience screens that follow live.",
   "type": "module",
   "license": "MIT",

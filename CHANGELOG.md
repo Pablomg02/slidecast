@@ -6,6 +6,8 @@ include breaking changes, always listed here.
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-10-25
+
 - Admin panel: **Download** a deck as one `.zip` with its files and its
   notes (`deck.json`), ready to upload again.
 - Admin panel: **Update** a deck with a new version, keeping notes by slide
@@ -93,7 +95,8 @@ First public release.
   Compose.
 - English and Spanish interface.
 
-[Unreleased]: https://github.com/Pablomg02/slidecast/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/Pablomg02/slidecast/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/Pablomg02/slidecast/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/Pablomg02/slidecast/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Pablomg02/slidecast/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/Pablomg02/slidecast/compare/v0.1.0...v0.1.1
