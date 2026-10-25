@@ -6,6 +6,8 @@ include breaking changes, always listed here.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-25
+
 - Viewer on a phone: "Back to live" no longer covers the name and
   raise-hand buttons; it sits above them, and steps aside while the hand
   note is open.
@@ -74,7 +76,8 @@ First public release.
   Compose.
 - English and Spanish interface.
 
-[Unreleased]: https://github.com/Pablomg02/slidecast/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Pablomg02/slidecast/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/Pablomg02/slidecast/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Pablomg02/slidecast/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/Pablomg02/slidecast/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Pablomg02/slidecast/releases/tag/v0.1.0
