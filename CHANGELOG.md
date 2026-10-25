@@ -6,6 +6,11 @@ include breaking changes, always listed here.
 
 ## [Unreleased]
 
+- Viewer: when nobody with a presenter session is connected (presenter
+  view, or a viewer tab of a presenter, controlling or not), a small notice
+  says so. It can be closed, and goes away by itself when a presenter
+  comes back.
+
 ## [0.2.1] - 2026-10-25
 
 - Viewer on a phone: "Back to live" no longer covers the name and

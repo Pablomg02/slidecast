@@ -34,13 +34,16 @@ const controlBadge = el('span.badge.badge-control', { hidden: !controlling }, t(
 const liveBtn = el('button.back-to-live', { hidden: true, onclick: () => attach() }, t('backToLive'));
 const message = el('div.deck-message', { hidden: true });
 const navHint = el('div.nav-hint', { hidden: true, role: 'status' });
+const noPresenter = el('div.no-presenter', { hidden: true, role: 'status' },
+  el('span', {}, t('noPresenter')),
+  el('button', { type: 'button', 'aria-label': t('close'), onclick: () => { dismissed = true; noPresenter.hidden = true; } }, '×'));
 const controlToggle = el('button.badge.control-toggle', {
   type: 'button',
   hidden: !info.data.canPresent,
   onclick: () => setControl(!controlling),
 }, t(controlling ? 'stopControlling' : 'takeControl'));
 badges.append(controlBadge, controlToggle, reconnecting);
-app.append(stage, blank, idleCover, liveBtn, badges, message, navHint);
+app.append(stage, blank, idleCover, liveBtn, badges, message, navHint, noPresenter);
 
 const participant = info.data.canPresent ? null : createParticipant(app, info.data);
 // A closed room gives its audience no deck: wait for it to open (D4 of 0003).
@@ -83,6 +86,22 @@ function refuse() {
   navHintTimer = setTimeout(() => { navHint.hidden = true; }, 2500);
 }
 
+// Nobody with presenter rights is connected. A few seconds' wait keeps a
+// presenter's reload from flashing it; closed by hand, it stays closed until
+// a presenter comes and goes again.
+let dismissed = false;
+let noPresenterTimer = null;
+function presence(presenting) {
+  if (presenting) {
+    clearTimeout(noPresenterTimer);
+    noPresenterTimer = null;
+    dismissed = false;
+    noPresenter.hidden = true;
+  } else if (!dismissed && noPresenter.hidden && !noPresenterTimer) {
+    noPresenterTimer = setTimeout(() => { noPresenterTimer = null; noPresenter.hidden = false; }, 3000);
+  }
+}
+
 function localMove(target) {
   target = Math.max(0, Math.min(total() - 1, target));
   if (target === local) return; // first or last step: nothing to refuse
@@ -111,6 +130,7 @@ const conn = connectLive(slug, controlling ? 'presenter' : 'viewer', (msg) => {
   Object.assign(live, msg);
   document.body.dataset.nav = live.viewerNav; // lets the tests wait for a mode change
   blank.hidden = !live.blank;
+  presence(live.presenting);
   if (live.viewerNav === 'follow' && navChanged) attached = true;
   if (!attached && live.viewerNav === 'back' && local > live.index) attached = true;
   if (attached || controlling || live.viewerNav === 'follow') {

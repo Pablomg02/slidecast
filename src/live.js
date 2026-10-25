@@ -93,6 +93,7 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
       viewerNav: s.viewerNav,
       hands: s.hands,
       askNames: ctx.rooms.settings(s.slug).askNames,
+      presenting: presenting(s),
       rev: s.rev,
     };
   }
@@ -179,6 +180,13 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
     roomChanged(s);
   }
 
+  // The audience is told when nobody with presenter rights is connected.
+  const presenting = (s) => [...s.clients].some(isPresenterKind);
+  function presenceChanged(s) {
+    s.rev++;
+    broadcast(s);
+  }
+
   // ---- parking (D4, D11) ------------------------------------------------------
 
   function park(s, client, reason) {
@@ -239,9 +247,10 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
     socket.on('pong', () => { client.missed = 0; });
     socket.on('close', () => {
       clearTimeout(client.joinTimer);
-      s.clients.delete(client);
+      const last = s.clients.delete(client) && isPresenterKind(client) && !presenting(s);
       s.parked.delete(client);
       if (client.person) s.people.detach(client.person, client);
+      if (last) presenceChanged(s);
       roomChanged(s);
     });
 
@@ -266,8 +275,10 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
       if (kind === 'presenter' && !devices.has(client.device) && devices.size >= settings.maxPresenters && !client.owner) {
         return socket.close(CLOSE.presentersFull, 'presenters-full');
       }
+      const first = !presenting(s);
       s.clients.add(client);
-      send(client, snapshot(s));
+      if (first) presenceChanged(s); // its snapshot goes out with everyone's
+      else send(client, snapshot(s));
       if (kind === 'presenter') {
         send(client, { t: 'notes', slides: (await ctx.decks.readMeta(slug)).slides });
         sendRoom(s, client);

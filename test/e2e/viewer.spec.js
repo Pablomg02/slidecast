@@ -119,6 +119,25 @@ test('switching to follow re-attaches a detached viewer', async ({ page }) => {
   await expect.poll(() => current(page)).toBe(0);
 });
 
+test('no presenter: a quiet notice, closable, gone when one comes back', async ({ page }) => {
+  await openViewer(page);
+  const notice = page.locator('.no-presenter');
+  await page.waitForTimeout(500);
+  await expect(notice).toBeHidden();
+  presenter.close();
+  await expect(notice).toHaveText(/There is no presenter at the moment\./);
+  presenter = srv.socket('demo', { cookie: presenterCookie });
+  await expect(notice).toBeHidden();
+  presenter.close();
+  await expect(notice).toBeVisible();
+  await notice.getByRole('button', { name: 'Close' }).click();
+  await expect(notice).toBeHidden();
+  presenter = srv.socket('demo', { cookie: presenterCookie });
+  await presenter.state((s) => s.presenting);
+  presenter.close();
+  await expect(notice).toBeVisible(); // closed by hand only until a presenter came back
+});
+
 test('blank shows the overlay', async ({ page }) => {
   await openViewer(page);
   const overlay = page.locator('.blank-overlay');
