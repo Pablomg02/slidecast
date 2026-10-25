@@ -321,7 +321,7 @@ function openSettings(d) {
       const failed = !res.ok ? res : !room.ok ? room : null;
       status(msg, failed ? errorText(failed) : t('saved'), failed ? 'error' : 'ok');
     },
-  }, t('saveDeckSettings'));
+  }, t('saveChanges'));
   const dialog = el('dialog.card.deck-settings', {},
     el('h2', {}, `${t('settings')} · ${d.slug}`),
     el('label', { htmlFor: 'deck-title' }, t('title')), title,
@@ -333,7 +333,7 @@ function openSettings(d) {
     el('label.inline', { htmlFor: 'room-names' }, askNames, ` ${t('askNamesSetting')}`),
     el('label.inline', { htmlFor: 'room-hands' }, hands, ` ${t('handsSetting')}`),
     el('div.row', {}, save, msg),
-    el('h3.settings-sub', {}, t('passwordsHeading')),
+    el('h3.settings-sub.settings-break', {}, t('passwordsHeading')),
     el('p.hint.muted', {}, t('passwordsHint')),
     passwordControl({ label: t('deckPresenterPassword'), scope: 'deckPresenter', deck: d.slug, isSet: d.hasPresenterPassword }),
     passwordControl({ label: t('deckViewerPassword'), scope: 'deckViewer', deck: d.slug, isSet: d.hasViewerPassword }),

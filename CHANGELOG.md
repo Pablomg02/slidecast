@@ -16,8 +16,9 @@ include breaking changes, always listed here.
 - Viewer: trying to move where the mode does not allow (any move in
   "Follow the presenter", ahead of the presenter in "Can go back") shows a
   short notice instead of doing nothing.
-- Deck settings: the main button now says what it saves (title, mode and
-  room); passwords sit under their own heading and keep their own buttons.
+- Deck settings: "Save" is now "Save changes", and the passwords below it
+  sit after a double rule under their own heading, since each one is saved
+  with its own button.
 
 ## [0.2.0] - 2026-10-25
 

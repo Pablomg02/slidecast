@@ -72,11 +72,11 @@ test('deck settings dialog sets a viewer password', async ({ page }) => {
   await page.fill('#password', 'admin-password');
   await page.click('button[type=submit]');
   await page.click('tr[data-slug=legacy-pres] button:has-text("Settings")');
-  // The mode hint follows the select; the save button says what it saves.
+  // The mode hint follows the select.
   await expect(page.locator('.deck-settings .mode-hint')).toContainText('not ahead of the presenter');
   await page.selectOption('#deck-mode', 'follow');
   await expect(page.locator('.deck-settings .mode-hint')).toContainText('cannot move');
-  await expect(page.locator('.deck-settings button.primary')).toHaveText('Save title, mode and room');
+  await expect(page.locator('.deck-settings button.primary')).toHaveText('Save changes');
   await page.fill('#pw-deckViewer-legacy-pres', 'viewer-secret1');
   await page.click('.password-control:has(#pw-deckViewer-legacy-pres) button:has-text("Set")');
   await expect(page.locator('.deck-settings .status.ok')).toHaveText('Saved');

@@ -610,6 +610,8 @@ body.room-waiting .viewer-stage, body.room-waiting .back-to-live { visibility: h
 .deck-settings > label.inline { display: flex; margin-top: .75rem; }
 .deck-settings > label.inline + .row { margin-top: 1.25rem; }
 .settings-sub { font-size: .95rem; margin: 1.5rem 0 0; padding-top: 1.25rem; border-top: 1px solid var(--line); }
+/* Below "Save changes": what follows is saved on its own, so the break is stronger. */
+.settings-sub.settings-break { margin-top: 1.75rem; padding-top: 1.5rem; border-top: 5px double color-mix(in srgb, var(--ink) 35%, transparent); }
 @media (max-width: 480px) { .room-limits { grid-template-columns: 1fr; } }
 .deck-table td code { color: var(--muted); background: var(--surface-2); padding: .15rem .45rem; border-radius: 6px; }
 .deck-table td.actions { display: flex; flex-wrap: wrap; gap: .4rem .9rem; align-items: center; font-size: .92rem; }
