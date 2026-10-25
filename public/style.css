@@ -620,6 +620,12 @@ body.room-waiting .viewer-stage, body.room-waiting .back-to-live { visibility: h
 .room-limits input { width: 100%; }
 .deck-settings > label.inline { display: flex; margin-top: .75rem; }
 .deck-settings > label.inline + .row { margin-top: 1.25rem; }
+/* "Close" stays in view however far the dialog scrolls. */
+dialog.card.deck-settings { --pad: 1.75rem; padding-bottom: 0; }
+.deck-settings .settings-foot {
+  position: sticky; bottom: 0; margin: 1.25rem calc(-1 * var(--pad)) 0; padding: .9rem var(--pad) var(--pad);
+  background: var(--surface); border-top: 1px solid var(--line);
+}
 .settings-sub { font-size: .95rem; margin: 1.5rem 0 0; padding-top: 1.25rem; border-top: 1px solid var(--line); }
 /* Below "Save changes": what follows is saved on its own, so the break is stronger. */
 .settings-sub.settings-break { margin-top: 1.75rem; padding-top: 1.5rem; border-top: 5px double color-mix(in srgb, var(--ink) 35%, transparent); }
@@ -632,6 +638,7 @@ body.room-waiting .viewer-stage, body.room-waiting .back-to-live { visibility: h
 /* Phone: each deck becomes a card; the header row goes away. */
 @media (max-width: 640px) {
   .page-admin .card { padding: 1.25rem; }
+  .deck-settings { --pad: 1.25rem; }
   .table-wrap { overflow: visible; background: none; border: 0; border-radius: 0; box-shadow: none; }
   .deck-table, .deck-table tbody, .deck-table td { display: block; }
   .deck-table thead { display: none; }

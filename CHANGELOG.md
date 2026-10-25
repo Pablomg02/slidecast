@@ -10,6 +10,8 @@ include breaking changes, always listed here.
   view, or a viewer tab of a presenter, controlling or not), a small notice
   says so. It can be closed, and goes away by itself when a presenter
   comes back.
+- Deck settings: the "Close" button stays in view at the bottom of the
+  dialog while its content scrolls.
 
 ## [0.2.1] - 2026-10-25
 

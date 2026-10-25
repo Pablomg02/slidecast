@@ -337,7 +337,7 @@ function openSettings(d) {
     el('p.hint.muted', {}, t('passwordsHint')),
     passwordControl({ label: t('deckPresenterPassword'), scope: 'deckPresenter', deck: d.slug, isSet: d.hasPresenterPassword }),
     passwordControl({ label: t('deckViewerPassword'), scope: 'deckViewer', deck: d.slug, isSet: d.hasViewerPassword }),
-    el('div.row.end', {}, el('button', { type: 'button', onclick: () => dialog.close() }, t('close'))));
+    el('div.row.end.settings-foot', {}, el('button', { type: 'button', onclick: () => dialog.close() }, t('close'))));
   dialog.addEventListener('close', () => {
     dialog.remove();
     load();
