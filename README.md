@@ -23,7 +23,8 @@ moves with you: the projector, your phone, your audience's laptops.
 <p align="center"><img src="docs/assets/diagram.svg" alt="Diagram: the presenter view on your screen sends the next slide to slidecast, which shows the same slide live on the projector, the audience's laptops and phones" width="760"><br><sub>How it works</sub></p>
 
 - **Presenter view**: current and next slide, speaker notes, timer, clock,
-  and a button to black out every screen. It also works on a phone.
+  and a button to black out every screen. Drag the dividers to give more
+  room to the slide, the next one or your notes. It also works on a phone.
 - **Viewers in sync**: every screen follows your slides within a second.
 - **Any remote**: keyboard, a presentation clicker, or your phone.
 - **An audience that takes part**: viewers raise their hand, with an optional

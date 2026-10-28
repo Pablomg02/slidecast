@@ -6,6 +6,11 @@ include breaking changes, always listed here.
 
 ## [Unreleased]
 
+- Presenter view on a computer: drag the dividers between the slide, the
+  next slide and the notes to resize them (a taller next slide widens its
+  column). The sizes are remembered; double-click a divider for the original
+  layout. A divider reached with Tab also moves with the arrow keys.
+
 ## [0.2.2] - 2026-10-25
 
 - Admin panel: **Download** a deck as one `.zip` with its files and its

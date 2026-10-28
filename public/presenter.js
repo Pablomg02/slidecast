@@ -1,6 +1,7 @@
 // Presenter view: current step, next step, notes, timer and controls.
-// Desktop (≥ 900 px) shows the next-step preview; the phone layout does not
-// create it at all and shows large prev/next buttons instead.
+// Desktop (≥ 900 px) shows the next-step preview, with dividers to resize the
+// three boxes; the phone layout does not create it at all and shows large
+// prev/next buttons instead.
 import {
   t, el, api, slugFromPath, setTitle, connectLive, createDeckFrame, keyActionFromEvent,
   toggleFullscreen, isOwnKey, icon,
@@ -26,10 +27,10 @@ const currentBox = el('div.p-frame.p-current');
 const nextBox = el('div.p-frame.p-next');
 const endCard = el('div.p-end', { hidden: true }, t('end'));
 nextBox.append(endCard);
-for (const box of [currentBox, nextBox]) {
-  box.style.aspectRatio = `${aw} / ${ah}`;
-  box.style.setProperty('--ar', String(aw / ah));
-}
+for (const box of [currentBox, nextBox]) box.style.aspectRatio = `${aw} / ${ah}`;
+app.style.setProperty('--ar', String(aw / ah));
+// The next step sits in a slot the row divider sizes; the box keeps its ratio inside.
+const nextSlot = el('div.p-next-slot', {}, nextBox);
 
 const counter = el('span.p-counter', { id: 'counter' }, '–');
 const slideId = el('span.p-slide-id', { id: 'slide-id' });
@@ -110,8 +111,142 @@ const toolbar = el('div.p-toolbar', {},
   el('div.p-group.p-extra', {}, openViewer),
   reconnecting);
 
-const side = el('div.p-side', {}, nextBox, notesBox);
-app.append(el('div.p-main', {}, currentBox), side, toolbar);
+const colSplit = el('div.p-split.p-split-cols', {
+  role: 'separator', tabIndex: 0, 'aria-orientation': 'vertical', 'aria-valuemin': 0, 'aria-valuemax': 100,
+  'aria-label': t('resizeSlide'), title: t('resizeHint'),
+});
+const rowSplit = el('div.p-split.p-split-rows', {
+  role: 'separator', tabIndex: 0, 'aria-orientation': 'horizontal', 'aria-valuemin': 0, 'aria-valuemax': 100,
+  'aria-label': t('resizeNext'), title: t('resizeHint'),
+});
+const mainBox = el('div.p-main', {}, currentBox);
+const side = el('div.p-side', {}, nextSlot, rowSplit, notesBox);
+app.append(mainBox, colSplit, side, toolbar);
+
+// ---- resizing (desktop) ----------------------------------------------------
+
+// Two dividers: slide | side column, and next step / notes. Sizes are kept as
+// fractions so they follow the window; the CSS keeps the same minimum sizes.
+// `next` is the share of the column's height the next step may take, up to
+// what the column's width allows (1 = as big as it fits, the default).
+const GAP = 14;
+const MIN = { main: 280, side: 260, next: 60, notes: 120 };
+const DEFAULT_SIZES = { main: 0.6, next: 1 };
+const sizes = { ...DEFAULT_SIZES };
+const between = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+try {
+  const saved = JSON.parse(localStorage.getItem('slidecast.presenterSizes')) ?? {};
+  const fine = (v, lo, hi) => typeof v === 'number' && v >= lo && v <= hi;
+  if (fine(saved.main, 0.1, 0.9)) sizes.main = saved.main;
+  if (fine(saved.next, 0.05, 1)) sizes.next = saved.next;
+} catch { /* storage blocked or a bad value */ }
+
+function applySizes() {
+  // Whole numbers of fr: fractions summing to less than 1 would leave space unused.
+  app.style.setProperty('--p-main', `${sizes.main * 100}fr`);
+  app.style.setProperty('--p-side', `${(1 - sizes.main) * 100}fr`);
+  app.style.setProperty('--p-next', String(sizes.next));
+}
+
+function measure() {
+  const m = mainBox.getBoundingClientRect();
+  const s = side.getBoundingClientRect();
+  return {
+    left: m.left, mainW: m.width, sideW: s.width, total: m.width + s.width,
+    top: s.top, avail: s.height - GAP, nextH: nextSlot.getBoundingClientRect().height,
+  };
+}
+
+function setMainWidth(px, g) {
+  sizes.main = between(px, MIN.main, g.total - MIN.side) / g.total;
+}
+
+// A taller next step needs a wider column: it widens (down to the slide's
+// minimum) and goes back to its width `g.sideW` if the drag returns.
+function setNextHeight(px, g) {
+  let h = between(px, MIN.next, g.avail - MIN.notes);
+  const width = between(h * (aw / ah), g.sideW, g.total - MIN.main);
+  sizes.main = 1 - width / g.total;
+  h = Math.min(h, width / (aw / ah));
+  sizes.next = between(h / g.avail, 0.05, 1);
+}
+
+function describeSizes() {
+  if (!desktop.matches) return;
+  const g = measure();
+  if (g.total > 0) colSplit.setAttribute('aria-valuenow', String(Math.round((100 * g.mainW) / g.total)));
+  if (g.avail > 0) rowSplit.setAttribute('aria-valuenow', String(Math.round((100 * g.nextH) / g.avail)));
+}
+
+function saveSizes() {
+  try { localStorage.setItem('slidecast.presenterSizes', JSON.stringify(sizes)); } catch { /* storage blocked */ }
+}
+
+function commitSizes() {
+  applySizes();
+  saveSizes();
+  describeSizes();
+}
+
+// Drag with the pointer captured, so it keeps working over the slides and
+// outside the window. `start` reads the layout once and returns the move
+// handler; moves are applied once per frame.
+function makeSplitter(bar, name, start, nudge, keys) {
+  // No focus on click: the arrow keys must keep moving the slides.
+  bar.addEventListener('mousedown', (e) => e.preventDefault());
+  bar.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || !desktop.matches) return;
+    e.preventDefault();
+    const move = start(e);
+    let last = null;
+    let frame = 0;
+    const onMove = (ev) => {
+      last = ev;
+      frame ||= requestAnimationFrame(() => { frame = 0; move(last); applySizes(); });
+    };
+    const end = () => {
+      cancelAnimationFrame(frame);
+      if (last) move(last);
+      bar.removeEventListener('pointermove', onMove);
+      document.body.classList.remove('p-resizing', `p-resizing-${name}`);
+      commitSizes();
+    };
+    try { bar.setPointerCapture(e.pointerId); } catch { return; }
+    document.body.classList.add('p-resizing', `p-resizing-${name}`);
+    bar.addEventListener('pointermove', onMove);
+    bar.addEventListener('lostpointercapture', end, { once: true });
+  });
+  // When reached with Tab, its arrow keys resize instead of changing the slide.
+  bar.addEventListener('keydown', (e) => {
+    const dir = { [keys[0]]: -1, [keys[1]]: 1 }[e.key];
+    if (!dir || !desktop.matches) return;
+    e.preventDefault();
+    e.stopPropagation();
+    nudge(dir * (e.shiftKey ? 80 : 20), measure());
+    commitSizes();
+  });
+  // Double-click: back to the original layout.
+  bar.addEventListener('dblclick', () => {
+    Object.assign(sizes, DEFAULT_SIZES);
+    commitSizes();
+  });
+}
+
+makeSplitter(colSplit, 'cols', (e) => {
+  const g = measure();
+  const grab = e.clientX - (g.left + g.mainW);
+  return (ev) => setMainWidth(ev.clientX - grab - g.left, g);
+}, (d, g) => setMainWidth(g.mainW + d, g), ['ArrowLeft', 'ArrowRight']);
+
+makeSplitter(rowSplit, 'rows', (e) => {
+  const g = measure();
+  const grab = e.clientY - (g.top + g.nextH);
+  return (ev) => setNextHeight(ev.clientY - grab - g.top, g);
+}, (d, g) => setNextHeight(g.nextH + d, g), ['ArrowUp', 'ArrowDown']);
+
+applySizes();
+describeSizes();
+desktop.addEventListener('change', describeSizes);
 
 // ---- frames ----------------------------------------------------------------
 

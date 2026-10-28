@@ -404,19 +404,45 @@ body.room-waiting .viewer-stage, body.room-waiting .back-to-live { visibility: h
 /* presenter */
 .page-presenter { background: var(--bg); }
 .page-presenter #app {
-  height: 100vh; height: 100dvh; display: grid; gap: 14px; padding: 14px;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  height: 100vh; height: 100dvh; display: grid; gap: 14px 0; padding: 14px;
+  /* --p-main / --p-side / --p-next are set by the dividers (presenter.js), which
+     use the same minimum sizes: 280 / 260 px wide, next 60 px and notes 120 px tall. */
+  grid-template-columns: minmax(280px, var(--p-main, 3fr)) 14px minmax(260px, var(--p-side, 2fr));
   grid-template-rows: minmax(0, 1fr) auto;
-  grid-template-areas: "main side" "bar bar";
+  grid-template-areas: "main split side" "bar bar bar";
 }
 .p-main { grid-area: main; display: flex; align-items: center; justify-content: center; min-height: 0; }
-.p-side { grid-area: side; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+.p-side { grid-area: side; display: flex; flex-direction: column; min-height: 0; }
+@media (min-width: 900px) {
+  .p-main, .p-side { container-type: size; }
+  .p-current { width: min(100cqw, 100cqh * var(--ar, 1.78)); }
+}
+.p-next-slot {
+  flex: none; display: flex; justify-content: center;
+  height: clamp(60px, min(var(--p-next, 1) * (100cqh - 14px), 100cqw / var(--ar, 1.78)), max(60px, 100cqh - 134px));
+}
+.p-split { position: relative; touch-action: none; outline: none; }
+.p-split::after {
+  content: ""; position: absolute; left: 50%; top: 50%; translate: -50% -50%; border-radius: 999px;
+  background: var(--line-strong); opacity: .6; transition: opacity .15s var(--ease), background .15s var(--ease);
+}
+.p-split:hover::after, .p-split:focus-visible::after { opacity: 1; background: var(--muted); }
+.p-resizing-cols .p-split-cols::after, .p-resizing-rows .p-split-rows::after { opacity: 1; background: var(--accent); }
+.p-split:focus-visible::after { box-shadow: 0 0 0 3px var(--accent-soft); }
+.p-split-cols { grid-area: split; cursor: col-resize; }
+.p-split-cols::after { width: 4px; height: 48px; }
+.p-split-rows { flex: none; height: 14px; cursor: row-resize; }
+.p-split-rows::after { width: 48px; height: 4px; }
+.p-resizing, .p-resizing * { user-select: none; }
+.p-resizing iframe { pointer-events: none; }
+.p-resizing-cols, .p-resizing-cols * { cursor: col-resize !important; }
+.p-resizing-rows, .p-resizing-rows * { cursor: row-resize !important; }
 .p-frame {
   position: relative; width: 100%; max-height: 100%; background: #000;
   border-radius: 14px; overflow: hidden; box-shadow: 0 0 0 1px var(--line), var(--shadow);
 }
 .p-current { width: 100%; box-shadow: 0 0 0 1px var(--line), var(--shadow-lg); }
-.p-next { flex: none; opacity: .92; }
+.p-next { flex: none; width: auto; height: 100%; max-width: 100%; max-height: none; opacity: .92; }
 .p-end {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
   color: #aab; font-weight: 600; font-size: 1.05rem; background: #0a0c11;
@@ -513,7 +539,7 @@ body.room-waiting .viewer-stage, body.room-waiting .back-to-live { visibility: h
   .p-main { flex: none; }
   .p-current { width: min(100%, calc(38dvh * var(--ar, 1.78))); border-radius: 12px; }
   .p-slide-folded .p-main { display: none; }
-  .p-next { display: none; }
+  .p-next, .p-next-slot, .p-split { display: none; }
   .p-side { flex: 1; min-height: 0; gap: 8px; }
   .p-notes { border-radius: 12px; }
   .p-notes-head { gap: 6px; padding: 2px 4px 2px 6px; }
