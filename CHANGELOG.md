@@ -19,6 +19,12 @@ include breaking changes, always listed here.
 - Presenter view, for the admin: **Edit notes**, next to **Open viewer**,
   opens the notes editor in a new tab at the slide and step being presented.
   The editor takes `?slide=<id>&step=<k>` for that.
+- Rooms can be **Open**, **Hidden** or **Closed**. A hidden room is open but
+  reached only through its link: it is not listed and the main address never
+  goes to it. With a single deck, the room can be hidden too, and the main
+  address then shows the page asking for the link.
+- Removed: the **Open only this one** button, and the `only` field of
+  `PATCH /api/admin/rooms/:slug`.
 - Admin panel: a wider deck table, with each deck's links on one line and
   its buttons on the next, instead of a cramped Actions column.
 

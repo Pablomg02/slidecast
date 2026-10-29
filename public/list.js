@@ -14,8 +14,8 @@ app.append(el('ul.deck-grid', {}, decks.map((d) => el('li.deck-card', {},
   el('a.deck-cover', { href: `/${d.slug}`, tabIndex: -1 }, deckThumb(d)),
   el('div.deck-card-body', {},
     el('a.deck-link', { href: `/${d.slug}` }, d.locked ? icon('lock', 'icon icon-inline') : null, d.title),
-    // Only the admin sees closed rooms here.
-    d.open === false ? el('span.muted', {}, t('roomClosed')) : null,
+    // Only the admin sees closed and hidden rooms here.
+    d.open === false ? el('span.muted', {}, t('roomClosed')) : d.listed === false ? el('span.muted', {}, t('roomHidden')) : null,
     el('span.deck-actions', {},
       el('a', { href: `/${d.slug}/view` }, t('viewer')),
       el('a.quiet', { href: `/${d.slug}/present` }, t('presenter'))))))));

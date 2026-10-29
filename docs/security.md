@@ -10,7 +10,7 @@ presents and administers. This page lists what it protects, from whom, and how.
 | --- | --- | --- |
 | Anyone with the URL | watch open rooms of decks that have no viewer password, give a name, raise a hand | present, administer, read speaker notes, see other viewers' names or notes, watch a closed room |
 | Viewer with a deck's viewer password | the same, for that deck | anything else |
-| Presenter | drive the decks their password covers, read their notes, see the room's names and hands, remove viewers | administer, open or close rooms, remove other presenters |
+| Presenter | drive the decks their password covers, read their notes, see the room's names and hands, remove viewers | administer, open, hide or close rooms, remove other presenters |
 | Admin | everything | — |
 | A deck's own code (written by an AI, downloaded…) | run inside its slide | read sessions, call the API, act as the person viewing it |
 | Another website the admin visits | — | make the admin's browser change anything in slidecast |

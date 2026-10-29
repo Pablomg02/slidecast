@@ -23,7 +23,7 @@ function patchRoom(slug, payload) {
 // A fresh room for every test: closing it forgets everyone.
 test.beforeEach(async () => {
   await patchRoom('demo', { open: false });
-  await patchRoom('demo', { open: true });
+  await patchRoom('demo', { open: true, listed: true });
 });
 
 async function presenterPage(browser) {
@@ -134,16 +134,17 @@ test('a closed room keeps viewers waiting; the admin opens it from the presenter
   await Promise.all([pc.close(), vc.close()]);
 });
 
-test('"/" follows the open room', async ({ browser }) => {
+test('"/" follows the open room, but not a hidden one', async ({ browser }) => {
   const context = await browser.newContext();
   const page = await context.newPage();
-  await patchRoom('demo', { only: true });
+  await patchRoom('legacy-pres', { open: false });
   await page.goto(`${srv.url}/`);
   await expect(page).toHaveURL(`${srv.url}/demo`);
-  await patchRoom('legacy-pres', { only: true });
+  await patchRoom('legacy-pres', { open: true });
+  await patchRoom('demo', { listed: false });
   await page.goto(`${srv.url}/`);
   await expect(page).toHaveURL(`${srv.url}/legacy-pres`);
-  await patchRoom('demo', { open: true });
+  await patchRoom('demo', { listed: true });
   await page.goto(`${srv.url}/`);
   await expect(page.locator('.deck-card')).toHaveCount(2); // several open: the list
   await context.close();
@@ -238,14 +239,26 @@ test('the admin panel follows a room opened or closed elsewhere', async ({ brows
   await context.addCookies([{ name: 'sc_session', value: adminCookie, url: srv.url }]);
   const page = await context.newPage();
   await page.goto(`${srv.url}/admin`);
-  const toggle = page.locator('tr[data-slug=demo] .room-toggle');
-  await expect(toggle).toHaveText('Open');
+  const state = page.locator('tr[data-slug=demo] .room-state[aria-pressed=true]');
+  await expect(state).toHaveText('Open');
   await patchRoom('demo', { open: false }); // e.g. from the presenter view
-  await expect(toggle).toHaveText('Closed', { timeout: 8000 });
+  await expect(state).toHaveText('Closed', { timeout: 8000 });
   await expect(page.locator('tr[data-slug=demo] .room-counts')).toBeHidden();
-  await toggle.click();
+  await page.click('tr[data-slug=demo] .room-state.is-open');
   await expect.poll(() => srv.app.slidecast.rooms.isOpen('demo')).toBe(true);
-  await expect(toggle).toHaveText('Open');
+  await expect(state).toHaveText('Open');
   await expect(page.locator('tr[data-slug=demo] .room-counts')).toBeVisible();
+  await context.close();
+});
+
+test('a click on the state the panel still shows is sent, even if the room changed meanwhile', async ({ browser }) => {
+  const context = await browser.newContext();
+  await context.addCookies([{ name: 'sc_session', value: adminCookie, url: srv.url }]);
+  const page = await context.newPage();
+  await page.goto(`${srv.url}/admin`);
+  await expect(page.locator('tr[data-slug=demo] .room-state[aria-pressed=true]')).toHaveText('Open');
+  await patchRoom('demo', { open: false }); // closed elsewhere, before the panel's next poll
+  await page.click('tr[data-slug=demo] .room-state.is-open');
+  await expect.poll(() => srv.app.slidecast.rooms.isOpen('demo')).toBe(true);
   await context.close();
 });

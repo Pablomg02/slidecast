@@ -490,7 +490,7 @@ body.room-waiting .viewer-stage, body.room-waiting .back-to-live { visibility: h
 .hand-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; margin-top: 8px; }
 .person { display: flex; align-items: center; gap: 8px; min-height: 2.2rem; padding: 2px 4px; border-bottom: 1px solid var(--line); }
 .person-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.person .dot, .room-toggle .dot { width: .55rem; height: .55rem; flex: none; border-radius: 50%; background: var(--ok); }
+.person .dot, .room-state .dot { width: .55rem; height: .55rem; flex: none; border-radius: 50%; background: var(--ok); }
 .person.offline { color: var(--muted); }
 .person.offline .dot { background: var(--line-strong); }
 .person-hand { color: var(--accent); }
@@ -636,11 +636,17 @@ body.room-waiting .viewer-stage, body.room-waiting .back-to-live { visibility: h
 }
 .room-hint { margin-top: .75rem; }
 .room-cell { display: flex; flex-wrap: wrap; gap: .35rem .5rem; align-items: center; }
-.room-toggle { gap: .4rem; color: var(--muted); }
-.room-toggle .dot { background: var(--line-strong); }
-.room-toggle.is-open { color: var(--ok); border-color: var(--ok); }
-.room-toggle.is-open .dot { background: var(--ok); }
-.room-toggle:disabled { opacity: 1; }
+.room-states { display: inline-flex; }
+.room-state { gap: .4rem; color: var(--muted); border-radius: 0; }
+.room-state + .room-state { margin-left: -1px; }
+.room-state:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+.room-state:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+.room-state .dot { background: var(--line-strong); }
+.room-state[aria-pressed=true] { position: relative; background: var(--surface-2); color: var(--ink); border-color: var(--line-strong); }
+.room-state.is-open[aria-pressed=true] { color: var(--ok); border-color: var(--ok); }
+.room-state.is-open[aria-pressed=true] .dot { background: var(--ok); }
+.room-state.is-hidden[aria-pressed=true] { color: var(--accent); border-color: var(--accent); }
+.room-state.is-hidden[aria-pressed=true] .dot { background: var(--accent); }
 .room-counts { flex-basis: 100%; font-size: .82rem; }
 .room-limits { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1rem; align-items: end; }
 .room-limits input { width: 100%; }

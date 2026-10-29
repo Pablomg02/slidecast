@@ -1,7 +1,8 @@
 import { saveConfig } from './config.js';
 
 // Room settings per deck (D1 of 0003), kept in config.json under rooms[slug].
-export const ROOM_DEFAULTS = { open: false, maxPresenters: 20, maxViewers: 200, askNames: true, hands: true };
+// An open room that is not `listed` is hidden: reached only through its link.
+export const ROOM_DEFAULTS = { open: false, listed: true, maxPresenters: 20, maxViewers: 200, askNames: true, hands: true };
 export const ROOM_RANGES = { maxPresenters: [1, 20], maxViewers: [1, 1000] };
 
 export const MAX_NAME = 40;
@@ -13,7 +14,7 @@ export function parseRoomPatch(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return { error: 'bad-request' };
   const patch = {};
   for (const [k, v] of Object.entries(body)) {
-    if (k === 'open' || k === 'askNames' || k === 'hands' || k === 'only') {
+    if (k === 'open' || k === 'listed' || k === 'askNames' || k === 'hands') {
       if (typeof v !== 'boolean') return { error: 'bad-request' };
     } else if (k in ROOM_RANGES) {
       const [min, max] = ROOM_RANGES[k];
@@ -39,12 +40,10 @@ export function createRooms(ctx) {
   return {
     settings,
     isOpen: (slug) => settings(slug).open,
-    // Applies a validated patch and saves; `only` also closes every other room.
-    async update(slug, { only = false, ...patch }) {
-      if (only) {
-        patch.open = true;
-        for (const [other, r] of Object.entries(config.rooms)) if (other !== slug) r.open = false;
-      }
+    // Open and not hidden: shown in the list and opened from /.
+    isListed: (slug) => settings(slug).open && settings(slug).listed,
+    // Applies a validated patch and saves.
+    async update(slug, patch) {
       config.rooms[slug] = { ...settings(slug), ...patch };
       await saveConfig(ctx.stateDir, config);
       return settings(slug);

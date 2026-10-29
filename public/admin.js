@@ -1,5 +1,5 @@
 // Admin panel: decks (upload, update, download, delete, settings), their
-// rooms (open or closed, limits) and passwords.
+// rooms (open, hidden or closed, limits) and passwords.
 import { t, el, api, setTitle, brand, icon, createDeckFrame } from './shell.js';
 
 setTitle(t('admin'));
@@ -135,7 +135,7 @@ function render({ decks, single }) {
       el('td.deck-title', {}, el('a', { href: `/${d.slug}` }, d.title)),
       el('td.deck-slug', {}, el('code', {}, d.slug)),
       el('td.deck-size', {}, fmtSize(d.size)),
-      el('td.deck-room', {}, roomCell(d, { single, several: decks.length > 1 })),
+      el('td.deck-room', {}, roomCell(d, { single })),
       // Links on one line, buttons on the next (a flex <td> would break the row's borders).
       el('td.actions', {},
         el('div.action-links', {},
@@ -162,7 +162,8 @@ function render({ decks, single }) {
     },
   });
   const listingMsg = el('span.status');
-  // With a single deck, / always goes straight to it (D7): no list to show.
+  // With a single deck there is no list to show (D7): / opens it, or shows the
+  // landing page when it is hidden.
   const listingBlock = single ? null : el('div.listing', {},
     el('label.inline', { htmlFor: 'public-listing' }, listing, ` ${t('publicListing', { site })}`), listingMsg,
     el('p.hint.muted', {}, t('publicListingHint', { site })));
@@ -277,31 +278,37 @@ function uploadForm() {
   return el('div', {}, el('h2', {}, t('upload')), form);
 }
 
-// Open / closed switch, live counts and "open only this one" (D1, D3 of 0003).
-// In single-deck mode the room is always open.
-function roomCell(d, { single, several }) {
+// Open / hidden / closed switch and live counts (D1, D3 of 0003). A hidden
+// room is open but left out of the list and of the redirect at /. In
+// single-deck mode the room is always open, but can be hidden.
+const ROOM_STATES = {
+  open: { label: 'roomOpen', patch: { open: true, listed: true } },
+  hidden: { label: 'roomHidden', patch: { open: true, listed: false } },
+  closed: { label: 'roomClosed', patch: { open: false } },
+};
+const roomState = (room) => (!room.open ? 'closed' : room.listed ? 'open' : 'hidden');
+
+function roomCell(d, { single }) {
   const room = { ...d.room };
   const counts = el('span.room-counts.muted');
-  const label = document.createTextNode('');
-  const toggle = el('button.small.room-toggle', {
-    type: 'button', disabled: single, onclick: () => setRoom(d.slug, { open: !room.open }),
-  }, el('span.dot'), label);
-  const only = several && !single
-    ? el('button.small.room-only', { type: 'button', onclick: () => setRoom(d.slug, { only: true }) }, t('openOnly'))
-    : null;
+  const buttons = Object.entries(ROOM_STATES).map(([state, { label, patch }]) => el(`button.small.room-state.is-${state}`, {
+    type: 'button', dataset: { state }, disabled: single && state === 'closed',
+    title: state === 'hidden' ? t('roomHiddenTitle', { site }) : undefined,
+    // Sent even when already pressed: the cell may be up to one poll behind.
+    onclick: () => setRoom(d.slug, patch),
+  }, el('span.dot'), t(label)));
   // Redrawn in place by the poll below, so a room opened or closed elsewhere
-  // (the presenter view, another tab) shows here and the switch sends the right value.
+  // (the presenter view, another tab) shows here.
   const update = (fresh) => {
     Object.assign(room, fresh);
-    toggle.classList.toggle('is-open', room.open);
-    toggle.setAttribute('aria-pressed', String(room.open));
-    label.textContent = room.open ? t('roomOpen') : t('roomClosed');
+    const now = roomState(room);
+    for (const b of buttons) b.setAttribute('aria-pressed', String(b.dataset.state === now));
     counts.hidden = !room.open;
     counts.textContent = t('roomCounts', { v: room.viewers, p: room.presenters, h: room.raised });
   };
   update(room);
   roomCells.set(d.slug, update);
-  return el('div.room-cell', {}, toggle, only, counts);
+  return el('div.room-cell', {}, el('div.room-states', { role: 'group', 'aria-label': t('room') }, buttons), counts);
 }
 
 async function setRoom(slug, patch) {

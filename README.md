@@ -129,9 +129,8 @@ slidecast prints the addresses other devices can use, something like
 
 - **On your phone**, open `http://192.168.1.20:4321/<deck>/present` and type
   the presenter password.
-- **Open the room**: in the admin page click **Open** (or **Open only this
-  one**) next to the deck. Rooms start closed, so nobody can watch before
-  you are ready.
+- **Open the room**: in the admin page click **Open** next to the deck.
+  Rooms start closed, so nobody can watch before you are ready.
 - **Your audience** opens `http://192.168.1.20:4321` (it goes straight to the
   open room) or `http://192.168.1.20:4321/<deck>/view`; no password.
 
@@ -218,10 +217,13 @@ why.
 ### Your audience: names, hands and the room
 
 Each deck is a **room**. The admin opens and closes it (in the admin panel,
-or with **Open room** / **Close room** in the presenter view); **Open only
-this one** closes the others. The main address follows the open room: with
-one open it goes straight there, with several it shows a list to choose from
-(this can be turned off), and with none a page asking for the link. Viewers
+or with **Open room** / **Close room** in the presenter view). The main
+address follows the open room: with one open it goes straight there, with
+several it shows a list to choose from (this can be turned off), and with
+none a page asking for the link. A room can also be **Hidden**: it is open,
+but reached only through its link, so it is never listed and the main
+address never goes to it (this hides it, it does not protect it: for that,
+give the deck a viewer password). Viewers
 cannot enter a closed room: they wait and join by themselves when it opens.
 Presenters can always enter, to get ready. Closing a room sends everyone out
 and forgets them.
@@ -309,7 +311,7 @@ and they are gone when the room closes or slidecast restarts.
 
 | Address | Who | What |
 | --- | --- | --- |
-| `/` | everyone | The open room; with several open, the list of them (or a page asking for the link); with none, that page. A signed-in admin always gets the list of decks. |
+| `/` | everyone | The open room; with several open, the list of them (or a page asking for the link); with none, that page. Hidden rooms do not count. A signed-in admin always gets the list of decks. |
 | `/<deck>` | everyone | Choose viewer or presenter. |
 | `/<deck>/view` | viewers | The deck, full window, following the presenter. |
 | `/<deck>/present` | presenter | Current and next step, notes, timer, clock, controls. |

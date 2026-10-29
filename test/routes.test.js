@@ -39,8 +39,10 @@ test('root redirect matrix (D2 of 0003)', async (t) => {
     for (const admin of [false, true]) {
       for (const publicListing of [false, true]) {
         {
-          // Three decks, of which "b" (then "c") are open.
-          const { app, ctx } = await setup(t, ['a', 'b', 'c'], ['b', 'c'].slice(0, open));
+          // Three decks, of which "b" (then "c") are open, plus a hidden room
+          // "h": open, but never listed nor opened from /.
+          const { app, ctx } = await setup(t, ['a', 'b', 'c', 'h'], ['b', 'c'].slice(0, open));
+          await ctx.rooms.update('h', { open: true, listed: false });
           ctx.config.publicListing = publicListing;
           const headers = { ...REMOTE };
           if (admin) headers.cookie = await adminCookie(app);

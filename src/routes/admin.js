@@ -189,17 +189,16 @@ export function registerAdmin(app, ctx) {
       }
     });
 
-    // Opens or closes a room (`only` closes every other one) and sets its
-    // limits (D1, D3 of 0003).
+    // Opens, hides or closes a room and sets its limits (D1, D3 of 0003).
     scope.patch('/api/admin/rooms/:slug', async (req, reply) => {
       const { slug } = req.params;
       if (!(await decks.exists(slug))) return reply.code(404).send({ error: 'not-found' });
       const { patch, error } = parseRoomPatch(req.body);
       if (error) return reply.code(400).send({ error });
-      if (decks.single && (patch.open === false || patch.only)) return reply.code(409).send({ error: 'single-deck' });
-      const before = new Map((await decks.slugs()).map((x) => [x, rooms.settings(x)]));
+      if (decks.single && patch.open === false) return reply.code(409).send({ error: 'single-deck' });
+      const before = rooms.settings(slug);
       const room = await rooms.update(slug, patch);
-      for (const [x, old] of before) live.roomUpdated(x, old);
+      live.roomUpdated(slug, before);
       return room;
     });
 

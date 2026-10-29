@@ -71,14 +71,15 @@ test('sliding limits count every window', () => {
 
 test('room patches are validated', () => {
   assert.deepEqual(parseRoomPatch({ open: true, maxViewers: 1000, maxPresenters: 1 }).patch, { open: true, maxViewers: 1000, maxPresenters: 1 });
-  for (const bad of [{ maxViewers: 1001 }, { maxViewers: 0 }, { maxPresenters: 21 }, { maxPresenters: 2.5 }, { open: 'yes' }, { other: 1 }, null, []]) {
+  assert.deepEqual(parseRoomPatch({ listed: false }).patch, { listed: false });
+  for (const bad of [{ only: true }, { listed: 'no' }, { maxViewers: 1001 }, { maxViewers: 0 }, { maxPresenters: 21 }, { maxPresenters: 2.5 }, { open: 'yes' }, { other: 1 }, null, []]) {
     assert.ok(parseRoomPatch(bad).error, JSON.stringify(bad));
   }
 });
 
 // ---- admin and pages ---------------------------------------------------------
 
-test('rooms start closed; the admin opens one, or only one', async (t) => {
+test('rooms start closed; the admin opens them', async (t) => {
   const { app, ctx } = await setup(t, { open: false });
   assert.equal(ctx.rooms.isOpen('talk'), false);
   // A closed room hands its audience no deck link; presenters still get one.
@@ -92,23 +93,51 @@ test('rooms start closed; the admin opens one, or only one', async (t) => {
   assert.equal((await app.inject({ method: 'PATCH', url: '/api/admin/rooms/talk', headers: LOCAL, payload: { maxViewers: 5000 } })).statusCode, 400);
   assert.equal((await app.inject({ method: 'PATCH', url: '/api/admin/rooms/nope', headers: LOCAL, payload: { open: true } })).statusCode, 404);
   const res = await app.inject({ method: 'PATCH', url: '/api/admin/rooms/talk', headers: LOCAL, payload: { open: true, maxViewers: 30 } });
-  assert.deepEqual(res.json(), { open: true, maxPresenters: 20, maxViewers: 30, askNames: true, hands: true });
+  assert.deepEqual(res.json(), { open: true, listed: true, maxPresenters: 20, maxViewers: 30, askNames: true, hands: true });
   assert.equal((await app.inject({ url: '/', headers: REMOTE })).headers.location, '/talk');
 
   await app.inject({ method: 'PATCH', url: '/api/admin/rooms/other', headers: LOCAL, payload: { open: true } });
   const list = (await app.inject({ url: '/api/decks', headers: REMOTE })).json().decks.map((d) => d.slug);
   assert.deepEqual(list, ['other', 'talk'], 'the public list shows open rooms');
-  await app.inject({ method: 'PATCH', url: '/api/admin/rooms/other', headers: LOCAL, payload: { only: true } });
-  assert.equal(ctx.rooms.isOpen('talk'), false);
+  await app.inject({ method: 'PATCH', url: '/api/admin/rooms/talk', headers: LOCAL, payload: { open: false } });
   assert.equal((await app.inject({ url: '/', headers: REMOTE })).headers.location, '/other');
   assert.equal(ctx.config.rooms.talk.maxViewers, 30, 'settings kept while closed');
   const rows = (await app.inject({ url: '/api/admin/decks', headers: LOCAL })).json().decks;
   assert.deepEqual(rows.find((d) => d.slug === 'other').room, {
-    open: true, maxPresenters: 20, maxViewers: 200, askNames: true, hands: true, viewers: 0, presenters: 0, raised: 0,
+    open: true, listed: true, maxPresenters: 20, maxViewers: 200, askNames: true, hands: true, viewers: 0, presenters: 0, raised: 0,
   });
 });
 
-test('single-deck mode: the room is always open', async (t) => {
+test('a hidden room is reached only through its link', async (t) => {
+  const { app, ctx, viewer } = await setup(t);
+  await app.inject({ method: 'PATCH', url: '/api/admin/rooms/talk', headers: LOCAL, payload: { listed: false } });
+  assert.equal(ctx.rooms.isOpen('talk'), true, 'hiding keeps the room open');
+  assert.equal((await app.inject({ url: '/', headers: REMOTE })).statusCode, 200, 'not opened from /: landing');
+  assert.deepEqual((await app.inject({ url: '/api/decks', headers: REMOTE })).json().decks, [], 'not listed');
+  const deck = (await app.inject({ url: '/api/decks/talk', headers: REMOTE })).json();
+  assert.ok(deck.deckUrl, 'the link still works');
+  await viewer().next(isYou());
+  // The admin still sees it, marked as hidden.
+  const mine = (await app.inject({ url: '/api/decks', headers: LOCAL })).json().decks.find((d) => d.slug === 'talk');
+  assert.equal(mine.open, true);
+  assert.equal(mine.listed, false);
+  // Opening it from the presenter view keeps it hidden.
+  await app.inject({ method: 'PATCH', url: '/api/admin/rooms/talk', headers: LOCAL, payload: { open: false } });
+  await app.inject({ method: 'PATCH', url: '/api/admin/rooms/talk', headers: LOCAL, payload: { open: true } });
+  assert.equal(ctx.rooms.settings('talk').listed, false);
+  await app.inject({ method: 'PATCH', url: '/api/admin/rooms/talk', headers: LOCAL, payload: { listed: true } });
+  assert.equal((await app.inject({ url: '/', headers: REMOTE })).headers.location, '/talk');
+});
+
+test('a room saved before hidden rooms existed is listed', async (t) => {
+  const { app, ctx } = await setup(t, { open: false });
+  ctx.config.rooms.talk = { open: true, maxViewers: 30 }; // an older config.json: no `listed`
+  assert.equal(ctx.rooms.isListed('talk'), true);
+  assert.equal((await app.inject({ url: '/', headers: REMOTE })).headers.location, '/talk');
+  assert.deepEqual((await app.inject({ url: '/api/decks', headers: REMOTE })).json().decks.map((d) => d.slug), ['talk']);
+});
+
+test('single-deck mode: the room is always open, but can be hidden', async (t) => {
   const dirs = await tempDirs(t);
   await makeDeck(dirs.dataDir, 'solo');
   const app = await buildServer({ ...dirs, singleDeck: `${dirs.dataDir}/solo` });
@@ -116,6 +145,11 @@ test('single-deck mode: the room is always open', async (t) => {
   assert.equal(app.slidecast.rooms.isOpen('solo'), true);
   const res = await app.inject({ method: 'PATCH', url: '/api/admin/rooms/solo', headers: LOCAL, payload: { open: false } });
   assert.equal(res.statusCode, 409);
+  assert.equal((await app.inject({ url: '/', headers: REMOTE })).headers.location, '/solo');
+  const hide = await app.inject({ method: 'PATCH', url: '/api/admin/rooms/solo', headers: LOCAL, payload: { listed: false } });
+  assert.equal(hide.statusCode, 200);
+  assert.equal(hide.json().open, true);
+  assert.equal((await app.inject({ url: '/', headers: REMOTE })).statusCode, 200, 'hidden: / shows the landing');
 });
 
 // ---- joining -----------------------------------------------------------------

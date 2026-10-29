@@ -15,12 +15,12 @@ export function sendPage(ctx, reply, name, { admin = false, status = 200 } = {})
   return reply.code(status).type('text/html; charset=utf-8').send(applyAppearance(page(name), ctx.config.appearance));
 }
 
-// D2 of 0003: "/" follows the open room. Only a logged-in admin session counts
-// as "admin" here: the implicit admin access of a local-direct request still
-// follows the redirect rules.
+// D2 of 0003: "/" follows the open room; hidden rooms do not count. Only a
+// logged-in admin session counts as "admin" here: the implicit admin access
+// of a local-direct request still follows the redirect rules.
 export async function rootTarget(ctx, req) {
   if (ctx.auth.getSession(req)?.admin) return { page: 'list' };
-  const open = (await ctx.decks.slugs()).filter((slug) => ctx.rooms.isOpen(slug));
+  const open = (await ctx.decks.slugs()).filter((slug) => ctx.rooms.isListed(slug));
   if (open.length === 1) return { redirect: `/${open[0]}` };
   return { page: open.length && ctx.config.publicListing ? 'list' : 'landing' };
 }

@@ -24,10 +24,10 @@ export function registerApi(app, ctx) {
 
   app.get('/api/decks', async (req, reply) => {
     if (auth.canAdmin(req)) {
-      return { decks: (await decks.list()).map((d) => ({ ...d, ...thumb(req, d), open: rooms.isOpen(d.slug) })) };
+      return { decks: (await decks.list()).map((d) => ({ ...d, ...thumb(req, d), open: rooms.isOpen(d.slug), listed: rooms.settings(d.slug).listed })) };
     }
     if (!config.publicListing) return reply.code(403).send({ error: 'forbidden' });
-    const open = (await decks.list()).filter((d) => rooms.isOpen(d.slug));
+    const open = (await decks.list()).filter((d) => rooms.isListed(d.slug));
     return { decks: open.map((d) => ({ slug: d.slug, title: d.title, ...thumb(req, d) })) };
   });
 
