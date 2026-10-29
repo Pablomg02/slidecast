@@ -136,15 +136,18 @@ function render({ decks, single }) {
       el('td.deck-slug', {}, el('code', {}, d.slug)),
       el('td.deck-size', {}, fmtSize(d.size)),
       el('td.deck-room', {}, roomCell(d, { single, several: decks.length > 1 })),
+      // Links on one line, buttons on the next (a flex <td> would break the row's borders).
       el('td.actions', {},
-        el('a', { href: `/${d.slug}/view` }, t('viewer')),
-        el('a', { href: `/${d.slug}/present` }, t('presenter')),
-        el('a', { href: `/admin/edit/${d.slug}`, className: 'edit-link' }, t('edit')),
-        el('a.download-link', { href: `/api/admin/decks/${encodeURIComponent(d.slug)}/download`, download: `${d.slug}.zip` }, t('download')),
-        el('button.small', { onclick: () => openSettings(d) }, t('settings')),
-        single ? null : el('button.small.update-btn', { onclick: () => openUpdate(d) }, t('update')),
-        single ? null : updateInfoButton(),
-        single ? null : el('button.small.danger', { onclick: () => confirmDelete(d.slug) }, t('delete')))))));
+        el('div.action-links', {},
+          el('a', { href: `/${d.slug}/view` }, t('viewer')),
+          el('a', { href: `/${d.slug}/present` }, t('presenter')),
+          el('a', { href: `/admin/edit/${d.slug}`, className: 'edit-link' }, t('edit')),
+          el('a.download-link', { href: `/api/admin/decks/${encodeURIComponent(d.slug)}/download`, download: `${d.slug}.zip` }, t('download'))),
+        el('div.action-buttons', {},
+          el('button.small', { onclick: () => openSettings(d) }, t('settings')),
+          single ? null : el('button.small.update-btn', { onclick: () => openUpdate(d) }, t('update')),
+          single ? null : updateInfoButton(),
+          single ? null : el('button.small.danger', { onclick: () => confirmDelete(d.slug) }, t('delete'))))))));
   app.append(el('h2', {}, t('decks')), decks.length ? el('div.table-wrap', {}, table) : el('p.muted', {}, t('noDecks')));
   if (decks.length && !single) app.append(el('p.hint.muted.room-hint', {}, t('roomHint', { site })));
 

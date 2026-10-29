@@ -19,6 +19,8 @@ include breaking changes, always listed here.
 - Presenter view, for the admin: **Edit notes**, next to **Open viewer**,
   opens the notes editor in a new tab at the slide and step being presented.
   The editor takes `?slide=<id>&step=<k>` for that.
+- Admin panel: a wider deck table, with each deck's links on one line and
+  its buttons on the next, instead of a cramped Actions column.
 
 ## [0.2.2] - 2026-10-25
 
