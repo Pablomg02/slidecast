@@ -108,6 +108,21 @@ test('free: the viewer can go ahead of live', async ({ page }) => {
   await expect.poll(() => current(page)).toBe(0);
 });
 
+test('free: holding an arrow inside the deck moves through the slides', async ({ page }) => {
+  await openViewer(page);
+  await presenter.send({ t: 'nav', mode: 'free' });
+  await presenter.state((s) => s.viewerNav === 'free');
+  await viewerNav(page, 'free');
+  await deckFrame(page).evaluate(() => window.focus());
+  await page.keyboard.down('ArrowRight');
+  for (let i = 0; i < 2; i++) {
+    await page.waitForTimeout(150);
+    await page.keyboard.down('ArrowRight'); // a repeat, as when the key is held
+  }
+  await page.keyboard.up('ArrowRight');
+  await expect.poll(() => current(page)).toBe(3);
+});
+
 test('switching to follow re-attaches a detached viewer', async ({ page }) => {
   await openViewer(page);
   await presenter.send({ t: 'nav', mode: 'free' });

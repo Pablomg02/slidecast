@@ -3,7 +3,7 @@
 // viewer is a participant of the room (0003): name, hand, room notices.
 import {
   t, el, api, slugFromPath, setTitle, connectLive, createDeckFrame, keyActionFromEvent,
-  toggleFullscreen,
+  toggleFullscreen, acceptKey,
 } from './shell.js';
 import { createParticipant } from './participant.js';
 
@@ -205,7 +205,7 @@ window.addEventListener('keydown', (e) => {
   const action = keyActionFromEvent(e);
   if (!action) return;
   e.preventDefault();
-  if (!e.repeat) onAction(action);
+  if (acceptKey(action, e.repeat)) onAction(action);
 });
 
 // Hide the cursor after 2.5 s without movement. Mouse moves over the iframe

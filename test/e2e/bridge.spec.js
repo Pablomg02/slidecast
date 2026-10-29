@@ -75,10 +75,22 @@ for (const deck of DECKS) {
       await clearMsgs(page);
       await pressInFrame(page, frame, 'ArrowRight');
       await expect.poll(async () => (await msgs(page)).filter((m) => m.t === 'input')).toEqual(
-        [{ sd: 1, t: 'input', action: 'next' }]);
+        [{ sd: 1, t: 'input', action: 'next', repeat: false }]);
       await page.waitForTimeout(200);
       expect(await frame.evaluate(deck.current)).toBe(0);
       expect((await msgs(page)).some((m) => m.t === 'changed')).toBe(false);
+    });
+
+    test('a held key is forwarded with its repeats marked', async ({ page }) => {
+      const frame = await openHarness(page, deck.slug);
+      await clearMsgs(page);
+      await frame.evaluate(() => window.focus());
+      await page.keyboard.down('PageDown');
+      await page.keyboard.down('PageDown'); // a second down without an up is a repeat
+      await page.keyboard.up('PageDown');
+      await expect.poll(async () => (await msgs(page)).filter((m) => m.t === 'input').map((m) => m.repeat))
+        .toEqual([false, true]);
+      expect(await frame.evaluate(deck.current)).toBe(0);
     });
 
     test('a click on the slide is forwarded as next', async ({ page }) => {

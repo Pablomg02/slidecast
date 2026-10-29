@@ -281,7 +281,7 @@ export function createDeckFrame(container, deckUrl, { mode = 'live', query = '' 
       if (own) requested = requested.slice(at); // keep it: a go may yield two changed
       handlers.changed.forEach((cb) => cb(m.index, own));
     } else if (m.t === 'input') {
-      handlers.input.forEach((cb) => cb(m.action));
+      if (acceptKey(m.action, m.repeat === true)) handlers.input.forEach((cb) => cb(m.action));
     } else if (m.t === 'error') {
       handlers.error.forEach((cb) => cb(m.code));
     }
@@ -301,16 +301,30 @@ export function keyActionFromEvent(e) {
   if (tgt && (tgt.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(tgt.tagName))) return null;
   if (e.ctrlKey || e.metaKey || e.altKey) return null;
   switch (e.key) {
-    case 'ArrowRight': case 'ArrowDown': case 'PageDown': case 'Enter': return 'next';
+    case 'ArrowRight': case 'ArrowDown': case 'PageDown': case 'Enter': case 'MediaTrackNext': return 'next';
     case ' ': return e.shiftKey ? 'prev' : 'next';
-    case 'ArrowLeft': case 'ArrowUp': case 'PageUp': case 'Backspace': return 'prev';
+    case 'ArrowLeft': case 'ArrowUp': case 'PageUp': case 'Backspace': case 'MediaTrackPrevious': return 'prev';
     case 'Home': return 'first';
     case 'End': return 'last';
     case 'b': case 'B': case '.': return 'blank';
-    case 'f': case 'F': return 'fullscreen';
+    // A clicker's "start" button sends F5 (then Esc, which leaves full screen
+    // by itself): it must not reload the page in the middle of a talk.
+    case 'f': case 'F': case 'F5': return 'fullscreen';
     case 'l': case 'L': return 'live';
     default: return null;
   }
+}
+
+// Holding a key down moves through the slides, at most one step every
+// REPEAT_MS so the decks and the viewers keep up. Only next and previous
+// repeat: a held B or F must not toggle on and off.
+const REPEAT_MS = 100;
+let lastKey = -Infinity;
+export function acceptKey(action, repeat) {
+  const now = performance.now();
+  if (repeat && (action !== 'next' && action !== 'prev' || now - lastKey < REPEAT_MS)) return false;
+  lastKey = now;
+  return true;
 }
 
 // Buttons and links handle Enter/Space themselves.

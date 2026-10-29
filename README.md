@@ -187,8 +187,11 @@ so clickers work out of the box.
 | `←` `↑` `Shift+Space` `PageUp` `Backspace` | Previous step |
 | `Home` / `End` | First / last step |
 | `B` or `.` | Black out every viewer's screen (press again to come back) |
-| `F` | Full screen |
+| `F` or `F5` | Full screen (a clicker's "start" button sends `F5`; it does not reload the page) |
 | `L` | In a viewer: back to the presenter's slide |
+
+Hold a next or previous key down to move through the slides quickly. The
+media keys for next and previous track work too.
 
 Clicker connected to the projector's computer instead of yours? When the
 viewer window is allowed to present (on the computer running slidecast, or

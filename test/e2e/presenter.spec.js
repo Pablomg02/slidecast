@@ -158,6 +158,49 @@ test('clicking a preview does not steal the keyboard', async ({ page }) => {
   viewer.close();
 });
 
+// A second keyboard.down without an up is a key repeat, as when a key is held.
+async function hold(page, key, repeats, gap) {
+  await page.keyboard.down(key);
+  for (let i = 0; i < repeats; i++) {
+    await page.waitForTimeout(gap);
+    await page.keyboard.down(key);
+  }
+  await page.keyboard.up(key);
+}
+
+test('holding an arrow moves through the slides; a held B toggles once', async ({ page }) => {
+  await openPresenter(page);
+  const viewer = srv.socket('demo', { role: 'viewer' });
+  await hold(page, 'ArrowRight', 3, 150); // the press and three repeats
+  await viewer.state((s) => s.index === 4);
+  await hold(page, 'ArrowLeft', 1, 150);
+  await viewer.state((s) => s.index === 2);
+  // Repeats sooner than 100 ms after the last step are dropped.
+  await hold(page, 'ArrowRight', 2, 0);
+  await viewer.state((s) => s.index === 3);
+  await page.waitForTimeout(200);
+  await viewer.state((s) => s.index === 3);
+  await hold(page, 'b', 3, 150);
+  await viewer.state((s) => s.blank === true);
+  await page.waitForTimeout(300);
+  await page.keyboard.press('b');
+  await viewer.state((s) => s.blank === false);
+  viewer.close();
+});
+
+test('a clicker\'s F5 does not reload the presenter, MediaTrackNext advances', async ({ page }) => {
+  await openPresenter(page);
+  const viewer = srv.socket('demo', { role: 'viewer' });
+  await page.evaluate(() => window.addEventListener('keydown', (e) => { window.__f5 = e.defaultPrevented; }));
+  await page.keyboard.press('F5');
+  expect(await page.evaluate(() => window.__f5)).toBe(true);
+  await page.keyboard.press('MediaTrackNext');
+  await viewer.state((s) => s.index === 1);
+  await page.keyboard.press('MediaTrackPrevious');
+  await viewer.state((s) => s.index === 0);
+  viewer.close();
+});
+
 const box = (page, sel) => page.locator(sel).boundingBox();
 async function drag(page, sel, dx, dy) {
   const b = await box(page, sel);

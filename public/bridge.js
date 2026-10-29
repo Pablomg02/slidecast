@@ -139,13 +139,13 @@
 
   function keyAction(e) {
     switch (e.key) {
-      case 'ArrowRight': case 'ArrowDown': case 'PageDown': case 'Enter': return 'next';
+      case 'ArrowRight': case 'ArrowDown': case 'PageDown': case 'Enter': case 'MediaTrackNext': return 'next';
       case ' ': case 'Spacebar': return e.shiftKey ? 'prev' : 'next';
-      case 'ArrowLeft': case 'ArrowUp': case 'PageUp': case 'Backspace': return 'prev';
+      case 'ArrowLeft': case 'ArrowUp': case 'PageUp': case 'Backspace': case 'MediaTrackPrevious': return 'prev';
       case 'Home': return 'first';
       case 'End': return 'last';
       case 'b': case 'B': case '.': return 'blank';
-      case 'f': case 'F': return 'fullscreen';
+      case 'f': case 'F': case 'F5': return 'fullscreen';
       case 'l': case 'L': return 'live';
       default: return null;
     }
@@ -168,7 +168,8 @@
       return;
     }
     swallow(e);
-    if (e.type === 'keydown' && !e.repeat) post({ t: 'input', action: action });
+    // The page decides which repeats of a held key to act on.
+    if (e.type === 'keydown') post({ t: 'input', action: action, repeat: e.repeat });
   }
 
   var INTERACTIVE = 'a, button, input, select, textarea, label, summary, [data-interactive], [contenteditable]';

@@ -120,7 +120,7 @@ window.addEventListener('keydown', (e) => {
   }
   if (isOwnKey(e)) return;
   const action = keyActionFromEvent(e); // null inside the textareas
-  if (!action) return;
+  if (!action || action === 'fullscreen') return; // F5 still reloads here
   e.preventDefault();
   if (action === 'next') goTo(index + 1);
   else if (action === 'prev') goTo(index - 1);

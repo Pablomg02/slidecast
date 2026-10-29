@@ -4,7 +4,7 @@
 // prev/next buttons instead.
 import {
   t, el, api, slugFromPath, setTitle, connectLive, createDeckFrame, keyActionFromEvent,
-  toggleFullscreen, isOwnKey, icon,
+  toggleFullscreen, isOwnKey, icon, acceptKey,
 } from './shell.js';
 import { renderMarkdown } from './markdown.js';
 import { createRoomPanels } from './presenter-room.js';
@@ -436,7 +436,7 @@ window.addEventListener('keydown', (e) => {
   const action = keyActionFromEvent(e);
   if (!action || action === 'live') return;
   e.preventDefault();
-  if (!e.repeat) act(action);
+  if (acceptKey(action, e.repeat)) act(action);
 });
 
 // Swipe on the notes (phone): left = next, right = previous. One finger only
