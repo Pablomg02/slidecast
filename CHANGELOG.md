@@ -16,6 +16,9 @@ include breaking changes, always listed here.
 - Clickers: `F5`, sent by the "start" button of many clickers, toggles full
   screen instead of reloading the page, and the next/previous track media
   keys move the slides too.
+- Presenter view, for the admin: **Edit notes**, next to **Open viewer**,
+  opens the notes editor in a new tab at the slide and step being presented.
+  The editor takes `?slide=<id>&step=<k>` for that.
 
 ## [0.2.2] - 2026-10-25
 

@@ -149,6 +149,19 @@ test('"/" follows the open room', async ({ browser }) => {
   await context.close();
 });
 
+test('only the admin sees "Edit notes" in the presenter view', async ({ browser }) => {
+  const { page: admin, context: ac } = await presenterPage(browser);
+  await expect(admin.locator('#edit-notes')).toBeVisible();
+  const context = await browser.newContext();
+  await context.addCookies([{ name: 'sc_session', value: await srv.login('presenter', 'presenter-pass1'), url: srv.url }]);
+  const p = await context.newPage();
+  await p.goto(`${srv.url}/demo/present`);
+  await expect(p.locator('#viewers')).toBeVisible();
+  await expect(p.locator('#edit-notes')).toBeHidden();
+  await expect(p.locator('#room-toggle')).toBeHidden();
+  await Promise.all([ac.close(), context.close()]);
+});
+
 test('a device over the presenter limit is offered to watch; a projector stops controlling', async ({ browser }) => {
   await patchRoom('demo', { maxPresenters: 1 });
   try {

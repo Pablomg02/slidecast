@@ -67,3 +67,28 @@ test('Ctrl+S saves immediately', async ({ page }) => {
   await expect(page.locator('#save-status')).toHaveText('Saved');
   expect((await deckJson()).slides.intro.notes).toBe('Saved with the keyboard');
 });
+
+test('"Edit notes" in the presenter view opens the editor at the step being presented', async ({ page, context }) => {
+  await page.goto(`${srv.url}/demo/present`);
+  await expect(page.locator('#counter')).toHaveText(/^\d+ \/ 7$/);
+  const s = srv.socket('demo');
+  await s.send({ t: 'goto', index: 2 });
+  await s.state((m) => m.index === 2);
+  s.close();
+  await expect(page.locator('#counter')).toHaveText('3 / 7');
+  const link = page.locator('#edit-notes');
+  await expect(link).toHaveText('Edit notes');
+  await expect(link).toHaveAttribute('href', '/admin/edit/demo?slide=how&step=1');
+  const [editor] = await Promise.all([context.waitForEvent('page'), link.click()]);
+  await expect(editor.locator('#counter')).toHaveText('3 / 7');
+  await expect(editor.locator('label[for=step-note]')).toHaveText('Note for step 1');
+  await editor.close();
+});
+
+test('the editor opens at a slide by id, at its first step when the step is unknown', async ({ page }) => {
+  await page.goto(`${srv.url}/admin/edit/demo?slide=how&step=9`);
+  await expect(page.locator('#counter')).toHaveText('2 / 7');
+  await expect(page.locator('label[for=slide-notes]')).toHaveText('Slide notes (how)');
+  await page.goto(`${srv.url}/admin/edit/demo?slide=gone`);
+  await expect(page.locator('#counter')).toHaveText('1 / 7');
+});

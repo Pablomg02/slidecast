@@ -95,9 +95,20 @@ function renderPreview() {
   preview.innerHTML = html;
 }
 
+// `?slide=<id>&step=<k>` (the presenter's "Edit notes") opens at that step,
+// or at the slide's first step; by slide id, so it survives reordered slides.
+function startIndex() {
+  const q = new URLSearchParams(location.search);
+  const id = q.get('slide');
+  if (!id) return 0;
+  const k = q.get('step');
+  const exact = frame.steps.findIndex((s) => s.slide === id && String(s.step ?? '') === k);
+  return exact >= 0 ? exact : Math.max(0, frame.steps.findIndex((s) => s.slide === id));
+}
+
 frame.onReady(() => {
   buildStepList();
-  goTo(0);
+  goTo(startIndex());
 });
 frame.onInput((action) => {
   if (action === 'next') goTo(index + 1);

@@ -172,7 +172,10 @@ To start from a working example instead, run
 `node bin/slidecast.js new my-talk` and edit `decks/my-talk/index.html`.
 
 Speaker notes are written in the admin panel (**Edit notes**). They are
-stored in a `deck.json` file next to the deck, so they travel with it.
+stored in a `deck.json` file next to the deck, so they travel with it. While
+presenting, an admin also finds **Edit notes** next to **Open viewer**: it
+opens the editor in a new tab at the slide being shown, and saved notes reach
+the presenter view at once.
 
 ## During the presentation
 
@@ -311,7 +314,7 @@ and they are gone when the room closes or slidecast restarts.
 | `/<deck>/view` | viewers | The deck, full window, following the presenter. |
 | `/<deck>/present` | presenter | Current and next step, notes, timer, clock, controls. |
 | `/admin` | admin | Decks, passwords and settings. |
-| `/admin/edit/<deck>` | admin | Notes editor. |
+| `/admin/edit/<deck>` | admin | Notes editor; `?slide=<id>&step=<k>` opens it at that step. |
 
 </details>
 

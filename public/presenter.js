@@ -69,6 +69,8 @@ const fontToggle = el('button.p-font-toggle', {
   },
 }, 'Aa');
 const openViewer = el('a.button', { href: `/${slug}/view`, target: '_blank', rel: 'noopener' }, t('openViewer'));
+// Admins only: the notes editor, opened at the step being presented (render() keeps the link current).
+const editNotes = el('a.button', { id: 'edit-notes', href: `/admin/edit/${encodeURIComponent(slug)}`, hidden: !deck.canAdmin, target: '_blank', rel: 'noopener' }, t('edit'));
 
 // Phone only: fold the current slide away to give the notes more room.
 const slideToggle = el('button.p-slide-toggle', { id: 'slide-toggle', onclick: () => setSlideFolded(!slideFolded) },
@@ -108,7 +110,7 @@ const toolbar = el('div.p-toolbar', {},
   el('div.p-group.p-secondary', {}, clock),
   el('div.p-group.p-secondary', {}, modeSelect, viewers),
   el('div.p-group.p-secondary', {}, btnBlank, roomBtn),
-  el('div.p-group.p-extra', {}, openViewer),
+  el('div.p-group.p-extra', {}, openViewer, editNotes),
   reconnecting);
 
 const colSplit = el('div.p-split.p-split-cols', {
@@ -330,6 +332,8 @@ function render() {
   counter.textContent = n ? `${live.index + 1} / ${n}` : `${live.index + 1}`;
   const step = current.steps[live.index];
   slideId.textContent = step ? (step.step ? `${step.slide} · ${step.step}` : step.slide) : '';
+  const at = step ? `?${new URLSearchParams({ slide: step.slide, step: String(step.step ?? '') })}` : '';
+  editNotes.href = `/admin/edit/${encodeURIComponent(slug)}${at}`;
   btnBlank.textContent = live.blank ? t('unblank') : t('blank');
   btnBlank.classList.toggle('active', live.blank);
   modeSelect.value = live.viewerNav;
