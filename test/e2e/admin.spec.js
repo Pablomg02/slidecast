@@ -124,7 +124,9 @@ test('phone panel: decks as cards, nothing wider than the screen', async ({ brow
   const page = await context.newPage();
   await page.goto(`${srv.url}/admin`);
   await page.fill('#password', 'admin-password');
-  await page.click('button[type=submit]');
+  // Enter, not a tap: on a touch screen the tap can land, once the panel
+  // has loaded, on the room button now under it and hide the room.
+  await page.press('#password', 'Enter');
   const card = page.locator('tr[data-slug=demo]');
   await expect(card).toBeVisible();
   await expect(page.locator('.deck-table thead')).toBeHidden();
