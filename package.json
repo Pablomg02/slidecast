@@ -47,9 +47,9 @@
     "site:social": "node site/social/render.js"
   },
   "dependencies": {
-    "@fastify/cookie": "^11.1.3",
+    "@fastify/cookie": "^11.1.5",
     "@fastify/rate-limit": "^11.2.1",
-    "@fastify/static": "^10.1.7",
+    "@fastify/static": "^10.1.8",
     "@fastify/websocket": "^11.3.4",
     "fastify": "^5.12.7",
     "markdown-it": "^15.0.3"
