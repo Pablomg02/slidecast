@@ -1,5 +1,5 @@
 // Password form for presenter or viewer access to one deck.
-import { t, el, api, slugFromPath, setTitle, brand } from './shell.js';
+import { t, el, api, slugFromPath, setTitle, brand, holdLoginButton } from './shell.js';
 
 const slug = slugFromPath();
 const as = new URLSearchParams(location.search).get('as') === 'presenter' ? 'presenter' : 'viewer';
@@ -36,8 +36,9 @@ form.addEventListener('submit', async (e) => {
   } else if (res.status === 409) {
     if (as === 'viewer') location.replace(target);
     else showError(t('noPasswordPresenter'));
-  } else if (res.status === 429) {
-    showError(t('tooMany'));
+  } else if (res.status === 429 || res.status === 503) {
+    // Busy: the server was only full, so it tries again by itself.
+    holdLoginButton(button, error, res, (busy) => { if (busy) form.requestSubmit(); });
   } else {
     showError(t('error', { code: res.status }));
   }

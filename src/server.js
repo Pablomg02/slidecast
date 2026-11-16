@@ -1,7 +1,6 @@
 import Fastify from 'fastify';
 import fastifyStatic from '@fastify/static';
 import fastifyCookie from '@fastify/cookie';
-import fastifyRateLimit from '@fastify/rate-limit';
 import fastifyWebsocket from '@fastify/websocket';
 import { readFileSync, watchFile, unwatchFile } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -58,7 +57,6 @@ export async function buildServer(opts = {}) {
   app.decorate('slidecast', ctx);
 
   await app.register(fastifyCookie);
-  await app.register(fastifyRateLimit, { global: false });
   await app.register(fastifyWebsocket, { options: { maxPayload: MAX_MESSAGE } });
   registerSecurity(app);
 

@@ -55,14 +55,37 @@ must carry an `Origin` header naming the same host as the request; otherwise
 cross-site form could send) and uploads only `application/zip` / `text/html`
 on the admin route.
 
-**Brute force.** `/api/login` allows 5 attempts per minute per client address
-and password (admin, global presenter, a deck's own presenter or viewer
-password; decks without their own presenter password share the global one),
-and 50 per minute in total. Requests that cannot test a password (unknown
-scope or deck, no password set) are answered first and count for nothing, so
-junk cannot use up the total. On top of that, 20 *failed* attempts in
-an hour from one address for one password block that address for the
-rest of the hour, even with the right password. Every failed attempt is logged
+**Brute force.** A whole class often signs in at once from one school
+address (NAT, or one IPv6 /64), so `/api/login` counts *failed* attempts
+against an address, never right ones, and gives each browser a tighter budget
+of its own. Each password is limited on its own (admin, global presenter, a
+deck's own presenter or viewer password; decks without their own presenter
+password share the global one):
+
+| Limit | Admin | Presenter | Viewer |
+| --- | --- | --- | --- |
+| Failures per address, per minute / hour | 5 / 20 | 10 / 50 | 60 / 300 |
+| Failures from all addresses together, per hour | 100 | 300 | 1 000 |
+| Per browser: attempts in 5 s, failures in 15 min | 3, 10 | 3, 10 | 3, 10 |
+
+A browser is told apart by the `sc_device` cookie, a random id set on its
+first attempt; a script that drops it just starts over and is still held by
+the address limits. A guess counts as a failure while it is being checked, so
+guesses sent in parallel cannot slip past a limit. Once a limit is reached the
+login answers `429` with `Retry-After` and `{"retryAfter": seconds}`, even
+for the right password, and the page says when to try again and counts down on
+its button. The admin's own machine (local direct) is never held back by the
+all-addresses cap, which otherwise anyone could fill to lock the admin out.
+Requests that cannot test a password (unknown scope or deck, no password set)
+are answered first and count for nothing.
+
+Checking a password (scrypt) costs CPU and 16 MB of memory, so at most 2 run
+at once and up to 200 more wait their turn: a crowd only makes sign-ins a
+little slower. Past that the login answers `503` with `{"error": "busy"}` and
+`Retry-After` (an estimate of how long the queue takes to drain), counts for
+nothing, and the page tries again by itself.
+
+Every failed attempt is logged
 at `warn` level as `login failed` with the address, scope and deck (never the
 password), and a block as `login locked`. Behind a proxy (`--trust-proxy`) the
 client address comes from `Cf-Connecting-IP` or the first `X-Forwarded-For`

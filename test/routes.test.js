@@ -24,7 +24,7 @@ async function adminCookie(app) {
     payload: { scope: 'admin', password: 'admin-password' },
   });
   assert.equal(res.statusCode, 204);
-  return `sc_session=${res.cookies[0].value}`;
+  return `sc_session=${res.cookies.find((c) => c.name === 'sc_session').value}`;
 }
 
 // What GET / should do, per D2 of 0003: it follows the open room.
@@ -84,7 +84,7 @@ test('deck API hides notes from viewers and shows them to presenters', async (t)
     method: 'POST', url: '/api/login', headers: { ...REMOTE, origin: ORIGIN },
     payload: { scope: 'presenter', password: 'presenter-pass' },
   });
-  const cookie = `sc_session=${login.cookies[0].value}`;
+  const cookie = `sc_session=${login.cookies.find((c) => c.name === 'sc_session').value}`;
   const pres = await app.inject({ url: '/api/decks/talk', headers: { ...REMOTE, cookie } });
   assert.equal(pres.json().canPresent, true);
   assert.deepEqual(pres.json().notes, { intro: { notes: 'secret notes' } });
@@ -107,7 +107,7 @@ test('a deck with a viewer password is closed to anonymous clients', async (t) =
     payload: { scope: 'viewer', deck: 'talk', password: 'viewer-pass' },
   });
   assert.equal(login.statusCode, 204);
-  const cookie = `sc_session=${login.cookies[0].value}`;
+  const cookie = `sc_session=${login.cookies.find((c) => c.name === 'sc_session').value}`;
   assert.equal((await app.inject({ url: '/talk', headers: { ...REMOTE, cookie } })).statusCode, 200);
 });
 

@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { buildServer } from '../src/server.js';
 import { hashPassword, verifyPassword, isLocalDirect, revokeScope } from '../src/auth.js';
+import { LOGIN_LIMITS } from '../src/loginlimits.js';
 import { onCleanup, tempDirs, makeDeck } from './helpers.js';
 
 const HOST = 'slidecast.test';
@@ -88,15 +89,89 @@ test('wrong password → 401, the 6th attempt in a minute → 429', async (t) =>
   assert.ok(Number(sixth.headers['retry-after']) > 0);
 });
 
-test('the global limit caps logins from many addresses', async (t) => {
-  const { app, auth } = await setup(t, { trustProxy: true });
-  await auth.setPassword('admin', null, 'admin-password');
+test('failures from many addresses together are capped per password', async (t) => {
+  const dirs = await tempDirs(t);
+  await makeDeck(dirs.dataDir, 'talk');
+  const app = await buildServer({
+    ...dirs, trustProxy: true, loginLimits: { overall: { ...LOGIN_LIMITS.overall, admin: [{ max: 10, ms: 3_600_000 }] } },
+  });
+  onCleanup(t, () => app.close());
+  await app.slidecast.auth.setPassword('admin', null, 'admin-password');
   const codes = [];
-  for (let i = 0; i < 51; i++) {
+  for (let i = 0; i < 11; i++) {
     codes.push((await login(app, { scope: 'admin', password: 'x' }, { 'cf-connecting-ip': `198.51.100.${i}` })).statusCode);
   }
-  assert.deepEqual([...new Set(codes.slice(0, 50))], [401]);
-  assert.equal(codes[50], 429);
+  assert.deepEqual([...new Set(codes.slice(0, 10))], [401]);
+  assert.equal(codes[10], 429);
+  // The admin's own machine is not held back by the overall cap.
+  const local = { host: 'localhost', origin: 'http://localhost' };
+  assert.equal((await login(app, { scope: 'admin', password: 'admin-password' }, local)).statusCode, 204);
+  assert.equal((await login(app, { scope: 'admin', password: 'admin-password' })).statusCode, 429);
+});
+
+test('a whole class behind one address signs in, typos included', async (t) => {
+  const { app, auth } = await setup(t, { trustProxy: true });
+  await auth.setPassword('viewer', 'talk', 'class-pass1');
+  const ip = { 'cf-connecting-ip': '203.0.113.7' };
+  const codes = [];
+  for (let i = 0; i < 40; i++) {
+    if (i % 3 === 0) codes.push((await login(app, { scope: 'viewer', deck: 'talk', password: 'Class-pass1' }, ip)).statusCode);
+    codes.push((await login(app, { scope: 'viewer', deck: 'talk', password: 'class-pass1' }, ip)).statusCode);
+  }
+  assert.ok(!codes.includes(429), String(codes));
+  assert.equal(codes.filter((c) => c === 204).length, 40);
+});
+
+test('a right password does not use up the address budget', async (t) => {
+  const { app, auth } = await setup(t);
+  await auth.setPassword('admin', null, 'admin-password');
+  const codes = [];
+  for (const password of ['a', 'b', 'c', 'd', 'admin-password', 'e', 'admin-password']) {
+    codes.push((await login(app, { scope: 'admin', password })).statusCode);
+  }
+  assert.deepEqual(codes, [401, 401, 401, 401, 204, 401, 429]);
+});
+
+test('each browser has its own short limit, and the 429 says when to retry', async (t) => {
+  const { app, auth } = await setup(t);
+  await auth.setPassword('viewer', 'talk', 'class-pass1');
+  const first = await login(app, { scope: 'viewer', deck: 'talk', password: 'nope' });
+  const device = first.cookies.find((c) => c.name === 'sc_device');
+  assert.ok(device.httpOnly && /^[A-Za-z0-9_-]{22}$/.test(device.value));
+  const mine = { cookie: `sc_device=${device.value}` };
+  assert.equal((await login(app, { scope: 'viewer', deck: 'talk', password: 'nope' }, mine)).statusCode, 401);
+  assert.equal((await login(app, { scope: 'viewer', deck: 'talk', password: 'nope' }, mine)).statusCode, 401);
+  const held = await login(app, { scope: 'viewer', deck: 'talk', password: 'class-pass1' }, mine);
+  assert.equal(held.statusCode, 429);
+  const wait = held.json().retryAfter;
+  assert.equal(held.json().error, 'too-many-attempts');
+  assert.ok(wait >= 1 && wait <= 5 && Number(held.headers['retry-after']) === wait);
+  // Another browser on the same address is not affected.
+  assert.equal((await login(app, { scope: 'viewer', deck: 'talk', password: 'class-pass1' })).statusCode, 204);
+});
+
+test('guesses sent in parallel cannot slip past the limit', async (t) => {
+  const { app, auth } = await setup(t);
+  await auth.setPassword('admin', null, 'admin-password');
+  const res = await Promise.all(Array.from({ length: 10 }, (_, i) => login(app, { scope: 'admin', password: `p${i}` })));
+  const codes = res.map((r) => r.statusCode).sort();
+  assert.deepEqual(codes, [401, 401, 401, 401, 401, 429, 429, 429, 429, 429]);
+});
+
+test('when too many password checks wait, the login answers 503 busy with a wait', async (t) => {
+  const dirs = await tempDirs(t);
+  await makeDeck(dirs.dataDir, 'talk');
+  const app = await buildServer({ ...dirs, loginLimits: { checks: { running: 1, queued: 1 } } });
+  onCleanup(t, () => app.close());
+  await app.slidecast.auth.setPassword('viewer', 'talk', 'class-pass1');
+  const res = await Promise.all(Array.from({ length: 4 }, () => login(app, { scope: 'viewer', deck: 'talk', password: 'class-pass1' })));
+  const codes = res.map((r) => r.statusCode).sort();
+  assert.deepEqual(codes, [204, 204, 503, 503]);
+  const busy = res.find((r) => r.statusCode === 503);
+  assert.equal(busy.json().error, 'busy');
+  assert.ok(busy.json().retryAfter >= 1 && Number(busy.headers['retry-after']) >= 1);
+  // A busy answer costs nothing: those browsers can sign in right after.
+  assert.equal((await login(app, { scope: 'viewer', deck: 'talk', password: 'class-pass1' })).statusCode, 204);
 });
 
 test('changing the presenter password revokes presenter sessions', async (t) => {
@@ -173,10 +248,11 @@ test('decks without their own password share the global presenter budget', async
   await makeDeck(dirs.dataDir, 'other');
   await auth.setPassword('presenter', null, 'presenter-pass1');
   const codes = [];
-  for (const deck of [null, 'talk', 'other', 'talk', 'other', 'talk']) {
+  for (let i = 0; i < 11; i++) {
+    const deck = [null, 'talk', 'other'][i % 3];
     codes.push((await login(app, { scope: 'presenter', deck, password: 'nope' })).statusCode);
   }
-  assert.deepEqual(codes, [401, 401, 401, 401, 401, 429]);
+  assert.deepEqual(codes, [...Array(10).fill(401), 429]);
 });
 
 test('the Origin check also covers percent-encoded paths', async (t) => {
@@ -272,7 +348,7 @@ test('20 failed logins in an hour lock that address out, and failures are logged
   const lines = [];
   const stream = { write: (s) => lines.push(JSON.parse(s)) };
   const app = await buildServer({
-    ...dirs, trustProxy: true, logger: { level: 'warn', stream }, loginLimits: { perMinute: 100 },
+    ...dirs, trustProxy: true, logger: { level: 'warn', stream }, loginLimits: { perAddress: { ...LOGIN_LIMITS.perAddress, admin: [{ max: 20, ms: 3_600_000 }] } },
   });
   onCleanup(t, () => app.close());
   await app.slidecast.auth.setPassword('admin', null, 'admin-password1');

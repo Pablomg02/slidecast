@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { readJson, writeJsonAtomic } from './store.js';
 import { deckAuth, saveConfig } from './config.js';
 import { isValidSlug } from './decks.js';
+import { LOGIN_LIMITS, keyedLimit, createGate, addressKey, BusyError } from './loginlimits.js';
 
 // ---- passwords (D9) --------------------------------------------------------
 
@@ -334,8 +335,12 @@ const SCOPES = new Set(['admin', 'presenter', 'viewer']);
 
 const HOUR = 3_600_000;
 
-// Failed logins per key in a fixed one-hour window (D3 of 0002). Only failures
-// count, so people who sign in often are never locked out.
+const DEVICE_COOKIE = 'sc_device';
+const DEVICE_RE = /^[A-Za-z0-9_-]{22}$/;
+const DEVICE_MAX_AGE = 365 * 24 * 3600;
+
+// Events per key in a fixed window, counted by the caller (new participants
+// per address in live.js).
 export function createFailureLimit({ max, windowMs = HOUR, now = Date.now } = {}) {
   const entries = new Map(); // key → {count, resetAt}
   function current(key) {
@@ -365,17 +370,29 @@ export function createFailureLimit({ max, windowMs = HOUR, now = Date.now } = {}
 
 export function registerAuthRoutes(app, ctx) {
   const { auth, config } = ctx;
-  const limits = { perMinute: 5, overallPerMinute: 50, failuresPerHour: 20, ...ctx.loginLimits };
-  // Keyed on the password actually tested, so junk scopes or decks that share
-  // the global password do not open new budgets.
-  const keyOf = (req) => `${clientIp(req, ctx.trustProxy)}|${req.login.target}`;
-  const perClient = app.createRateLimit({ max: limits.perMinute, timeWindow: 60_000, keyGenerator: keyOf });
-  const overall = app.createRateLimit({ max: limits.overallPerMinute, timeWindow: 60_000, keyGenerator: () => 'login' });
-  const failures = createFailureLimit({ max: limits.failuresPerHour });
+  const limits = { ...LOGIN_LIMITS, ...ctx.loginLimits };
+  const byScope = (windows) => Object.fromEntries(Object.entries(windows).map(([k, w]) => [k, keyedLimit(w)]));
+  const deviceAttempts = keyedLimit(limits.device.attempts);
+  const deviceFailures = keyedLimit(limits.device.failures);
+  const perAddress = byScope(limits.perAddress);
+  const overall = byScope(limits.overall);
+  const checks = createGate(limits.checks);
 
-  function tooMany(reply, seconds) {
+  function tooMany(reply, code, error, seconds) {
     reply.header('Retry-After', seconds);
-    return reply.code(429).send({ error: 'too-many-attempts' });
+    return reply.code(code).send({ error, retryAfter: seconds });
+  }
+
+  // Each browser gets a random id to count its own attempts by. Dropping it
+  // only starts a new budget; the address limits still hold.
+  function deviceOf(req, reply) {
+    const id = req.cookies?.[DEVICE_COOKIE];
+    if (typeof id === 'string' && DEVICE_RE.test(id)) return id;
+    const fresh = randomBytes(16).toString('base64url');
+    reply.setCookie(DEVICE_COOKIE, fresh, {
+      httpOnly: true, sameSite: 'lax', path: '/', secure: isHttps(req, ctx.trustProxy), maxAge: DEVICE_MAX_AGE,
+    });
+    return fresh;
   }
 
   // Works out which password a login tests, or the error to answer with.
@@ -387,44 +404,59 @@ export function registerAuthRoutes(app, ctx) {
       return { code: 400, error: 'bad-request' };
     }
     if (deck && !(await ctx.decks.exists(deck))) return { code: 404, error: 'no-deck' };
-    if (scope === 'admin') return { hash: config.adminHash, target: 'admin', grantArgs: { admin: true } };
+    if (scope === 'admin') return { scope, hash: config.adminHash, target: 'admin', grantArgs: { admin: true } };
     if (scope === 'presenter') {
       const own = deck && deckAuth(config, deck).presenterHash;
       return {
+        scope,
         hash: deck ? auth.presenterHashFor(deck) : config.presenterHash,
         target: own ? `presenter:${deck}` : 'presenter',
         grantArgs: { present: [deck || '*'] },
       };
     }
-    return { hash: deckAuth(config, deck).viewerHash, target: `viewer:${deck}`, grantArgs: { view: [deck] } };
+    return { scope, hash: deckAuth(config, deck).viewerHash, target: `viewer:${deck}`, grantArgs: { view: [deck] } };
   }
 
   // Requests that cannot test a password are answered before the limits, so
-  // they never use up the shared budget.
+  // they never use up anyone's budget. A password tested counts as a failure
+  // until it turns out right, so parallel guesses cannot slip past a limit.
   async function limit(req, reply) {
     const login = await resolveLogin(req.body);
     if (login.error) return reply.code(login.code).send({ error: login.error });
     if (!login.hash) return reply.code(409).send({ error: 'no-password-configured' });
-    req.login = login;
-    const wait = failures.blockedFor(keyOf(req));
-    if (wait) return tooMany(reply, wait);
-    for (const limiter of [perClient, overall]) {
-      const r = await limiter(req);
-      if (r.isExceeded) return tooMany(reply, r.ttlInSeconds);
-    }
+    const device = deviceOf(req, reply);
+    const address = `${addressKey(clientIp(req, ctx.trustProxy))}|${login.target}`;
+    const failureLimits = [[deviceFailures, device], [perAddress[login.scope], address]];
+    if (!isLocalDirect(req)) failureLimits.push([overall[login.scope], login.target]);
+    const wait = Math.max(deviceAttempts.wait(device), ...failureLimits.map(([l, key]) => l.wait(key)));
+    if (wait) return tooMany(reply, 429, 'too-many-attempts', Math.ceil(wait / 1000));
+    deviceAttempts.hit(device);
+    const undo = failureLimits.map(([l, key]) => l.hit(key));
+    req.login = { ...login, address, undo: () => undo.forEach((u) => u()) };
+    req.login.lockedNow = () => failureLimits.slice(1).some(([l, key]) => l.wait(key) > 0);
     return undefined;
   }
 
   app.decorateRequest('login', null);
   app.post('/api/login', { preHandler: limit }, async (req, reply) => {
     const { scope, deck, password } = req.body;
-    const { hash, grantArgs } = req.login;
-    if (!(await verifyPassword(password, hash))) {
+    const { hash, grantArgs, undo, lockedNow } = req.login;
+    let ok;
+    try {
+      ok = await checks.run(() => verifyPassword(password, hash));
+    } catch (err) {
+      if (!(err instanceof BusyError)) throw err;
+      undo();
+      req.log.warn({ queued: checks.queued }, 'login busy');
+      return tooMany(reply, 503, 'busy', err.retryAfter);
+    }
+    if (!ok) {
       const who = { ip: clientIp(req, ctx.trustProxy), scope, deck: deck || undefined };
       req.log.warn(who, 'login failed');
-      if (failures.fail(keyOf(req))) req.log.warn(who, 'login locked');
+      if (lockedNow()) req.log.warn(who, 'login locked');
       return reply.code(401).send({ error: 'bad-password' });
     }
+    undo();
     await auth.grant(req, reply, grantArgs);
     return reply.code(204).send();
   });

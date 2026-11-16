@@ -35,6 +35,38 @@ export function el(spec, props = {}, ...children) {
   return node;
 }
 
+// "42 s" under a minute, then whole minutes rounded up ("3 min").
+export function formatWait(seconds) {
+  return seconds < 60 ? `${seconds} s` : `${Math.ceil(seconds / 60)} min`;
+}
+
+// After a 429 or 503 from /api/login: shows why, keeps the button off with a
+// countdown on it, then gives it back and calls done(). The message is set
+// once (it is an alert); only the button counts down.
+export function holdLoginButton(button, message, res, done) {
+  const seconds = Math.max(1, Number(res.data?.retryAfter) || 60);
+  const busy = res.status === 503;
+  message.textContent = busy ? t('loginBusy') : t('tooMany', { time: formatWait(seconds) });
+  message.hidden = false;
+  const label = button.textContent;
+  const until = Date.now() + seconds * 1000;
+  button.disabled = true;
+  const tick = () => {
+    const left = Math.ceil((until - Date.now()) / 1000);
+    if (left > 0) {
+      button.textContent = t('waitButton', { time: formatWait(left) });
+      return;
+    }
+    clearInterval(timer);
+    button.textContent = label;
+    button.disabled = false;
+    if (!busy) message.hidden = true;
+    done?.(busy);
+  };
+  const timer = setInterval(tick, 1000);
+  tick();
+}
+
 export function slugFromPath() {
   return decodeURIComponent(location.pathname.split('/')[1] ?? '');
 }

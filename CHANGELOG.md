@@ -6,6 +6,18 @@ include breaking changes, always listed here.
 
 ## [Unreleased]
 
+- Sign-in limits fit a class behind one school address. Before, the 6th
+  person signing in within a minute from the same address got "Too many
+  attempts", even with the right password, and 20 typos in an hour shut the
+  whole class out for the rest of the hour. Now only failed attempts count
+  against an address (viewer password: 60 per minute and 300 per hour; admin
+  5 and 20; presenter 10 and 50), each browser has its own short limit (3
+  attempts in 5 s, 10 failures in 15 min), and IPv6 addresses count by /64.
+  When a limit is hit the page says when to try again and counts down on the
+  button. Password checks wait in a queue (2 at a time), so a crowd signing in
+  together only waits a little; if the queue is full the page tries again by
+  itself. The overall cap is now on failures only (per password, per hour)
+  and never holds back the admin's own machine. See `docs/security.md`.
 - On a phone, a viewer or presenter page left in the background could stay on
   "Reconnecting…" for good once back. A connection attempt now gives up after
   10 s and tries again, and coming back to the page (visible again, restored

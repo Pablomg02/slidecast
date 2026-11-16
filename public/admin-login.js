@@ -1,5 +1,5 @@
 // Admin sign-in (scope "admin").
-import { t, el, api, setTitle, brand } from './shell.js';
+import { t, el, api, setTitle, brand, holdLoginButton } from './shell.js';
 
 setTitle(t('admin'));
 const app = document.getElementById('app');
@@ -19,10 +19,13 @@ form.addEventListener('submit', async (e) => {
   const fail = {
     401: t('wrongPassword'),
     409: t('noPasswordAdmin'),
-    429: t('tooMany'),
   };
   if (res.status === 204) {
     location.reload();
+    return;
+  }
+  if (res.status === 429 || res.status === 503) {
+    holdLoginButton(button, error, res, (busy) => { if (busy) form.requestSubmit(); });
     return;
   }
   error.textContent = fail[res.status] ?? t('error', { code: res.status });

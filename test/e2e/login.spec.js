@@ -28,3 +28,31 @@ test('admin login without a configured password gives no hint about the server',
   await expect(error).toHaveText('El panel de administración no está disponible desde este dispositivo.');
   await expect(error).not.toContainText('passwd');
 });
+
+test.describe('with a viewer password', () => {
+  let pw;
+  test.beforeAll(async () => { pw = await startServer({ passwords: { 'viewer:demo': 'clase-2026' } }); });
+  test.afterAll(async () => pw?.close());
+
+  test('too many tries in a row: the page says when to retry and counts down', async ({ page }) => {
+    await page.goto(`${pw.url}/demo/login?as=viewer`);
+    const button = page.locator('button[type=submit]');
+    const error = page.locator('.form-error');
+    for (let i = 0; i < 3; i++) {
+      await page.fill('#password', `mal-${i}`);
+      await button.click();
+      await expect(error).toHaveText('Contraseña incorrecta.');
+      await expect(button).toBeEnabled();
+    }
+    await page.fill('#password', 'clase-2026');
+    await button.click();
+    await expect(error).toHaveText(/^Demasiados intentos\. Podrás volver a probar en [1-5] s\.$/);
+    await expect(button).toBeDisabled();
+    await expect(button).toHaveText(/^Espera [1-5] s$/);
+    await expect(button).toHaveText('Entrar', { timeout: 7000 });
+    await expect(button).toBeEnabled();
+    await expect(error).toBeHidden();
+    await button.click();
+    await expect(page).toHaveURL(/\/demo\/view$/);
+  });
+});

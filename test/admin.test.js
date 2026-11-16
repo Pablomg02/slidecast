@@ -20,7 +20,7 @@ async function setup(t, { single = false } = {}) {
   await app.slidecast.auth.setPassword('admin', null, 'admin-password');
   const login = await app.inject({ method: 'POST', url: '/api/login', headers: REMOTE, payload: { scope: 'admin', password: 'admin-password' } });
   assert.equal(login.statusCode, 204);
-  const cookie = `sc_session=${login.cookies[0].value}`;
+  const cookie = `sc_session=${login.cookies.find((c) => c.name === 'sc_session').value}`;
   const as = (opts) => app.inject({ ...opts, headers: { ...REMOTE, cookie, ...opts.headers } });
   return { app, dirs, as, cookie };
 }
@@ -52,7 +52,7 @@ test('every admin route answers 403 without an admin session', async (t) => {
   // A presenter session is not an admin session.
   await app.slidecast.auth.setPassword('presenter', null, 'presenter-pass');
   const p = await app.inject({ method: 'POST', url: '/api/login', headers: REMOTE, payload: { scope: 'presenter', password: 'presenter-pass' } });
-  const res = await app.inject({ url: '/api/admin/decks', headers: { ...REMOTE, cookie: `sc_session=${p.cookies[0].value}` } });
+  const res = await app.inject({ url: '/api/admin/decks', headers: { ...REMOTE, cookie: `sc_session=${p.cookies.find((c) => c.name === 'sc_session').value}` } });
   assert.equal(res.statusCode, 403);
   assert.deepEqual(await readdir(dirs.dataDir), ['talk'], 'nothing deleted');
 });
@@ -120,7 +120,7 @@ test('changing the admin password keeps the requester signed in on a new session
   const { app, cookie } = await setup(t);
   const res = await app.inject({ method: 'PUT', url: '/api/admin/passwords', headers: { ...REMOTE, cookie }, payload: { scope: 'admin', password: 'new-admin-password1' } });
   assert.equal(res.statusCode, 204);
-  const fresh = `sc_session=${res.cookies[0].value}`;
+  const fresh = `sc_session=${res.cookies.find((c) => c.name === 'sc_session').value}`;
   assert.notEqual(fresh, cookie);
   assert.equal((await app.inject({ url: '/api/admin/settings', headers: { ...REMOTE, cookie } })).statusCode, 403);
   assert.equal((await app.inject({ url: '/api/admin/settings', headers: { ...REMOTE, cookie: fresh } })).statusCode, 200);
