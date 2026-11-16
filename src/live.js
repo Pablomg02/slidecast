@@ -232,7 +232,7 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
   const validSlideId = (v) => typeof v === 'string' && v.length > 0 && v.length <= 200 && !/[\0-\x1f]/.test(v);
 
   // {t: 'poll', action, slide}; false if invalid. The text comes from
-  // deck.json, never from the message (D2), so show and reset read it first;
+  // deck.json, never from the message (D2), so show reads it first;
   // the queue keeps a room's commands in the order they came (D4).
   function pollCommand(s, client, msg) {
     if (!POLL_ACTIONS.has(msg.action)) return false;
@@ -251,6 +251,8 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
     let changed;
     if (action === 'hide') {
       changed = s.polls.hide();
+    } else if (action === 'reset') {
+      changed = s.polls.reset(slide);
     } else if (action === 'open' || action === 'close') {
       changed = s.polls.setOpen(slide, action === 'open');
     } else {
@@ -260,8 +262,8 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
       if (decks.get(s.slug) !== s || s.epoch !== epoch) return;
       const def = meta && Object.hasOwn(meta.slides, slide) ? pollOf(meta.slides[slide]) : null;
       const had = s.polls.get(slide);
-      changed = action === 'show' ? s.polls.show(slide, def) : s.polls.reset(slide, def);
-      if (!changed && action === 'show') {
+      changed = s.polls.show(slide, def);
+      if (!changed) {
         send(client, { t: 'error', code: 'no-poll' });
         if (had && !s.polls.get(slide)) sendPolls(s); // an unanswered run whose poll is gone
         return;

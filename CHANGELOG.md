@@ -14,7 +14,8 @@ include breaking changes, always listed here.
   (a **Poll** tab on a computer, a pop-up on a phone) and the projector show
   the results live and anonymous; viewers see them once answers close. A poll
   stays on the screens until taken off, keeps its answers when hidden, and
-  answers can be closed, reopened or reset. The demo deck has one.
+  answers can be closed, reopened or reset (back to before it was
+  launched). The demo deck has one.
 - Viewer: Enter or Space on a focused button (raise hand, poll) presses it
   instead of moving the slide.
 - Updating a deck now also lists the slides whose poll would be deleted.

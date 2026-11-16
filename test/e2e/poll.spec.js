@@ -153,14 +153,19 @@ test('closing answers shows participants the results; a hidden poll comes back a
   await expect(v.locator('#poll-answer-0')).toBeChecked();
   await expect(result(card(p), 0)).toHaveText('1 · 100%');
 
-  // Reset asks once more, then starts again with no answers.
+  // Reset asks once more, then takes it back to before it was launched.
   const reset = card(p).locator('[data-action=reset]');
   await reset.click();
   await expect(reset).toHaveText('Delete the answers?');
   await reset.click();
-  await expect(card(p)).toContainText('0 answers');
+  await expect(v.locator('#poll-panel')).toBeHidden();
+  await expect(p.locator('.p-poll-slide')).toContainText('Not launched');
+  await expect(reset).toHaveText('Reset');
+  await p.locator('.p-poll-slide [data-action=launch]').click();
+  await expect(v.locator('#poll-panel')).toBeVisible();
   await expect(v.locator('#poll-answer-0')).not.toBeChecked();
   await expect(v.locator('#poll-send')).toHaveText('Send answer');
+  await expect(card(p)).toContainText('0 answers');
   await Promise.all([pc.close(), vc.close()]);
 });
 
@@ -223,7 +228,6 @@ test('phone presenter: a strip launches the poll and "See" opens the results in 
   const { page: p, context: pc } = await presenter(browser, { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   const { page: v, context: vc } = await participant(browser);
   await expect(p.locator('#tab-poll')).toBeHidden();
-  await expect(p.locator('#poll-strip')).toContainText('This slide has a poll');
   await p.locator('#poll-launch').tap();
   await expect(p.locator('#poll-strip')).toContainText('On screens · 0 answers');
   await expect(p.locator('#poll-dialog')).toBeHidden();
@@ -286,7 +290,6 @@ test('closing the room takes the poll away from participants; reopened, nothing 
   await expect(v.locator('.room-notice')).toContainText('This room is closed');
   await expect(v.locator('#poll-panel')).toBeHidden();
   await expect(p.locator('.p-poll-shown')).toBeHidden();
-  await expect(p.locator('#poll-strip')).toContainText('This slide has a poll');
   await patchRoom({ open: true });
   await expect(v.locator('.room-notice')).toBeHidden(); // the page reloads and joins again
   await expect(v.locator('#who')).toBeVisible();

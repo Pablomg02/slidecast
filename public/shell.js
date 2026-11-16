@@ -340,20 +340,24 @@ export function toggleFullscreen() {
 }
 
 // A button that asks once more before acting ("Remove?"), for 3 seconds.
-// `armed` survives the list being redrawn while it waits.
+// `armed` survives the list being redrawn while it waits. The button goes back
+// to its label once it acts, or when it is no longer the one waiting: a button
+// kept across updates (a poll card) must not stay on "Remove?".
 export function confirmButton(label, confirmLabel, key, onConfirm, armed) {
   const btn = el('button.small.danger', { type: 'button' }, label);
-  if (armed.key === key && armed.until > Date.now()) btn.textContent = confirmLabel;
+  const waiting = () => armed.key === key && armed.until > Date.now();
+  if (waiting()) btn.textContent = confirmLabel;
   btn.addEventListener('click', () => {
-    if (armed.key === key && armed.until > Date.now()) {
+    if (waiting()) {
       armed.key = null;
+      btn.textContent = label;
       onConfirm();
       return;
     }
     armed.key = key;
     armed.until = Date.now() + 3000;
     btn.textContent = confirmLabel;
-    setTimeout(() => { if (armed.key === key && armed.until <= Date.now()) btn.textContent = label; }, 3100);
+    setTimeout(() => { if (!waiting()) btn.textContent = label; }, 3100);
   });
   return btn;
 }

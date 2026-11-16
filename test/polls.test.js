@@ -118,12 +118,14 @@ test('a run takes a new text only while nobody has answered it', () => {
   polls.hide();
   polls.show('quiz', { ...QUIZ, question: 'Changed again', multiple: false });
   assert.equal(polls.shown.question, 'Largest planet?', 'answered: the snapshot stays');
-  assert.equal(polls.reset('quiz', { ...QUIZ, question: 'Changed again', multiple: false }), true);
-  assert.equal(polls.shown.question, 'Changed again');
-  assert.equal(polls.shown.ballots.size, 0);
-  assert.equal(polls.reset('quiz', null), true, 'gone from deck.json: the run goes');
+  assert.equal(polls.reset('quiz'), true, 'reset: as if never launched');
   assert.equal(polls.shown, null);
   assert.equal(polls.size, 0);
+  assert.equal(polls.reset('quiz'), false, 'nothing left to reset');
+  polls.show('quiz', { ...QUIZ, question: 'Changed again', multiple: false });
+  assert.equal(polls.shown.question, 'Changed again', 'launched again: the current text');
+  assert.equal(polls.shown.ballots.size, 0);
+  assert.equal(polls.shown.open, true);
 });
 
 test('a room keeps at most 100 runs, dropping the one shown longest ago', () => {
@@ -257,7 +259,7 @@ test('a hidden poll keeps its answers; showing another hides it; showing it agai
   assert.deepEqual(back.poll.results, { counts: [0, 1, 0], voters: 1 });
 });
 
-test('reset clears the answers and opens a new run; incomplete or unknown polls cannot be shown', async (t) => {
+test('reset takes the poll off the screens with its answers, as if never launched; incomplete or unknown polls cannot be shown', async (t) => {
   const { presenter, viewer } = await setup(t);
   const p = await presenter();
   const v = viewer();
@@ -267,12 +269,17 @@ test('reset clears the answers and opens a new run; incomplete or unknown polls 
   await v.next(isPoll((m) => m.mine));
   p.send({ t: 'poll', action: 'close', slide: 'quiz' });
   p.send({ t: 'poll', action: 'reset', slide: 'quiz' });
+  const gone = await v.next(isPoll((m) => m.poll === null));
+  assert.equal(gone.mine, null);
+  const none = await p.next(isPolls((m) => !runOf(m, 'quiz')));
+  assert.equal(none.shown, null);
+  v.send({ t: 'vote', id: poll.id, choice: [1] });
+  await v.next(isError('poll-gone'));
+  p.send({ t: 'poll', action: 'show', slide: 'quiz' });
   const fresh = await v.next(isPoll((m) => m.poll && m.poll.id !== poll.id));
   assert.equal(fresh.mine, null);
   assert.equal(fresh.poll.open, true);
   assert.deepEqual(runOf(await p.next(isPolls((m) => runOf(m, 'quiz')?.id === fresh.poll.id)), 'quiz').counts, [0, 0, 0]);
-  v.send({ t: 'vote', id: poll.id, choice: [1] });
-  await v.next(isError('poll-gone'));
 
   for (const slide of ['half', 'nope', '__proto__']) {
     p.send({ t: 'poll', action: 'show', slide });
@@ -401,7 +408,7 @@ test('an answer sent after "close answers" waits behind it and is refused', asyn
   p.send({ t: 'poll', action: 'show', slide: 'quiz' });
   const { poll } = await v.next(isPoll((m) => m.poll));
   const restore = slowMeta(ctx, 150);
-  p.send({ t: 'poll', action: 'reset', slide: 'gas' }); // a slow command first: no run, nothing happens
+  p.send({ t: 'poll', action: 'show', slide: 'half' }); // a slow command first: half written, nothing happens
   p.send({ t: 'poll', action: 'close', slide: 'quiz' });
   await new Promise((r) => setTimeout(r, 30));
   v.send({ t: 'vote', id: poll.id, choice: [1] });

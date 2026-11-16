@@ -122,18 +122,12 @@ export function createPolls() {
       return true;
     },
 
-    // Clears the answers and takes the current text, open again. With no
-    // text left in deck.json the run goes away.
-    reset(slide, def) {
-      const run = runs.get(slide);
-      if (!run) return false;
-      if (!def) {
-        runs.delete(slide);
-        if (shown === slide) shown = null;
-        return true;
-      }
-      define(run, def);
-      run.open = true;
+    // As if never launched: the run and its answers go, and it leaves the
+    // screens if it was on them. Launching it again takes the current text.
+    reset(slide) {
+      if (!runs.has(slide)) return false;
+      runs.delete(slide);
+      if (shown === slide) shown = null;
       return true;
     },
 

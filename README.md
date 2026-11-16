@@ -273,7 +273,8 @@ slide's notes) or in `deck.json` ([deck format](docs/deck-format.md#deckjson)).
   you go on through the slides. **Close answers** / **Reopen answers** stop
   and resume voting; **Take off the screens** hides it, keeping its answers,
   and back on its slide **Show again** brings it back as it was. **Reset**
-  deletes the answers and starts again. Launching another slide's poll puts
+  takes it back to before it was launched: off the screens, with no answers,
+  ready to launch again (when you give the talk again, or to another group). Launching another slide's poll puts
   it in place of the one on the screens, so a quiz with a poll per slide
   takes one click per question.
 
