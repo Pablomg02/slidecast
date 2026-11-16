@@ -29,6 +29,13 @@ simplest deck: upload it as a `.html` file from the admin panel.
     "intro": {
       "notes": "Markdown shown to the presenter on every step of this slide.",
       "steps": { "2": "Markdown shown only on step 2 of this slide." }
+    },
+    "quiz": {
+      "poll": {
+        "question": "Which planet is the largest?",
+        "options": ["Mars", "Jupiter", "Venus"],
+        "multiple": false
+      }
     }
   }
 }
@@ -41,14 +48,21 @@ simplest deck: upload it as a `.html` file from the admin panel.
 | `aspect` | Shape of the slide in the presenter and editor views, `"W:H"`. | `"16:9"` |
 | `viewerNav` | What viewers may do: `follow` (locked to the presenter), `back` (may look back, never past the live step), `free` (anywhere). The presenter can change it live. | `"back"` |
 | `cover` | Path of the deck's thumbnail image inside the folder (png, jpg, webp, avif, gif or svg). | `cover.webp`, `cover.png`, `cover.jpg`, `cover.jpeg`, `cover.avif` or `cover.svg` if present; otherwise a live miniature of the first slide |
-| `slides` | Notes per slide id: `notes` for the whole slide, `steps` for individual steps (keys are step numbers). | `{}` |
+| `slides` | Per slide id: `notes` for the whole slide, `steps` for individual steps (keys are step numbers), and an optional `poll`. | `{}` |
+
+A slide's `poll` is launched from the presenter view on any step of that
+slide; the audience answers it on their devices. `question` (up to 300
+characters) and `options` (2 to 10 answers of up to 150 characters) are plain
+text; `multiple: true` lets each person choose several answers (default: one).
+A poll without a question or with fewer than two answers is kept but cannot
+be launched. The notes editor writes polls too.
 
 Notes are Markdown. Raw HTML in notes is shown as text, not rendered. Any other
 field, at the top level or inside a slide, is kept untouched when slidecast
 saves the file, so you can store your own data there. The admin panel's notes
 editor writes this file for you.
 
-Notes belong to a slide's **id**, so give slides stable names (`intro`,
+Notes and polls belong to a slide's **id**, so give slides stable names (`intro`,
 `results`), not positions (`s1`, `s2`, `s3`): when you update a deck from the
 admin panel, notes are kept for every slide id the new version still has, and
 deleted for the ids it no longer has. Renaming an id loses its notes; ids
@@ -191,6 +205,9 @@ Write a presentation as ONE self-contained index.html file for slidecast.
   the data-interactive attribute.
 - Also write deck.json with {"slidecast": 1, "title": "…", "slides": {"<slide id>":
   {"notes": "speaker notes in Markdown", "steps": {"1": "note for step 1"}}}}.
+- For a question to the audience, give that slide a poll in deck.json:
+  "poll": {"question": "…", "options": ["…", "…"], "multiple": false}
+  (2 to 10 short plain-text answers; "multiple": true allows several).
 ```
 
 Start from `slidecast new my-talk`, which copies the demo deck, if you prefer

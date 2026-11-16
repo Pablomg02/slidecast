@@ -31,9 +31,11 @@ function stepNotes(entry) {
   return s && typeof s === 'object' && !Array.isArray(s) ? s : null;
 }
 
+// Notes, step notes or a poll (D10 of 0006): what an update would delete.
 function hasNotes(entry) {
   if (!entry || typeof entry !== 'object') return false;
   if (typeof entry.notes === 'string' && entry.notes !== '') return true;
+  if (entry.poll && typeof entry.poll === 'object') return true;
   const s = stepNotes(entry);
   return Boolean(s) && Object.keys(s).length > 0;
 }

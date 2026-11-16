@@ -1,32 +1,13 @@
 // The presenter's view of the room (0003): raised hands and the people in it.
 // Every presenter sees the same lists; their actions go to the server, which
 // sends the new lists to all of them.
-import { t, el, icon, participantLabel, participantNumber } from './shell.js';
+import { t, el, icon, participantLabel, participantNumber, confirmButton } from './shell.js';
 
 const STATE_ORDER = { attending: 0, queued: 1, raised: 2 };
 
 function ago(ms) {
   const m = Math.floor(ms / 60_000);
   return m < 1 ? t('agoNow') : t('agoMin', { m });
-}
-
-// A button that asks once more before acting ("Remove?"), for 3 seconds.
-// `armed` survives the list being redrawn while it waits.
-function confirmButton(label, confirmLabel, key, onConfirm, armed) {
-  const btn = el('button.small.danger', { type: 'button' }, label);
-  if (armed.key === key && armed.until > Date.now()) btn.textContent = confirmLabel;
-  btn.addEventListener('click', () => {
-    if (armed.key === key && armed.until > Date.now()) {
-      armed.key = null;
-      onConfirm();
-      return;
-    }
-    armed.key = key;
-    armed.until = Date.now() + 3000;
-    btn.textContent = confirmLabel;
-    setTimeout(() => { if (armed.key === key && armed.until <= Date.now()) btn.textContent = label; }, 3100);
-  });
-  return btn;
 }
 
 export function createRoomPanels({ send }) {

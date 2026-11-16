@@ -58,13 +58,19 @@ export function createRooms(ctx) {
 
 const CONTROL = /(?!\u200d)[\p{Cc}\p{Cf}\u2028\u2029]/gu;
 
-// Display name: NFC, no control characters, spaces collapsed. Empty → null
-// (anonymous). Not a string → undefined (invalid).
+// One line of text: NFC, no control characters, spaces collapsed, at most
+// `max` characters (code points).
+export function cleanLine(v, max) {
+  const s = v.normalize('NFC').replace(CONTROL, ' ').replace(/\s+/gu, ' ').trim();
+  return [...s].slice(0, max).join('').trim();
+}
+
+// Display name: a clean line. Empty → null (anonymous). Not a string →
+// undefined (invalid).
 export function cleanName(v) {
   if (v === null) return null;
   if (typeof v !== 'string' || v.length > 400) return undefined;
-  const s = v.normalize('NFC').replace(CONTROL, ' ').replace(/\s+/gu, ' ').trim();
-  return s ? [...s].slice(0, MAX_NAME).join('') : null;
+  return cleanLine(v, MAX_NAME) || null;
 }
 
 // Hand note: like a name, but line breaks survive (at most MAX_NOTE_LINES lines).

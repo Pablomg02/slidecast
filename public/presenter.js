@@ -8,6 +8,7 @@ import {
 } from './shell.js';
 import { renderMarkdown } from './markdown.js';
 import { createRoomPanels } from './presenter-room.js';
+import { createPresenterPoll } from './presenter-poll.js';
 
 const slug = slugFromPath();
 const app = document.getElementById('app');
@@ -76,11 +77,21 @@ const editNotes = el('a.button', { id: 'edit-notes', href: `/admin/edit/${encode
 const slideToggle = el('button.p-slide-toggle', { id: 'slide-toggle', onclick: () => setSlideFolded(!slideFolded) },
   icon('chevron'), el('span.label'));
 
-// Notes, raised hands and people share the side panel, as tabs.
+// Notes, the poll, raised hands and people share the side panel, as tabs.
+// The Poll tab exists only on a computer while there is a poll to show; on a
+// phone "See" opens the same panel in a pop-up (D9 of 0006).
 const panels = createRoomPanels({ send: (msg) => conn.send(msg) });
+const poll = createPresenterPoll({
+  send: (msg) => conn.send(msg),
+  onSee: () => (desktop.matches ? setTab('poll') : openPollDialog()),
+  onLaunch: () => { if (desktop.matches) setTab('poll'); },
+});
+poll.setNotes(notes);
 const handsCount = el('span.p-tab-count', { hidden: true });
+const pollCount = el('span.p-tab-count', { hidden: true });
 const tabs = {
   notes: el('button.p-tab', { type: 'button', role: 'tab', id: 'tab-notes', onclick: () => setTab('notes') }, t('notes')),
+  poll: el('button.p-tab', { type: 'button', role: 'tab', id: 'tab-poll', hidden: true, onclick: () => setTab('poll') }, t('poll'), pollCount),
   hands: el('button.p-tab', { type: 'button', role: 'tab', id: 'tab-hands', onclick: () => setTab('hands') }, t('tabHands'), handsCount),
   people: el('button.p-tab', { type: 'button', role: 'tab', id: 'tab-people', onclick: () => setTab('people') }, t('tabPeople')),
 };
@@ -90,7 +101,9 @@ const fontBox = el('div.p-font', {}, fontSteps, fontToggle);
 // width never shifts the toolbar.
 const notesBox = el('section.p-notes', {},
   el('div.p-notes-head', {}, el('div.p-tabs', { role: 'tablist' }, Object.values(tabs)), roomClosed, slideId, slideToggle),
+  poll.strip,
   notesBody,
+  poll.panel,
   panels.handsPanel,
   panels.peoplePanel,
   fontBox);
@@ -343,6 +356,8 @@ function render() {
   if (current.readyState && current.index !== live.index) current.go(live.index);
   renderNext();
   renderNotes();
+  poll.setSlide(step?.slide ?? null);
+  renderPollTab();
 }
 
 // ---- tabs and room -----------------------------------------------------------
@@ -350,17 +365,56 @@ function render() {
 let tab = 'notes';
 try { tab = localStorage.getItem('slidecast.presenterTab') || 'notes'; } catch { /* storage blocked */ }
 let seenHands = 0;
+// The Poll tab comes and goes with the poll, so it is never remembered.
+const pollTabShown = () => desktop.matches && poll.available();
 function setTab(name) {
-  tab = tabs[name] ? name : 'notes';
+  tab = tabs[name] && (name !== 'poll' || pollTabShown()) ? name : 'notes';
   for (const [k, btn] of Object.entries(tabs)) btn.setAttribute('aria-selected', String(k === tab));
   notesBody.hidden = tab !== 'notes';
   fontBox.hidden = tab !== 'notes';
+  if (!pollDialog.open) poll.panel.hidden = tab !== 'poll';
+  notesBox.classList.toggle('p-tab-poll-on', tab === 'poll');
   panels.handsPanel.hidden = tab !== 'hands';
   panels.peoplePanel.hidden = tab !== 'people';
   if (tab === 'hands') seenHands = panels.handCount();
   renderHandsTab();
-  try { localStorage.setItem('slidecast.presenterTab', tab); } catch { /* storage blocked */ }
+  if (tab !== 'poll') {
+    try { localStorage.setItem('slidecast.presenterTab', tab); } catch { /* storage blocked */ }
+  }
 }
+
+// The tab shows how many answered the poll on the screens.
+function renderPollTab() {
+  tabs.poll.hidden = !pollTabShown();
+  const n = poll.count();
+  pollCount.textContent = String(n ?? 0);
+  pollCount.hidden = n === null;
+  tabs.poll.classList.toggle('p-tab-live', n !== null);
+  if (tab === 'poll' && tabs.poll.hidden) setTab('notes');
+}
+
+// Phone: the poll panel in a pop-up, moved back to its tab when it closes.
+const pollDialogBody = el('div.p-poll-dialog-body');
+const pollDialog = el('dialog.card.p-poll-dialog', { id: 'poll-dialog', 'aria-labelledby': 'poll-dialog-title' },
+  el('div.p-poll-dialog-head', {},
+    el('h2', { id: 'poll-dialog-title' }, icon('poll'), t('poll')),
+    el('button.small', { type: 'button', id: 'poll-dialog-close', onclick: () => pollDialog.close() }, t('close'))),
+  pollDialogBody);
+pollDialog.addEventListener('close', () => {
+  notesBox.insertBefore(poll.panel, panels.handsPanel);
+  setTab(tab);
+});
+document.body.append(pollDialog);
+function openPollDialog() {
+  pollDialogBody.append(poll.panel);
+  poll.panel.hidden = false;
+  if (!pollDialog.open) pollDialog.showModal();
+}
+desktop.addEventListener('change', () => {
+  if (desktop.matches && pollDialog.open) pollDialog.close();
+  renderPollTab();
+  setTab(tab);
+});
 
 // The hands tab shows how many there are, and pulses while new ones are unseen.
 function renderHandsTab() {
@@ -415,10 +469,18 @@ const conn = connectLive(slug, 'presenter', (msg) => {
   } else if (msg.t === 'notes') {
     notes = msg.slides ?? {};
     renderNotes();
+    poll.setNotes(notes);
+    renderPollTab();
   } else if (msg.t === 'room') {
     panels.update(msg);
     renderRoom(msg);
     renderHandsTab();
+    poll.setViewers(msg.viewers);
+  } else if (msg.t === 'polls') {
+    poll.update(msg);
+    renderPollTab();
+  } else if (msg.t === 'error' && msg.code === 'no-poll') {
+    poll.onError(msg.code);
   }
 }, (status) => {
   reconnecting.hidden = status !== 'reconnecting';

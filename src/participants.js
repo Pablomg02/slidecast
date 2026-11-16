@@ -1,9 +1,11 @@
 import { randomBytes } from 'node:crypto';
 import { slidingLimit } from './rooms.js';
 
-// Raising a hand: 2 per 5 s and 4 per 30 s (D13 of 0003); renames: 5 per 30 s.
+// Raising a hand: 2 per 5 s and 4 per 30 s (D13 of 0003); renames: 5 per 30 s;
+// poll answers: 10 per 10 s (D5 of 0006).
 export const RAISE_LIMITS = [{ max: 2, ms: 5000 }, { max: 4, ms: 30_000 }];
 const NAME_LIMITS = [{ max: 5, ms: 30_000 }];
+export const VOTE_LIMITS = [{ max: 10, ms: 10_000 }];
 
 // The participants of one room, in memory only (D5–D7, D13). A participant is
 // found by the hash of its token; presenters only ever see its public id.
@@ -41,6 +43,7 @@ export function createPeople({ graceMs, onExpire = () => {} }) {
         timer: null,
         raises: slidingLimit(RAISE_LIMITS),
         renames: slidingLimit(NAME_LIMITS),
+        votes: slidingLimit(VOTE_LIMITS),
       };
       byId.set(p.id, p);
       byHash.set(hash, p);

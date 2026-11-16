@@ -59,7 +59,7 @@ git-ignored, so you can test with real decks without committing them.
 | `bin/slidecast.js`, `src/cli.js` | Command line: `serve`, `passwd`, `new`. |
 | `src/server.js` | Fastify app: wires the routes, WebSocket and static files. |
 | `src/routes/` | HTTP routes: shell pages, public API, admin API. |
-| `src/live.js` | Live state per deck and the WebSocket protocol. |
+| `src/live.js`, `src/polls.js` | Live state per deck and the WebSocket protocol; polls. |
 | `src/auth.js`, `src/tokens.js`, `src/security.js` | Passwords, sessions, deck tokens, CSRF and security headers. |
 | `src/decks.js`, `src/deckfiles.js`, `src/unzip.js` | Deck folders, serving their files, uploads. |
 | `src/config.js`, `src/store.js`, `src/appearance.js` | Settings and atomic JSON storage. |

@@ -8,9 +8,9 @@ presents and administers. This page lists what it protects, from whom, and how.
 
 | Who | Can | Must not be able to |
 | --- | --- | --- |
-| Anyone with the URL | watch open rooms of decks that have no viewer password, give a name, raise a hand | present, administer, read speaker notes, see other viewers' names or notes, watch a closed room |
+| Anyone with the URL | watch open rooms of decks that have no viewer password, give a name, raise a hand, answer the poll on the screens | present, administer, read speaker notes or polls not yet shown, see other viewers' names, notes or answers, answer twice as the same participant, watch a closed room |
 | Viewer with a deck's viewer password | the same, for that deck | anything else |
-| Presenter | drive the decks their password covers, read their notes, see the room's names and hands, remove viewers | administer, open, hide or close rooms, remove other presenters |
+| Presenter | drive the decks their password covers, read their notes, see the room's names and hands, show polls and their results, remove viewers | administer, open, hide or close rooms, remove other presenters, see who answered what |
 | Admin | everything | — |
 | A deck's own code (written by an AI, downloaded…) | run inside its slide | read sessions, call the API, act as the person viewing it |
 | Another website the admin visits | — | make the admin's browser change anything in slidecast |
@@ -104,6 +104,23 @@ and direction-override characters, shown as text (never HTML), kept in
 memory only, sent only to presenters of that deck, and never written to disk
 or logged. A participant whose page is gone is forgotten after two minutes;
 closing the room, or restarting the server, forgets everyone.
+
+**Polls.** A poll's text is read from the deck's `deck.json` by the server
+when a presenter shows it, never taken from a message, and shown as text
+(never HTML). Participants receive a poll only while it is on the screens,
+and its results only once answers are closed. They can answer only that
+poll, once per participant (a new answer replaces the previous one, from
+any of its windows), with options the server checks; at most 10 answers per
+10 s. A participant is a browser, not a person: like any poll without
+accounts, someone opening private windows, or a script, can answer more than
+once, within the limit of new participants (200 per minute per address, and
+the room's size); *do not admit more people* stops new participants. A
+removed participant's answer is deleted; one whose page has been gone for
+two minutes keeps it. Results are anonymous: presenters and projectors
+receive only counts, and only while their session may still present. The
+server keeps each participant's answer, by its random id, only to show it
+back to them. Answers live in memory only, are never written to disk or
+logged, and are forgotten when the room closes or the server restarts.
 
 **Decks are untrusted code.** Each deck runs in `<iframe sandbox="allow-scripts">`
 without `allow-same-origin`, so it gets an opaque origin: it cannot read

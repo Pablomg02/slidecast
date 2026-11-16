@@ -6,6 +6,19 @@ include breaking changes, always listed here.
 
 ## [Unreleased]
 
+- Live polls. A slide can carry a poll (a question and 2–10 answers, one or
+  several to choose), written in the notes editor or in `deck.json`
+  (`slides.<id>.poll`). The presenter view offers to launch it on its slide;
+  viewers answer on their devices, with the slide shrunk beside the poll (or
+  above it on a phone held upright), and can minimise it. The presenter view
+  (a **Poll** tab on a computer, a pop-up on a phone) and the projector show
+  the results live and anonymous; viewers see them once answers close. A poll
+  stays on the screens until taken off, keeps its answers when hidden, and
+  answers can be closed, reopened or reset. The demo deck has one.
+- Viewer: Enter or Space on a focused button (raise hand, poll) presses it
+  instead of moving the slide.
+- Updating a deck now also lists the slides whose poll would be deleted.
+
 - Presenter view on a computer: drag the dividers between the slide, the
   next slide and the notes to resize them (a taller next slide widens its
   column). The sizes are remembered; double-click a divider for the original

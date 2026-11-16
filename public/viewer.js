@@ -1,11 +1,14 @@
 // Viewer: full-window deck that follows the live step (D15), or drives it when
 // this session can present (projector case, D16). Without presenter rights the
-// viewer is a participant of the room (0003): name, hand, room notices.
+// viewer is a participant of the room (0003): name, hand, room notices. A poll
+// shown by the presenter takes a column beside the slide (0006): participants
+// answer it, the projector shows its results.
 import {
   t, el, api, slugFromPath, setTitle, connectLive, createDeckFrame, keyActionFromEvent,
-  toggleFullscreen, acceptKey,
+  toggleFullscreen, acceptKey, isOwnKey,
 } from './shell.js';
 import { createParticipant } from './participant.js';
+import { createViewerPoll } from './viewer-poll.js';
 
 const slug = slugFromPath();
 const app = document.getElementById('app');
@@ -44,7 +47,11 @@ const controlToggle = el('button.badge.control-toggle', {
 }, t(controlling ? 'stopControlling' : 'takeControl'));
 badges.append(controlBadge, controlToggle, reconnecting);
 app.append(stage, blank, idleCover, liveBtn, badges, message, navHint, noPresenter);
+// The slide's shape, so a phone held upright puts the poll under it.
+const [aw, ah] = String(info.data.aspect || '16:9').split(':').map(Number);
+app.style.setProperty('--ar', String(aw / ah || 16 / 9));
 
+const poll = createViewerPoll(app, { display: info.data.canPresent, badges });
 const participant = info.data.canPresent ? null : createParticipant(app, info.data);
 // A closed room gives its audience no deck: wait for it to open (D4 of 0003).
 const frame = info.data.deckUrl ? createDeckFrame(stage, info.data.deckUrl, { mode: 'live' }) : null;
@@ -121,7 +128,16 @@ const conn = connectLive(slug, controlling ? 'presenter' : 'viewer', (msg) => {
     else participant.onMessage(msg);
     return;
   }
+  if (msg.t === 'poll' || msg.t === 'polls') {
+    poll.onMessage(msg);
+    return;
+  }
+  if (msg.t === 'error' && msg.about === 'poll') {
+    poll.onError(msg);
+    return;
+  }
   if (msg.t !== 'state') {
+    if (msg.t === 'wait') poll.clear(); // the room closed: everything is forgotten
     participant?.onMessage(msg);
     return;
   }
@@ -130,6 +146,7 @@ const conn = connectLive(slug, controlling ? 'presenter' : 'viewer', (msg) => {
   Object.assign(live, msg);
   document.body.dataset.nav = live.viewerNav; // lets the tests wait for a mode change
   blank.hidden = !live.blank;
+  poll.setBlank(live.blank);
   presence(live.presenting);
   if (live.viewerNav === 'follow' && navChanged) attached = true;
   if (!attached && live.viewerNav === 'back' && local > live.index) attached = true;
@@ -141,8 +158,10 @@ const conn = connectLive(slug, controlling ? 'presenter' : 'viewer', (msg) => {
   }
 }, (status) => {
   reconnecting.hidden = status !== 'reconnecting';
+  poll.connection(status);
   if (participant?.status(status)) {
     stage.hidden = true;
+    poll.clear();
     return;
   }
   // No presenter place left for this device: keep showing the deck, without control.
@@ -150,6 +169,7 @@ const conn = connectLive(slug, controlling ? 'presenter' : 'viewer', (msg) => {
   else if (status === 'denied' || status === 'again') location.reload();
 }, { hello: participant?.hello });
 participant?.attach((msg) => conn.send(msg));
+poll.attach((msg) => conn.send(msg));
 
 frame?.onReady(({ steps }) => {
   ready = true;
@@ -202,6 +222,7 @@ function onAction(action) {
 
 frame?.onInput(onAction);
 window.addEventListener('keydown', (e) => {
+  if (isOwnKey(e)) return; // Enter or Space on a button: the button's own
   const action = keyActionFromEvent(e);
   if (!action) return;
   e.preventDefault();

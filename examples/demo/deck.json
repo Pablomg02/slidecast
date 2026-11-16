@@ -15,7 +15,16 @@
       }
     },
     "roles": {
-      "notes": "Presenter and admin need a password unless you run slidecast on your own machine."
+      "notes": "Presenter and admin need a password unless you run slidecast on your own machine.",
+      "poll": {
+        "question": "Which role will you try first?",
+        "options": [
+          "Viewer",
+          "Presenter",
+          "Admin"
+        ],
+        "multiple": false
+      }
     },
     "keys": {
       "notes": "`B` blanks every viewer screen. Press it again to come back."

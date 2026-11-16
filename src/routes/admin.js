@@ -204,9 +204,9 @@ export function registerAdmin(app, ctx) {
 
     scope.put('/api/admin/decks/:slug/slides/:slideId', async (req, reply) => {
       const { slug, slideId } = req.params;
-      const { notes, steps } = req.body ?? {};
+      const { notes, steps, poll } = req.body ?? {};
       try {
-        const meta = await decks.updateSlide(slug, slideId, { notes, steps });
+        const meta = await decks.updateSlide(slug, slideId, { notes, steps, poll });
         live.notifyNotes(slug, meta.slides);
         return { slide: meta.slides[slideId] };
       } catch (err) {

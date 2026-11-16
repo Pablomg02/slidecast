@@ -30,10 +30,13 @@ moves with you: the projector, your phone, your audience's laptops.
 - **An audience that takes part**: viewers raise their hand, with an optional
   note, and you queue and answer them from the presenter view. They can give
   a name only you see, or stay anonymous.
+- **Live polls**: give a slide a question with its answers; launch it from the
+  presenter view and everyone answers from their own device while the results,
+  anonymous, fill in live on your screen and the projector.
 - **Rooms you open and close**: open the deck you are about to present with
   one click; the main address takes everyone to it.
-- **Notes in the browser**: write them slide by slide in the admin panel;
-  they are saved next to the deck.
+- **Notes and polls in the browser**: write them slide by slide in the admin
+  panel; they are saved next to the deck.
 - **Made for AI decks**: a deck is just a folder with an `index.html`. The
   [deck format](docs/deck-format.md) includes a prompt to give your AI
   assistant.
@@ -170,8 +173,9 @@ add what your talk is about, and upload the `index.html` it gives you.
 To start from a working example instead, run
 `node bin/slidecast.js new my-talk` and edit `decks/my-talk/index.html`.
 
-Speaker notes are written in the admin panel (**Edit notes**). They are
-stored in a `deck.json` file next to the deck, so they travel with it. While
+Speaker notes, and each slide's poll, are written in the admin panel
+(**Edit notes**). They are stored in a `deck.json` file next to the deck, so
+they travel with it (your AI assistant can write polls there too). While
 presenting, an admin also finds **Edit notes** next to **Open viewer**: it
 opens the editor in a new tab at the slide being shown, and saved notes reach
 the presenter view at once.
@@ -244,6 +248,35 @@ presenter view:
 - The admin can also remove another presenter's device; that device then
   needs the password again.
 
+### Polls
+
+A slide can carry a poll: a question and 2 to 10 answers, with one answer or
+several allowed. Write it in the notes editor (**Add a poll**, under the
+slide's notes) or in `deck.json` ([deck format](docs/deck-format.md#deckjson)).
+
+- **Launch it.** On a slide with a poll, the presenter view says so above the
+  notes: **Launch poll**. On a computer the **Poll** tab then shows the
+  results growing as answers arrive; on a phone, **See** opens them in a
+  pop-up.
+- **The audience answers on their devices.** On a computer, or a phone on its
+  side, the slide shrinks and the poll appears on its right; on a phone held
+  upright, under the slide. Each participant answers once and may change
+  their answer while answers are open; the poll can be minimised to look at
+  the slide, and comes back with one tap. As in any poll without accounts,
+  someone could answer again from a private window: **Do not admit more
+  people** (in **People**) stops that once everyone is in.
+- **The results are anonymous** and live on the presenter view and on the
+  projector (the viewer window of the presenter, controlling or not), never
+  saying who answered what. Viewers see them on their own device once you
+  close the answers, so they do not lean towards the leading answer.
+- **It stays until you take it away.** The poll stays on the screens while
+  you go on through the slides. **Close answers** / **Reopen answers** stop
+  and resume voting; **Take off the screens** hides it, keeping its answers,
+  and back on its slide **Show again** brings it back as it was. **Reset**
+  deletes the answers and starts again. Launching another slide's poll puts
+  it in place of the one on the screens, so a quiz with a poll per slide
+  takes one click per question.
+
 In each deck's **Settings** you can set how many presenters (devices, 1–20,
 20 by default) and viewers (1–1000, 200 by default) a room takes at once, and
 turn off names or hands. The admin is never turned away by the presenter
@@ -292,9 +325,10 @@ Decks run in a sandbox: a deck written by an AI or downloaded from the
 Internet cannot read your passwords or act as the admin. Details in
 [docs/security.md](docs/security.md).
 
-Viewers' names and hand notes are kept in memory only while the room is open:
-they are never written to disk or to the logs, never shown to other viewers,
-and they are gone when the room closes or slidecast restarts.
+Viewers' names, hand notes and poll answers are kept in memory only while the
+room is open: they are never written to disk or to the logs, never shown to
+other viewers, and they are gone when the room closes or slidecast restarts.
+Poll results reach presenters only as counts.
 
 ## Updating
 

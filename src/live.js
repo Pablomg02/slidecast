@@ -6,6 +6,7 @@ import { VIEWER_NAV } from './decks.js';
 import { clientIp, createFailureLimit } from './auth.js';
 import { cleanName, cleanNote, slidingLimit } from './rooms.js';
 import { createPeople } from './participants.js';
+import { createPolls, pollOf } from './polls.js';
 
 export const MAX_MESSAGE = 4096;
 const HEARTBEAT_MS = 25_000;
@@ -35,7 +36,8 @@ const sha256 = (s) => createHash('sha256').update(s).digest('hex');
 const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
 
 // Per-deck live state, role-checked commands and broadcasts (D2, D3, D15, D25,
-// D26 of 0001), plus the room: participants, hands and limits (0003).
+// D26 of 0001), plus the room: participants, hands and limits (0003), and
+// its polls (0006).
 export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GRACE_MS } = {}) {
   const livePath = join(ctx.stateDir, 'live.json');
   const persisted = await readJson(livePath, {}).catch(() => ({}));
@@ -78,6 +80,11 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
       banned: new Set(), // token hashes kicked out until the room closes
       locked: false,
       roomTimer: null,
+      polls: createPolls(),
+      pollTimer: null,
+      pollQueue: Promise.resolve(), // poll commands, one after the other (D4 of 0006)
+      pollPending: 0, // tasks in that queue
+      epoch: 0, // +1 each time the room closes
     };
     s.people = createPeople({ graceMs, onExpire: () => handsChanged(s) });
     decks.set(slug, s);
@@ -178,6 +185,100 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
     for (const p of changed) you(s, p);
     for (const p of s.people.queue()) if (!seen.has(p)) you(s, p);
     roomChanged(s);
+  }
+
+  // ---- polls (0006) -------------------------------------------------------------
+
+  // Every run, counts only, to presenters and displays (D6, D7).
+  function sendPolls(s, only = null) {
+    if (!only) {
+      clearTimeout(s.pollTimer);
+      s.pollTimer = null;
+    }
+    const msg = JSON.stringify(s.polls.forPresenters());
+    for (const c of only ? [only] : s.clients) {
+      if (!isPresenterKind(c)) continue;
+      // Live counts only to windows that may still present: a projector
+      // whose session ended reloads as a participant (D7).
+      if (!ctx.auth.canPresent(c.req, s.slug)) {
+        c.socket.close(CLOSE.unauthorized, 'unauthorized');
+        continue;
+      }
+      send(c, msg);
+    }
+  }
+
+  // While answers arrive: at most every 300 ms (1 s above 200 participants).
+  function pollsSoon(s) {
+    if (s.pollTimer) return;
+    s.pollTimer = setTimeout(() => sendPolls(s), s.people.size > 200 ? 1000 : 300);
+    s.pollTimer.unref?.();
+  }
+
+  // The shown poll and its own answer, to each window of a participant;
+  // `ack` when it answers that participant's own answer.
+  function sendPoll(s, p, ack = false) {
+    const msg = JSON.stringify(ack ? { ...s.polls.forParticipant(p.id), ack: true } : s.polls.forParticipant(p.id));
+    for (const c of p.sockets) send(c, msg);
+  }
+
+  // A poll was shown, hidden, opened, closed or reset: everyone at once.
+  function pollChanged(s) {
+    sendPolls(s);
+    for (const p of s.people.all()) if (p.sockets.size) sendPoll(s, p);
+  }
+
+  const POLL_ACTIONS = new Set(['show', 'hide', 'open', 'close', 'reset']);
+  const validSlideId = (v) => typeof v === 'string' && v.length > 0 && v.length <= 200 && !/[\0-\x1f]/.test(v);
+
+  // {t: 'poll', action, slide}; false if invalid. The text comes from
+  // deck.json, never from the message (D2), so show and reset read it first;
+  // the queue keeps a room's commands in the order they came (D4).
+  function pollCommand(s, client, msg) {
+    if (!POLL_ACTIONS.has(msg.action)) return false;
+    if (msg.action !== 'hide' && !validSlideId(msg.slide)) return false;
+    pollTask(s, () => runPollCommand(s, client, msg));
+    return true;
+  }
+
+  function pollTask(s, fn) {
+    s.pollPending++;
+    s.pollQueue = s.pollQueue.then(fn).catch(() => {}).finally(() => { s.pollPending--; });
+  }
+
+  async function runPollCommand(s, client, msg) {
+    const { action, slide } = msg;
+    let changed;
+    if (action === 'hide') {
+      changed = s.polls.hide();
+    } else if (action === 'open' || action === 'close') {
+      changed = s.polls.setOpen(slide, action === 'open');
+    } else {
+      const epoch = s.epoch;
+      const meta = await ctx.decks.readMeta(s.slug).catch(() => null);
+      // The deck was deleted, or the room closed (forgetting every poll), meanwhile.
+      if (decks.get(s.slug) !== s || s.epoch !== epoch) return;
+      const def = meta && Object.hasOwn(meta.slides, slide) ? pollOf(meta.slides[slide]) : null;
+      const had = s.polls.get(slide);
+      changed = action === 'show' ? s.polls.show(slide, def) : s.polls.reset(slide, def);
+      if (!changed && action === 'show') {
+        send(client, { t: 'error', code: 'no-poll' });
+        if (had && !s.polls.get(slide)) sendPolls(s); // an unanswered run whose poll is gone
+        return;
+      }
+    }
+    if (changed) pollChanged(s);
+  }
+
+  // A participant's answer. While poll commands wait in the queue (a show
+  // reading deck.json), it waits behind them, so an answer sent after "close
+  // answers" is never counted.
+  function vote(s, p, client, msg) {
+    if (s.people.byId(p.id) !== p) return; // removed meanwhile
+    const err = s.polls.vote(p.id, msg.id, msg.choice);
+    sendPoll(s, p, true);
+    if (err) send(client, { t: 'error', code: err, about: 'poll' });
+    else pollsSoon(s);
   }
 
   // The audience is told when nobody with presenter rights is connected.
@@ -283,6 +384,7 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
         send(client, { t: 'notes', slides: (await ctx.decks.readMeta(slug)).slides });
         sendRoom(s, client);
       }
+      sendPolls(s, client);
       roomChanged(s);
     }
     for (const data of queue.splice(0)) onMessage(client, data);
@@ -317,6 +419,7 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
     s.people.attach(p, client);
     send(client, snapshot(s));
     you(s, p, { token });
+    send(client, s.polls.forParticipant(p.id));
     roomChanged(s);
     return undefined;
   }
@@ -358,6 +461,16 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
       p.hand = { state: 'raised', note, at: now };
       s.people.stamp(p.hand, now);
       return handsChanged(s, p);
+    }
+    if (msg.t === 'vote') {
+      // Errors about answers say so (`about`), so the page never takes them
+      // for its hand's. The poll as it is goes back with them.
+      const wait = p.votes.wait(now);
+      if (wait) return send(client, { t: 'error', code: 'slow-down', wait, about: 'poll' });
+      p.votes.hit(now);
+      if (s.pollPending) pollTask(s, () => vote(s, p, client, msg));
+      else vote(s, p, client, msg);
+      return undefined;
     }
     return send(client, { t: 'error', code: 'forbidden' });
   }
@@ -406,10 +519,11 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
   }
 
   const DECK_COMMANDS = new Set(['meta', 'step', 'goto', 'blank', 'nav', 'hands']);
-  const ROOM_COMMANDS = new Set(['hand', 'hands-clear', 'lock', 'kick', 'kick-presenter']);
+  const ROOM_COMMANDS = new Set(['hand', 'hands-clear', 'lock', 'kick', 'kick-presenter', 'poll']);
 
   // Room commands; returns false if invalid.
   function roomCommand(s, client, msg) {
+    if (msg.t === 'poll') return pollCommand(s, client, msg);
     if (msg.t === 'hand') {
       const p = s.people.byId(msg.id);
       if (!p?.hand) return true; // already resolved by another presenter
@@ -457,6 +571,11 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
       for (const c of [...p.sockets]) {
         c.person = null;
         c.socket.close(CLOSE.kicked, 'kicked');
+      }
+      if (s.polls.forget(p.id)) {
+        // Closed answers: participants see the results, which just changed.
+        if (s.polls.shown && !s.polls.shown.open) pollChanged(s);
+        else pollsSoon(s);
       }
       handsChanged(s);
       return true;
@@ -552,9 +671,12 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
     s.banned.clear();
     s.locked = false;
     s.hands = ctx.rooms.settings(s.slug).hands;
+    s.polls.clear();
+    s.epoch++;
     s.rev++;
     broadcast(s);
     sendRoom(s);
+    sendPolls(s);
   }
 
   return {
@@ -569,6 +691,8 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
       for (const c of s.clients) {
         if (c.kind === 'presenter' && ctx.auth.canPresent(c.req, slug)) send(c, { t: 'notes', slides });
       }
+      // A poll edited before anyone answered it shows its new text (D2 of 0006).
+      if (s.polls.refresh(slides)) pollChanged(s);
     },
     // The admin changed the deck's default viewer mode: apply it live too.
     setViewerNav(slug, mode) {
@@ -616,6 +740,7 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
         for (const c of [...s.clients, ...s.parked]) c.socket.close(CLOSE.noDeck, 'no-deck');
         s.people.clear();
         clearTimeout(s.roomTimer);
+        clearTimeout(s.pollTimer);
         decks.delete(slug);
       } else {
         s.rev++;
@@ -627,6 +752,7 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
       for (const s of decks.values()) {
         s.people.clear();
         clearTimeout(s.roomTimer);
+        clearTimeout(s.pollTimer);
       }
       if (persistTimer) await persistNow();
     },

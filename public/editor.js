@@ -1,7 +1,11 @@
-// Notes editor: walk the deck step by step and write slide and step notes.
-// Saved to deck.json through the admin API; the live hub is never touched.
-import { t, el, api, setTitle, createDeckFrame, keyActionFromEvent, isOwnKey } from './shell.js';
+// Notes editor: walk the deck step by step and write slide and step notes,
+// and each slide's poll (0006). Saved to deck.json through the admin API; the
+// live hub only hears of it to update presenters.
+import {
+  t, el, api, setTitle, createDeckFrame, keyActionFromEvent, isOwnKey, icon, confirmButton,
+} from './shell.js';
 import { renderMarkdown } from './markdown.js';
+import { POLL_LIMITS, letter, pollOf } from './poll.js';
 
 const slug = decodeURIComponent(location.pathname.split('/')[3] ?? '');
 const app = document.getElementById('app');
@@ -12,6 +16,38 @@ setTitle(`${t('edit')} · ${deck.title}`);
 
 const notes = structuredClone(deck.notes ?? {});
 const dirty = new Set();
+// Slides whose poll was changed here: only those send it, so saving notes
+// never touches a poll written elsewhere meanwhile.
+const pollTouched = new Set();
+// Slides whose poll in deck.json was not valid (written by hand or by an AI):
+// shown corrected, with a warning, and saved corrected with the next change.
+const pollFixed = new Set();
+
+// A poll from deck.json in a shape the form can hold (and the API accepts).
+function editablePoll(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const clip = (v, max) => [...v].slice(0, max).join('');
+  const options = (Array.isArray(raw.options) ? raw.options : [])
+    .filter((o) => typeof o === 'string').slice(0, POLL_LIMITS.options).map((o) => clip(o, POLL_LIMITS.option));
+  const question = typeof raw.question === 'string' ? clip(raw.question, POLL_LIMITS.question) : '';
+  return { question, options, multiple: raw.multiple === true };
+}
+for (const [id, entry] of Object.entries(notes)) {
+  if (!entry || typeof entry !== 'object' || !('poll' in entry)) continue;
+  const raw = entry.poll;
+  const poll = editablePoll(raw);
+  const same = poll && JSON.stringify(poll) === JSON.stringify({ question: raw.question, options: raw.options, multiple: raw.multiple ?? false });
+  if (!same) {
+    pollFixed.add(id);
+    pollTouched.add(id);
+  }
+  if (poll) entry.poll = poll;
+  else delete entry.poll;
+}
+const hasPoll = (slideId) => {
+  const p = notes[slideId]?.poll;
+  return Boolean(p && (p.question.trim() || p.options.some((o) => o.trim())));
+};
 let index = 0;
 let saveTimer = null;
 let saving = false;
@@ -28,6 +64,31 @@ const stepLabel = el('label', { htmlFor: 'step-note' });
 const slideArea = el('textarea', { id: 'slide-notes', rows: 8, spellcheck: true });
 const stepArea = el('textarea', { id: 'step-note', rows: 4, spellcheck: true });
 const preview = el('div.e-preview.p-notes-body', { id: 'preview' });
+
+// The slide's poll: hidden behind "Add a poll" until it has one.
+const pollTitle = el('h3.e-poll-title');
+const pollAdd = el('button', { type: 'button', id: 'poll-add', onclick: () => addPoll() }, icon('poll'), t('pollAdd'));
+const pollQuestion = el('input', { type: 'text', id: 'poll-question', maxLength: POLL_LIMITS.question, autocomplete: 'off' });
+const pollOptions = el('ol.e-poll-options', { id: 'poll-options' });
+const pollAddOption = el('button.small', { type: 'button', id: 'poll-add-option', onclick: () => addOption() }, `+ ${t('pollAddOption')}`);
+const kindSingle = el('input', { type: 'radio', name: 'poll-kind', id: 'poll-kind-single' });
+const kindMultiple = el('input', { type: 'radio', name: 'poll-kind', id: 'poll-kind-multiple' });
+const pollIncomplete = el('p.hint.e-poll-incomplete', { id: 'poll-incomplete' }, t('pollIncomplete'));
+const pollFixedHint = el('p.hint.e-poll-incomplete', { id: 'poll-fixed', hidden: true }, t('pollFixedHint'));
+const pollArmed = { key: null, until: 0 };
+const pollFoot = el('div.row.e-poll-foot');
+const pollFields = el('div.e-poll-fields', { hidden: true },
+  el('label', { htmlFor: 'poll-question' }, t('pollQuestion')), pollQuestion,
+  el('p.e-poll-label', { id: 'poll-options-label' }, t('pollOptionsLabel')),
+  pollOptions,
+  pollAddOption,
+  el('div.row.e-poll-kind', { role: 'radiogroup', 'aria-label': t('pollKind') },
+    el('label.inline', { htmlFor: 'poll-kind-single' }, kindSingle, t('pollKindSingle')),
+    el('label.inline', { htmlFor: 'poll-kind-multiple' }, kindMultiple, t('pollKindMultiple'))),
+  pollIncomplete,
+  pollFoot);
+const pollBox = el('section.e-poll', { id: 'poll-editor' },
+  pollTitle, el('p.hint.e-poll-hint', {}, t('pollEditorHint')), pollFixedHint, pollAdd, pollFields);
 const statusBtn = el('button.e-status', { id: 'save-status', type: 'button', disabled: true, onclick: () => saveAll() }, t('saved'));
 
 app.append(
@@ -45,6 +106,7 @@ app.append(
     el('div.e-right', {},
       slideLabel, slideArea,
       stepLabel, stepArea,
+      pollBox,
       el('h3.e-preview-title', {}, t('preview')), preview)),
 );
 
@@ -68,7 +130,9 @@ function buildStepList() {
   let group = null;
   frame.steps.forEach((s, i) => {
     if (!group || group.dataset.slide !== s.slide) {
-      group = el('div.e-group', { dataset: { slide: s.slide } }, el('span.e-slide-id', {}, s.slide));
+      const mark = icon('poll', 'icon e-poll-mark');
+      mark.setAttribute('aria-label', t('poll'));
+      group = el('div.e-group', { dataset: { slide: s.slide } }, el('span.e-slide-id', {}, s.slide), mark);
       stepList.append(group);
     }
     group.append(el('button.e-step', { type: 'button', dataset: { index: String(i) }, onclick: () => goTo(i) }, String(s.step)));
@@ -87,6 +151,129 @@ function render() {
   slideArea.value = slide.notes ?? '';
   stepArea.value = slide.steps?.[String(s.step)] ?? '';
   renderPreview();
+  if (pollFor !== s.slide) renderPoll();
+}
+
+// ---- the slide's poll (0006) ------------------------------------------------
+
+let pollFor = null; // the slide the form shows, so moving between its steps keeps the focus
+
+function markPolls() {
+  for (const g of stepList.querySelectorAll('.e-group')) g.classList.toggle('has-poll', hasPoll(g.dataset.slide));
+}
+
+function renderPoll() {
+  const s = current();
+  if (!s) return;
+  pollFor = s.slide;
+  const poll = notes[s.slide]?.poll ?? null;
+  pollTitle.textContent = t('pollEditorTitle', { id: s.slide });
+  pollFixedHint.hidden = !pollFixed.has(s.slide);
+  pollAdd.hidden = Boolean(poll);
+  pollFields.hidden = !poll;
+  if (!poll) return;
+  pollQuestion.value = poll.question;
+  kindSingle.checked = !poll.multiple;
+  kindMultiple.checked = poll.multiple;
+  buildOptions();
+  pollFoot.replaceChildren(el('span.grow'),
+    confirmButton(t('pollRemove'), t('pollConfirmRemove'), `remove:${s.slide}`, () => removePoll(), pollArmed));
+  pollHints();
+}
+
+function pollHints() {
+  const poll = notes[pollFor]?.poll;
+  if (!poll) return;
+  pollIncomplete.hidden = Boolean(pollOf({ poll }));
+  pollAddOption.disabled = poll.options.length >= POLL_LIMITS.options;
+}
+
+function buildOptions(focus = null) {
+  const poll = notes[pollFor].poll;
+  pollOptions.replaceChildren(...poll.options.map((text, i) => {
+    const input = el('input', {
+      type: 'text', value: text, maxLength: POLL_LIMITS.option, autocomplete: 'off',
+      'aria-label': t('pollOptionN', { letter: letter(i) }), dataset: { index: String(i) },
+    });
+    input.addEventListener('input', () => {
+      poll.options[i] = input.value;
+      pollEdited();
+    });
+    // Enter goes on to the next answer, adding one at the end.
+    input.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      if (i === poll.options.length - 1) addOption();
+      else pollOptions.querySelectorAll('input')[i + 1]?.focus();
+    });
+    const remove = el('button.small.icon-btn.e-poll-remove-option', {
+      type: 'button', title: t('pollRemoveOption', { letter: letter(i) }), 'aria-label': t('pollRemoveOption', { letter: letter(i) }),
+      onclick: () => {
+        poll.options.splice(i, 1);
+        buildOptions(Math.min(i, poll.options.length - 1));
+        pollEdited();
+      },
+    }, '×');
+    return el('li.e-poll-option', {}, el('span.poll-letter', {}, letter(i)), input, remove);
+  }));
+  if (focus !== null) (pollOptions.querySelectorAll('input')[focus] ?? pollAddOption).focus();
+}
+
+function pollEdited() {
+  const id = pollFor;
+  if (!id) return;
+  notes[id] = { ...(notes[id] ?? {}) };
+  pollTouched.add(id);
+  dirty.add(id);
+  pollHints();
+  markPolls();
+  setStatus('saving', 'pending');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveAll, 800);
+}
+
+function addPoll() {
+  const id = current()?.slide;
+  if (!id) return;
+  notes[id] = { ...(notes[id] ?? {}), poll: { question: '', options: ['', ''], multiple: false } };
+  pollFor = null;
+  renderPoll();
+  pollQuestion.focus();
+}
+
+function addOption() {
+  const poll = notes[pollFor]?.poll;
+  if (!poll || poll.options.length >= POLL_LIMITS.options) return;
+  poll.options.push('');
+  buildOptions(poll.options.length - 1);
+  pollEdited();
+}
+
+function removePoll() {
+  const id = pollFor;
+  const slide = { ...(notes[id] ?? {}) };
+  delete slide.poll;
+  notes[id] = slide;
+  pollEdited();
+  pollFor = null;
+  renderPoll();
+  pollAdd.focus();
+}
+
+pollQuestion.addEventListener('input', () => {
+  notes[pollFor].poll.question = pollQuestion.value;
+  pollEdited();
+});
+pollQuestion.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  pollOptions.querySelector('input')?.focus();
+});
+for (const radio of [kindSingle, kindMultiple]) {
+  radio.addEventListener('change', () => {
+    notes[pollFor].poll.multiple = kindMultiple.checked;
+    pollEdited();
+  });
 }
 
 function renderPreview() {
@@ -108,6 +295,7 @@ function startIndex() {
 
 frame.onReady(() => {
   buildStepList();
+  markPolls();
   goTo(startIndex());
 });
 frame.onInput((action) => {
@@ -182,8 +370,10 @@ async function saveAll() {
   for (const slideId of [...dirty]) {
     dirty.delete(slideId);
     const slide = notes[slideId];
+    const body = { notes: slide.notes ?? '', steps: slide.steps ?? {} };
+    if (pollTouched.has(slideId)) body.poll = slide.poll ?? null;
     const res = await api(`/api/admin/decks/${encodeURIComponent(slug)}/slides/${encodeURIComponent(slideId)}`, {
-      method: 'PUT', body: { notes: slide.notes ?? '', steps: slide.steps ?? {} },
+      method: 'PUT', body,
     }).catch(() => ({ ok: false }));
     if (!res.ok) {
       dirty.add(slideId);

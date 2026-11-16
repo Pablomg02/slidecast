@@ -6,6 +6,7 @@ import { randomBytes } from 'node:crypto';
 import { readJson, writeJsonAtomic, withLock } from './store.js';
 import { readZip } from './unzip.js';
 import { pruneSlides, summarize } from './notes.js';
+import { cleanPoll } from './polls.js';
 
 export const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
 export const RESERVED_SLUGS = new Set([
@@ -261,7 +262,9 @@ export function createDeckStore({
     });
   }
 
-  async function updateSlide(slug, slideId, { notes = '', steps = {} } = {}) {
+  // `poll`: undefined keeps the slide's poll, null removes it, an object
+  // replaces its text (D1 of 0006); its other fields are kept.
+  async function updateSlide(slug, slideId, { notes = '', steps = {}, poll } = {}) {
     if (typeof slideId !== 'string' || !slideId || slideId.length > 200 || /[\0-\x1f]/.test(slideId)) {
       throw new DeckError('ERR_BAD_INPUT', 'invalid slide id');
     }
@@ -275,11 +278,18 @@ export function createDeckStore({
       checkNote(v, `step ${k}`);
       if (v !== '') cleanSteps[String(Number(k))] = v;
     }
+    const cleaned = poll === undefined ? null : cleanPoll(poll);
+    if (cleaned?.error) throw new DeckError('ERR_BAD_INPUT', cleaned.error);
     return modifyMeta(slug, (meta) => {
       const slide = { ...(meta.slides[slideId] ?? {}) };
       slide.notes = notes;
       if (Object.keys(cleanSteps).length) slide.steps = cleanSteps;
       else delete slide.steps;
+      if (cleaned && !cleaned.poll) delete slide.poll;
+      else if (cleaned) {
+        const old = slide.poll && typeof slide.poll === 'object' && !Array.isArray(slide.poll) ? slide.poll : {};
+        slide.poll = { ...old, ...cleaned.poll };
+      }
       meta.slides[slideId] = slide;
     });
   }

@@ -71,6 +71,8 @@ const ICONS = {
   hand: '<path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11M11 10.5v-6a1.5 1.5 0 0 1 3 0V11M14 10.5V6a1.5 1.5 0 0 1 3 0v8.5a6.5 6.5 0 0 1-6.5 6.5h-.6a6 6 0 0 1-4.6-2.2L3.2 15a1.6 1.6 0 0 1 2.4-2.1L8 15"/>',
   user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/>',
+  poll: '<path d="M5 20v-7M12 20V5M19 20v-10M3 20h18"/>',
+  minimize: '<path d="M9 6l6 6-6 6"/>',
 };
 
 export function icon(name, cls = 'icon') {
@@ -335,6 +337,25 @@ export function isOwnKey(e) {
 export function toggleFullscreen() {
   if (document.fullscreenElement) document.exitFullscreen?.();
   else document.documentElement.requestFullscreen?.().catch(() => {});
+}
+
+// A button that asks once more before acting ("Remove?"), for 3 seconds.
+// `armed` survives the list being redrawn while it waits.
+export function confirmButton(label, confirmLabel, key, onConfirm, armed) {
+  const btn = el('button.small.danger', { type: 'button' }, label);
+  if (armed.key === key && armed.until > Date.now()) btn.textContent = confirmLabel;
+  btn.addEventListener('click', () => {
+    if (armed.key === key && armed.until > Date.now()) {
+      armed.key = null;
+      onConfirm();
+      return;
+    }
+    armed.key = key;
+    armed.until = Date.now() + 3000;
+    btn.textContent = confirmLabel;
+    setTimeout(() => { if (armed.key === key && armed.until <= Date.now()) btn.textContent = label; }, 3100);
+  });
+  return btn;
 }
 
 // "Participant 007", or the participant's name (D6 of 0003).
