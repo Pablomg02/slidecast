@@ -158,6 +158,22 @@ test('legacy: a horizontal swipe is forwarded, not applied', async ({ page }) =>
   expect(await frame.evaluate(() => window.PRES.actual())).toBe(0);
 });
 
+test('legacy: with swipes turned off, a swipe neither moves the deck nor is forwarded', async ({ page }) => {
+  const frame = await openHarness(page, 'legacy-pres');
+  await page.evaluate(() => window.send({ t: 'mode', mode: 'live', swipe: false }));
+  await clearMsgs(page);
+  const notCancelled = await frame.evaluate(() => {
+    const stage = document.getElementById('stage');
+    const touch = (x) => new Touch({ identifier: 1, target: stage, clientX: x, clientY: 200 });
+    stage.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, cancelable: true, touches: [touch(400)], changedTouches: [touch(400)] }));
+    return stage.dispatchEvent(new TouchEvent('touchend', { bubbles: true, cancelable: true, touches: [], changedTouches: [touch(250)] }));
+  });
+  expect(notCancelled).toBe(false); // swallowed: the deck's own swipe handler never runs
+  await page.waitForTimeout(200);
+  expect((await msgs(page)).filter((m) => m.t === 'input')).toEqual([]);
+  expect(await frame.evaluate(() => window.PRES.actual())).toBe(0);
+});
+
 test('legacy: a swipe that starts on a slider or inside data-interactive is left to the deck', async ({ page }) => {
   const frame = await openHarness(page, 'legacy-pres');
   await clearMsgs(page);

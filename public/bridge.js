@@ -11,6 +11,7 @@
   window.__SLIDECAST__ = { embedded: true };
 
   var mode = 'live';
+  var swipe = true; // horizontal swipes move the slides (the viewer page turns it off)
   var adapter = null;
   var lastIndex = -1;
   var pendingGo = null;
@@ -111,6 +112,7 @@
       report(true);
     } else if (m.t === 'mode') {
       mode = m.mode === 'preview' ? 'preview' : 'live';
+      swipe = m.swipe !== false;
       if (mode === 'preview') silenceMedia();
     }
   });
@@ -198,7 +200,8 @@
   var touchStart = null;
 
   // A swipe that starts on an interactive element (dragging a slider, panning a
-  // canvas) belongs to the deck, as a click on one does.
+  // canvas) belongs to the deck, as a click on one does. With swipes turned off
+  // a swipe on the slide does nothing: still swallowed, so the deck stays put.
   function onTouchStart(e) {
     if (mode === 'preview') { swallow(e); return; }
     var t = e.touches && e.touches[0];
@@ -215,7 +218,7 @@
     touchStart = null;
     if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) {
       swallow(e);
-      post({ t: 'input', action: dx < 0 ? 'next' : 'prev' });
+      if (swipe) post({ t: 'input', action: dx < 0 ? 'next' : 'prev' });
     }
   }
 

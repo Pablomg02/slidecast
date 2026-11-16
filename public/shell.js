@@ -73,6 +73,10 @@ const ICONS = {
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/>',
   poll: '<path d="M5 20v-7M12 20V5M19 20v-10M3 20h18"/>',
   minimize: '<path d="M9 6l6 6-6 6"/>',
+  prev: '<path d="M15 5l-7 7 7 7"/>',
+  next: '<path d="M9 5l7 7-7 7"/>',
+  remote: '<path d="M9 7l-5 5 5 5M15 7l5 5-5 5"/>',
+  close: '<path d="M6 6l12 12M18 6L6 18"/>',
 };
 
 export function icon(name, cls = 'icon') {
@@ -209,8 +213,9 @@ export function connectLive(slug, role, onMessage, onStatus = () => {}, { hello 
 // ---- deck frame ------------------------------------------------------------
 
 // The deck runs in <iframe sandbox="allow-scripts"> (opaque origin, D4) and
-// talks to us through the bridge's postMessage protocol.
-export function createDeckFrame(container, deckUrl, { mode = 'live', query = '' } = {}) {
+// talks to us through the bridge's postMessage protocol. `swipe: false` stops
+// horizontal swipes from moving the slides.
+export function createDeckFrame(container, deckUrl, { mode = 'live', query = '', swipe = true } = {}) {
   const iframe = el('iframe.deck-frame', {
     sandbox: 'allow-scripts',
     allow: 'fullscreen; autoplay',
@@ -232,7 +237,7 @@ export function createDeckFrame(container, deckUrl, { mode = 'live', query = '' 
     setMode(m) {
       frame.mode = m;
       applyMode();
-      post({ t: 'mode', mode: m });
+      post({ t: 'mode', mode: m, swipe });
     },
     onChanged: (cb) => handlers.changed.push(cb),
     onInput: (cb) => handlers.input.push(cb),
@@ -271,7 +276,7 @@ export function createDeckFrame(container, deckUrl, { mode = 'live', query = '' 
       frame.index = m.index;
       frame.adapter = m.adapter;
       frame.readyState = true;
-      post({ t: 'mode', mode: frame.mode });
+      post({ t: 'mode', mode: frame.mode, swipe });
       resolveReady(m);
       handlers.ready.forEach((cb) => cb(m));
     } else if (m.t === 'changed') {
@@ -289,7 +294,7 @@ export function createDeckFrame(container, deckUrl, { mode = 'live', query = '' 
     }
   }
   window.addEventListener('message', onMessage);
-  iframe.addEventListener('load', () => post({ t: 'mode', mode: frame.mode }));
+  iframe.addEventListener('load', () => post({ t: 'mode', mode: frame.mode, swipe }));
   iframe.src = deckUrl + query;
   container.append(iframe);
   return frame;

@@ -6,6 +6,15 @@ include breaking changes, always listed here.
 
 ## [Unreleased]
 
+- Viewer on a phone or tablet: a small button at the bottom right opens two
+  arrows, previous and next (open or closed is remembered on the device).
+  They replace swipes, which were easy to miss: a swipe on the viewer page no
+  longer moves the slides. The arrows are hidden when the presenter makes
+  everyone follow, and each one is greyed out where it cannot go. The
+  presenter view keeps its swipes on the notes.
+- Viewer on a touch screen: after a few seconds without touching, the first
+  tap on a link or button inside a slide used to turn the slide instead of
+  pressing it. It now reaches the slide.
 - Live polls. A slide can carry a poll (a question and 2–10 answers, one or
   several to choose), written in the notes editor or in `deck.json`
   (`slides.<id>.poll`). The presenter view offers to launch it on its slide;

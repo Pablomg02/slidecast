@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, devices } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { startServer } from './server.js';
 
@@ -200,6 +200,120 @@ test('a controlling viewer can stop and resume controlling', async ({ browser })
   await page.keyboard.press('ArrowRight');
   const s = await presenter.state((x) => x.index >= 1);
   assert.equal(s.index, 1);
+  await context.close();
+});
+
+// A phone: touch screen, no hover. The arrows are only offered there.
+async function openPhone(browser, { landscape = false, cookie } = {}) {
+  const phone = devices['Pixel 7'];
+  const { width, height } = phone.viewport;
+  const context = await browser.newContext({
+    ...phone, viewport: landscape ? { width: height, height: width } : phone.viewport,
+  });
+  if (cookie) await context.addCookies([{ name: 'sc_session', value: cookie, url: srv.url }]);
+  const page = await context.newPage();
+  await openViewer(page);
+  return { context, page };
+}
+
+const swipeOnDeck = (page) => deckFrame(page).evaluate(() => {
+  const target = document.body;
+  const touch = (x) => new Touch({ identifier: 1, target, clientX: x, clientY: 200 });
+  target.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, cancelable: true, touches: [touch(300)], changedTouches: [touch(300)] }));
+  target.dispatchEvent(new TouchEvent('touchend', { bubbles: true, cancelable: true, touches: [], changedTouches: [touch(100)] }));
+});
+
+const overlap = (a, b) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+
+test('a computer offers no arrows', async ({ page }) => {
+  await openViewer(page);
+  await expect(page.locator('#remote-toggle')).toBeHidden();
+});
+
+test('phone: a small button opens the arrows, which move the slide; swipes do not', async ({ browser }) => {
+  const { context, page } = await openPhone(browser);
+  await presenter.send({ t: 'goto', index: 3 });
+  await expect.poll(() => current(page)).toBe(3);
+  const toggle = page.locator('#remote-toggle');
+  const prev = page.locator('#remote-prev');
+  const next = page.locator('#remote-next');
+  await expect(toggle).toBeVisible();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(prev).toBeHidden();
+  // A swipe on the slide no longer turns it.
+  await swipeOnDeck(page);
+  await page.waitForTimeout(300);
+  expect(await current(page)).toBe(3);
+
+  await toggle.tap();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(prev).toBeVisible();
+  await expect(next).toBeDisabled(); // "back" mode, at live: cannot go ahead
+  await prev.tap();
+  await prev.tap();
+  await expect.poll(() => current(page)).toBe(1);
+  await expect(next).toBeEnabled();
+  // "Back to live" shows above the arrows, not on them, nor on the participant bar.
+  const live = page.getByRole('button', { name: 'Back to live' });
+  await expect(live).toBeVisible();
+  const boxes = await Promise.all([live, page.locator('.remote'), page.locator('.participant-bar')].map((l) => l.boundingBox()));
+  expect(overlap(boxes[0], boxes[1])).toBe(false);
+  expect(overlap(boxes[0], boxes[2])).toBe(false);
+  expect(overlap(boxes[1], boxes[2])).toBe(false);
+  await next.tap();
+  await expect.poll(() => current(page)).toBe(2);
+
+  // Open stays open after a reload; in "follow" there are no arrows at all.
+  await page.reload();
+  await expect.poll(() => deckFrame(page)?.evaluate(() => Boolean(window.SLIDECAST_DECK)).catch(() => false)).toBe(true);
+  await expect(page.locator('#remote-prev')).toBeVisible();
+  await presenter.send({ t: 'nav', mode: 'follow' });
+  await viewerNav(page, 'follow');
+  await expect(page.locator('.remote')).toBeHidden();
+  await context.close();
+});
+
+test('phone held sideways: the arrows stay clear of the participant bar', async ({ browser }) => {
+  const { context, page } = await openPhone(browser, { landscape: true });
+  await page.locator('#remote-toggle').tap();
+  await expect(page.locator('#remote-next')).toBeVisible();
+  const [remote, bar] = await Promise.all([page.locator('.remote'), page.locator('.participant-bar')].map((l) => l.boundingBox()));
+  expect(overlap(remote, bar)).toBe(false);
+  const vp = page.viewportSize();
+  expect(remote.x + remote.width).toBeLessThanOrEqual(vp.width);
+  expect(remote.y + remote.height).toBeLessThanOrEqual(vp.height);
+  await context.close();
+});
+
+test('phone: after a pause, a tap on a button inside the slide presses it', async ({ browser }) => {
+  const { context, page } = await openPhone(browser);
+  await presenter.send({ t: 'nav', mode: 'free' });
+  await viewerNav(page, 'free');
+  // A button in the slide, as an interactive deck would have.
+  await deckFrame(page).evaluate(() => {
+    const b = Object.assign(document.createElement('button'), { id: 'probe', textContent: 'Try me' });
+    b.style.cssText = 'position:fixed;left:40%;top:40%;z-index:99;font-size:30px';
+    b.onclick = () => { b.textContent = 'pressed'; };
+    document.body.append(b);
+  });
+  await page.waitForTimeout(3000); // past the 2.5 s after which the cursor is hidden
+  const box = await deckFrame(page).locator('#probe').boundingBox();
+  await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+  await expect(deckFrame(page).locator('#probe')).toHaveText('pressed');
+  expect(await current(page)).toBe(0);
+  await context.close();
+});
+
+test('phone, controlling: the arrows drive the live slide', async ({ browser }) => {
+  const { context, page } = await openPhone(browser, { cookie: presenterCookie });
+  await expect(page.locator('.badge-control')).toBeVisible();
+  await page.locator('#remote-toggle').tap();
+  await expect(page.locator('#remote-prev')).toBeDisabled(); // at the first slide
+  await page.locator('#remote-next').tap();
+  await presenter.state((s) => s.index === 1);
+  await expect.poll(() => current(page)).toBe(1);
+  await page.locator('#remote-prev').tap();
+  await presenter.state((s) => s.index === 0);
   await context.close();
 });
 

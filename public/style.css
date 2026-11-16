@@ -401,6 +401,39 @@ body.room-waiting .viewer-stage, body.room-waiting .back-to-live { visibility: h
 .join-actions button { flex: 1 1 auto; }
 @keyframes pulse { 50% { box-shadow: 0 0 0 6px var(--accent-soft); } }
 
+/* viewer: the arrows for touch screens (viewer.js), bottom right, above the
+   participant bar when there is one. While they are open, "Back to live" steps
+   up above them; while the hand note is open, they step aside. */
+.page-viewer #app { --remote-b: 12px; }
+.page-viewer #app:has(.participant-bar:not([hidden])) { --remote-b: calc(24px + var(--p-bar-h, 2.25rem)); }
+.remote {
+  position: absolute; right: 12px; bottom: var(--remote-b); z-index: 9; height: 3.25rem;
+  display: none; align-items: center; gap: 10px; transition: opacity .3s var(--ease);
+}
+.remote button {
+  min-height: 0; padding: 0; border-radius: 999px; box-shadow: none;
+  background: rgba(10, 12, 17, .66); color: #fff; border-color: rgba(255, 255, 255, .14);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none;
+}
+.remote button:hover { background: rgba(10, 12, 17, .66); color: #fff; border-color: rgba(255, 255, 255, .14); }
+.remote button:active:not(:disabled) { background: var(--accent); color: var(--accent-ink); border-color: transparent; transform: scale(.93); }
+.remote button:disabled { opacity: .3; }
+.remote-toggle { width: 2.5rem; height: 2.5rem; }
+.remote-toggle .icon { width: 1.15rem; height: 1.15rem; }
+.remote-arrow { width: 3.25rem; height: 3.25rem; }
+.remote-arrow .icon { width: 1.55rem; height: 1.55rem; stroke-width: 2.2; }
+body.idle .remote:not(.open):not(:focus-within) { opacity: .45; }
+body.room-waiting .remote { visibility: hidden; }
+#app:has(.hand-panel:not([hidden])) .remote { display: none; }
+@media (hover: none), (pointer: coarse) {
+  /* No cursor to hide on a touch screen, and the cover would take the first
+     tap after a pause: a tap on a deck's button would turn the slide instead. */
+  .idle-cover { display: none; }
+  .remote { display: flex; }
+  #app:has(.remote.open:not([hidden])) .back-to-live { bottom: calc(var(--remote-b) + 3.25rem + 12px); }
+}
+
 /* viewer: a poll beside the slide (0006). Landscape: the slide shrinks and the
    poll takes a column on the right. Portrait: the slide on top, the poll below.
    Above the blank and the idle cover, like the participant bar. */
@@ -492,6 +525,7 @@ body.room-waiting .viewer-stage, body.room-waiting .back-to-live { visibility: h
   body.poll-open .badges { right: calc(var(--poll-w) + 12px); }
   body.poll-open .back-to-live, body.poll-open .toast, body.poll-open .nav-hint { left: calc((100% - var(--poll-w)) / 2); }
   body.poll-open .deck-message { right: calc(var(--poll-w) + 16px); }
+  body.poll-open .remote { right: calc(var(--poll-w) + 12px); }
   body.poll-open .participant-bar, body.poll-open .no-presenter { max-width: calc(100% - var(--poll-w) - 24px); }
   body.poll-open .toast, body.poll-open .nav-hint { max-width: calc(100% - var(--poll-w) - 32px); }
 }
@@ -505,6 +539,11 @@ body.room-waiting .viewer-stage, body.room-waiting .back-to-live { visibility: h
   #app:has(.participant-bar:not([hidden])) .poll-panel { bottom: calc(var(--p-bar-h, 2.25rem) + 24px); border-radius: 18px; }
   body.poll-open #app .back-to-live,
   body.poll-open #app:has(.participant-bar:not([hidden])) .back-to-live { top: calc(var(--stage-h) - 3.4rem); bottom: auto; }
+  /* The arrows sit on the slide's corner, out of the poll's way. */
+  body.poll-open .remote { top: calc(var(--stage-h) - 3.25rem - 8px); bottom: auto; }
+  @media (hover: none), (pointer: coarse) {
+    body.poll-open #app:has(.remote.open:not([hidden])) .back-to-live { top: calc(var(--stage-h) - 6.65rem - 20px); }
+  }
   .poll-min .icon { rotate: 90deg; }
 }
 

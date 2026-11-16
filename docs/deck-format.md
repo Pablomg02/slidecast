@@ -172,7 +172,8 @@ admin. Consequences:
 - full screen is handled by slidecast (`F`), not by the deck.
 
 Clicks anywhere on a slide mean "next", and horizontal swipes move forward or
-back. Clicks and swipes that start on links, buttons, form fields, `<summary>`,
+back (except on the viewer page, which has on-screen arrows on touch screens
+instead: a swipe there does nothing). Clicks and swipes that start on links, buttons, form fields, `<summary>`,
 or any element inside one marked `data-interactive`, reach the deck normally
 (so a slider can be dragged without changing slides):
 

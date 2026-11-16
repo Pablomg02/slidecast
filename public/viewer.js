@@ -5,7 +5,7 @@
 // answer it, the projector shows its results.
 import {
   t, el, api, slugFromPath, setTitle, connectLive, createDeckFrame, keyActionFromEvent,
-  toggleFullscreen, acceptKey, isOwnKey,
+  toggleFullscreen, acceptKey, isOwnKey, icon,
 } from './shell.js';
 import { createParticipant } from './participant.js';
 import { createViewerPoll } from './viewer-poll.js';
@@ -46,7 +46,34 @@ const controlToggle = el('button.badge.control-toggle', {
   onclick: () => setControl(!controlling),
 }, t(controlling ? 'stopControlling' : 'takeControl'));
 badges.append(controlBadge, controlToggle, reconnecting);
-app.append(stage, blank, idleCover, liveBtn, badges, message, navHint, noPresenter);
+
+// On a touch screen a small button opens two arrows at the bottom, previous and
+// next: swipes are turned off here (too easy to miss, or to take for a tap).
+// Open or closed is remembered on this device. CSS shows it only on touch screens.
+const REMOTE_KEY = 'slidecast.remote';
+const remotePrev = el('button.remote-arrow', {
+  type: 'button', id: 'remote-prev', 'aria-label': t('prev'), onclick: () => onAction('prev'),
+}, icon('prev'));
+const remoteNext = el('button.remote-arrow', {
+  type: 'button', id: 'remote-next', 'aria-label': t('next'), onclick: () => onAction('next'),
+}, icon('next'));
+const remoteToggle = el('button.remote-toggle', {
+  type: 'button', id: 'remote-toggle', onclick: () => setRemote(!remote.classList.contains('open')),
+});
+const remote = el('div.remote', { hidden: true }, remotePrev, remoteNext, remoteToggle);
+function setRemote(open, save = true) {
+  remote.classList.toggle('open', open);
+  remotePrev.hidden = !open;
+  remoteNext.hidden = !open;
+  remoteToggle.replaceChildren(icon(open ? 'close' : 'remote'));
+  remoteToggle.setAttribute('aria-expanded', String(open));
+  remoteToggle.setAttribute('aria-label', t(open ? 'hideRemote' : 'showRemote'));
+  if (!save) return;
+  try { localStorage.setItem(REMOTE_KEY, open ? '1' : '0'); } catch { /* storage blocked */ }
+}
+setRemote((() => { try { return localStorage.getItem(REMOTE_KEY) === '1'; } catch { return false; } })(), false);
+
+app.append(stage, blank, idleCover, liveBtn, badges, message, navHint, noPresenter, remote);
 // The slide's shape, so a phone held upright puts the poll under it.
 const [aw, ah] = String(info.data.aspect || '16:9').split(':').map(Number);
 app.style.setProperty('--ar', String(aw / ah || 16 / 9));
@@ -54,7 +81,7 @@ app.style.setProperty('--ar', String(aw / ah || 16 / 9));
 const poll = createViewerPoll(app, { display: info.data.canPresent, badges });
 const participant = info.data.canPresent ? null : createParticipant(app, info.data);
 // A closed room gives its audience no deck: wait for it to open (D4 of 0003).
-const frame = info.data.deckUrl ? createDeckFrame(stage, info.data.deckUrl, { mode: 'live' }) : null;
+const frame = info.data.deckUrl ? createDeckFrame(stage, info.data.deckUrl, { mode: 'live', swipe: false }) : null;
 if (!frame) participant.showNotice('closed');
 const live = { index: 0, total: 0, blank: false, viewerNav: info.data.viewerNav, rev: -1 };
 let local = 0; // step shown here
@@ -69,6 +96,16 @@ function show(index) {
   local = Math.max(0, Math.min(total() - 1, index));
   if (ready && frame.index !== local) frame.go(local);
   liveBtn.hidden = attached || controlling;
+  updateRemote();
+}
+
+// No arrows when the viewer may not move; each one off where it cannot go.
+function updateRemote() {
+  remote.hidden = !frame || stage.hidden || (!controlling && live.viewerNav === 'follow');
+  const at = controlling ? live.index : local;
+  const can = (i) => ready && i >= 0 && i < total() && (controlling || allowed(i));
+  remotePrev.disabled = !can(at - 1);
+  remoteNext.disabled = !can(at + 1);
 }
 
 function attach() {
@@ -161,6 +198,7 @@ const conn = connectLive(slug, controlling ? 'presenter' : 'viewer', (msg) => {
   poll.connection(status);
   if (participant?.status(status)) {
     stage.hidden = true;
+    updateRemote();
     poll.clear();
     return;
   }
@@ -196,6 +234,7 @@ frame?.onChanged((index, own) => {
     attached = index === live.index;
     local = index;
     liveBtn.hidden = attached;
+    updateRemote();
   } else {
     frame.go(local);
     refuse();
