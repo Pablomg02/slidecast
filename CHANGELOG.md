@@ -6,6 +6,13 @@ include breaking changes, always listed here.
 
 ## [Unreleased]
 
+- On a phone, a viewer or presenter page left in the background could stay on
+  "Reconnecting…" for good once back. A connection attempt now gives up after
+  10 s and tries again, and coming back to the page (visible again, restored
+  by the back button, back online) reconnects at once instead of waiting. A
+  connection that looks open is checked then: the page sends a `ping`, which
+  the server answers with `pong`, and connects again if no answer comes in
+  5 s.
 - Viewer on a phone or tablet: a small button at the bottom right opens two
   arrows, previous and next (open or closed is remembered on the device).
   They replace swipes, which were easy to miss: a swipe on the viewer page no

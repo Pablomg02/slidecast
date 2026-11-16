@@ -160,44 +160,126 @@ const FINAL = {
   4410: 'presenters-full',
 };
 
+// A connection attempt that has not opened by then is dropped and retried.
+const CONNECT_TIMEOUT_MS = 10_000;
+// An open socket that does not answer a ping within this time is replaced.
+const PONG_TIMEOUT_MS = 5000;
+
 // WebSocket to /ws/<slug> with reconnect (0.5 s → 10 s). `hello()`, if given,
 // is sent first on every connection; the last `meta` message is re-sent after
 // every reconnect. onStatus gets "open", "reconnecting", "full" (the room is
 // full: retrying) or, with no retry, one of FINAL's names.
+//
+// Phones freeze background pages: a socket opened just before may hang in
+// "connecting" for good, and one left open may be dead without a close event.
+// So an attempt has a time limit, and coming back to the page (visible again,
+// restored from the back-forward cache, back online) retries a lost
+// connection at once and pings an open one, replacing it if it does not answer.
 export function connectLive(slug, role, onMessage, onStatus = () => {}, { hello } = {}) {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   const url = `${proto}://${location.host}/ws/${encodeURIComponent(slug)}?role=${role}`;
   let ws = null;
   let delay = 500;
   let meta = null;
-  let stopped = false;
-  let timer = null;
+  let stopped = false; // closed by the page, or by a FINAL code
+  let timer = null; // the next attempt, after a loss
+  let probe = null; // waiting for an answer to a ping
+  let resumed = null; // the socket opened on coming back, while it connects
 
   function open() {
-    ws = new WebSocket(url);
-    ws.onopen = () => {
+    clearTimeout(timer);
+    timer = null;
+    clearTimeout(probe);
+    probe = null;
+    const sock = new WebSocket(url);
+    ws = sock;
+    // Given up by hand: the retry is scheduled here, not on a close event
+    // that a frozen network stack may deliver late.
+    const limit = setTimeout(() => {
+      if (sock.readyState !== WebSocket.CONNECTING) return;
+      sock.onclose = null;
+      sock.close();
+      if (sock === ws) lost(1006);
+    }, CONNECT_TIMEOUT_MS);
+    sock.onopen = () => {
+      clearTimeout(limit);
+      if (sock !== ws) return;
       delay = 500;
       onStatus('open');
       const first = hello?.();
-      if (first) ws.send(JSON.stringify(first));
-      if (meta) ws.send(JSON.stringify(meta));
+      if (first) sock.send(JSON.stringify(first));
+      if (meta) sock.send(JSON.stringify(meta));
     };
-    ws.onmessage = (e) => {
+    sock.onmessage = (e) => {
+      if (sock !== ws) return;
+      clearTimeout(probe); // anything that arrives proves the socket works
+      probe = null;
       let msg;
       try { msg = JSON.parse(e.data); } catch { return; }
+      if (msg?.t === 'pong') return;
       onMessage(msg);
     };
-    ws.onclose = (e) => {
-      if (stopped) return;
-      if (FINAL[e.code]) {
-        onStatus(FINAL[e.code], e.code);
-        return;
-      }
-      onStatus(e.code === 4409 ? 'full' : 'reconnecting');
-      timer = setTimeout(open, delay);
-      delay = Math.min(delay * 2, 10_000);
+    sock.onclose = (e) => {
+      clearTimeout(limit);
+      if (sock === ws) lost(e.code); // else replaced: its successor carries on
     };
   }
+
+  function lost(code) {
+    clearTimeout(probe);
+    probe = null;
+    if (stopped) return;
+    if (FINAL[code]) {
+      stopped = true;
+      onStatus(FINAL[code], code);
+      return;
+    }
+    onStatus(code === 4409 ? 'full' : 'reconnecting');
+    timer = setTimeout(open, delay);
+    delay = Math.min(delay * 2, 10_000);
+  }
+
+  // A new socket now, the old one dropped without retrying for it.
+  function renew() {
+    const old = ws;
+    delay = 500;
+    open();
+    resumed = ws;
+    if (old) {
+      old.onclose = null;
+      old.close();
+    }
+  }
+
+  // Back on the page. Several events may come for one return (visible again,
+  // then pageshow): a socket just opened for it keeps its own time limit.
+  function resume() {
+    if (stopped || document.visibilityState === 'hidden') return;
+    if (ws?.readyState === WebSocket.OPEN) {
+      if (probe) return;
+      const sock = ws;
+      sock.send(JSON.stringify({ t: 'ping' }));
+      probe = setTimeout(() => {
+        probe = null;
+        if (sock !== ws || stopped) return;
+        onStatus('reconnecting');
+        renew();
+      }, PONG_TIMEOUT_MS);
+      return;
+    }
+    if (ws?.readyState === WebSocket.CONNECTING && ws === resumed) return;
+    renew();
+  }
+  function onVisibility() {
+    if (document.visibilityState === 'hidden') resumed = null;
+    else resume();
+  }
+  // Not on the first load: only a page restored from the back-forward cache.
+  const onPageShow = (e) => { if (e.persisted) resume(); };
+  document.addEventListener('visibilitychange', onVisibility);
+  window.addEventListener('pageshow', onPageShow);
+  window.addEventListener('online', resume);
+
   open();
 
   return {
@@ -208,6 +290,10 @@ export function connectLive(slug, role, onMessage, onStatus = () => {}, { hello 
     close() {
       stopped = true;
       clearTimeout(timer);
+      clearTimeout(probe);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pageshow', onPageShow);
+      window.removeEventListener('online', resume);
       ws?.close();
     },
   };

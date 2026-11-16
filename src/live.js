@@ -623,6 +623,17 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
     if (!msg || typeof msg !== 'object' || typeof msg.t !== 'string') {
       return send(client, { t: 'error', code: 'bad-message' });
     }
+    // A page coming back from the background asks whether its socket still
+    // works (connectLive): anyone may, even parked; audience pings count as
+    // messages for the flood guard.
+    if (msg.t === 'ping') {
+      if (client.flood) {
+        const now = Date.now();
+        if (client.flood.wait(now)) return client.socket.close(1008, 'flood');
+        client.flood.hit(now);
+      }
+      return send(client, { t: 'pong' });
+    }
     if (client.kind !== 'presenter' && client.kind !== 'display') return onParticipantMessage(s, client, msg);
     if (!DECK_COMMANDS.has(msg.t) && !ROOM_COMMANDS.has(msg.t)) return send(client, { t: 'error', code: 'bad-message' });
     // Re-checked on every command, so a revoked session loses control at once.

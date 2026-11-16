@@ -152,6 +152,28 @@ test('single-deck mode: the room is always open, but can be hidden', async (t) =
   assert.equal((await app.inject({ url: '/', headers: REMOTE })).statusCode, 200, 'hidden: / shows the landing');
 });
 
+// ---- liveness ----------------------------------------------------------------
+
+test('every socket gets a pong for a ping, even parked', async (t) => {
+  const { ws, viewer, admin } = await setup(t, { open: false });
+  const parked = viewer();
+  await parked.next((m) => m.t === 'wait');
+  parked.send({ t: 'ping' });
+  await parked.next((m) => m.t === 'pong');
+  assert.equal((await admin({ open: true })).statusCode, 200);
+  await parked.closed;
+  const v = viewer();
+  await v.next((m) => m.t === 'you');
+  v.send({ t: 'ping' });
+  await v.next((m) => m.t === 'pong');
+  assert.ok(!v.messages.some((m) => m.t === 'error'), 'a ping is no error');
+  const p = ws('presenter'); // loopback, no password: may present
+  await p.next(isRoom());
+  p.send({ t: 'ping' });
+  await p.next((m) => m.t === 'pong');
+  assert.ok(!p.messages.some((m) => m.t === 'error'), 'a ping is no error');
+});
+
 // ---- joining -----------------------------------------------------------------
 
 test('a closed room parks viewers until it opens', async (t) => {
