@@ -34,7 +34,8 @@ simplest deck: upload it as a `.html` file from the admin panel.
       "poll": {
         "question": "Which planet is the largest?",
         "options": ["Mars", "Jupiter", "Venus"],
-        "multiple": false
+        "multiple": false,
+        "correct": [1]
       }
     }
   }
@@ -54,8 +55,13 @@ A slide's `poll` is launched from the presenter view on any step of that
 slide; the audience answers it on their devices. `question` (up to 300
 characters) and `options` (2 to 10 answers of up to 150 characters) are plain
 text; `multiple: true` lets each person choose several answers (default: one).
-A poll without a question or with fewer than two answers is kept but cannot
-be launched. The notes editor writes polls too.
+`correct` optionally lists the right answers by position, counting from 0
+(`[1]` is the second answer): when answers close, everyone sees them and
+whether they got it right. With one answer to choose, any of the listed ones
+counts as right; with several, choosing exactly them is right, only some of
+them is partly right, and any other answer makes it wrong. Without `correct`
+it is an opinion poll. A poll without a question or with fewer than two
+answers is kept but cannot be launched. The notes editor writes polls too.
 
 Notes are Markdown. Raw HTML in notes is shown as text, not rendered. Any other
 field, at the top level or inside a slide, is kept untouched when slidecast
@@ -207,8 +213,10 @@ Write a presentation as ONE self-contained index.html file for slidecast.
 - Also write deck.json with {"slidecast": 1, "title": "…", "slides": {"<slide id>":
   {"notes": "speaker notes in Markdown", "steps": {"1": "note for step 1"}}}}.
 - For a question to the audience, give that slide a poll in deck.json:
-  "poll": {"question": "…", "options": ["…", "…"], "multiple": false}
-  (2 to 10 short plain-text answers; "multiple": true allows several).
+  "poll": {"question": "…", "options": ["…", "…"], "multiple": false, "correct": [0]}
+  (2 to 10 short plain-text answers; "multiple": true allows several;
+  "correct" lists the right answers by position from 0, or leave it out for
+  an opinion poll).
 ```
 
 Start from `slidecast new my-talk`, which copies the demo deck, if you prefer

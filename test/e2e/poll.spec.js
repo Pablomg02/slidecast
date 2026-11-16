@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { startServer } from './server.js';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 
 // Polls (0006). The demo deck has a poll on its "roles" slide (step 5 of 7).
 let srv;
@@ -327,4 +329,59 @@ test('while answers stream in, the presenter\'s buttons keep the focus and Enter
   await expect(p.locator('#counter')).toHaveText('5 / 7');
   for (const v of voters) v.close();
   await pc.close();
+});
+
+test('right answers: the presenter sees them; once answers close, each participant sees whether they got it right', async ({ browser }) => {
+  // 0007. Several to choose, right ones B and C, on the roles slide.
+  const demo = JSON.parse(await readFile(join(srv.dataDir, 'demo', 'deck.json'), 'utf8')).slides.roles;
+  const putPoll = (poll) => srv.app.inject({
+    method: 'PUT', url: '/api/admin/decks/demo/slides/roles',
+    headers: { host: 'localhost', origin: 'http://localhost', cookie: `sc_session=${adminCookie}` },
+    payload: { notes: demo.notes ?? '', steps: demo.steps ?? {}, poll },
+  });
+  expect((await putPoll({ question: 'Who can move the slides?', options: ['Viewer', 'Presenter', 'Admin'], multiple: true, correct: [1, 2] })).statusCode).toBe(200);
+  const { page: p, context: pc } = await presenter(browser);
+  await p.click('#tab-poll');
+  const preview = p.locator('.p-poll-slide');
+  await expect(preview).toContainText('With solution');
+  await expect(preview.locator('li.poll-right')).toHaveCount(2);
+
+  const people = await Promise.all([participant(browser), participant(browser), participant(browser)]);
+  const [v, w, x] = people.map((o) => o.page);
+  const { page: proj, context: projc } = await open(browser, '/demo/view', { cookie: adminCookie });
+  await preview.locator('[data-action=launch]').click();
+  for (const [page, choice] of [[v, [1, 2]], [w, [1]], [x, [0, 1]]]) {
+    await expect(page.locator('#poll-panel')).toBeVisible();
+    for (const i of choice) await page.click(`label[for=poll-answer-${i}]`);
+    await page.click('#poll-send');
+    await expect(page.locator('#poll-status')).toContainText('Answer sent');
+  }
+  await expect(card(p).locator('.p-poll-grades')).toHaveText('Correct: 1 · Partly correct: 1 · Incorrect: 1');
+  await expect(card(p).locator('.poll-result.poll-right')).toHaveCount(2);
+  // Nobody else sees them while answers are open.
+  await expect(proj.locator('#poll-panel')).toBeVisible();
+  await expect(result(proj, 1)).toHaveText('3 · 100%');
+  await expect(proj.locator('.poll-result.poll-right')).toHaveCount(0);
+  await expect(proj.locator('#poll-grades')).toBeHidden();
+
+  await card(p).locator('[data-action=close]').click();
+  await expect(v.locator('#poll-verdict')).toHaveText('Correct!');
+  await expect(v.locator('#poll-verdict')).toHaveClass(/poll-verdict-right/);
+  await expect(w.locator('#poll-verdict')).toHaveText('Partly correct: some right answers are missing.');
+  await expect(x.locator('#poll-verdict')).toHaveText('Incorrect.');
+  await expect(x.locator('.poll-result').nth(0)).toHaveClass(/poll-own-wrong/);
+  await expect(x.locator('.poll-result').nth(1)).toHaveClass(/poll-right/);
+  await expect(x.locator('.poll-result').nth(1)).not.toHaveClass(/poll-own-wrong/);
+  await expect(v.locator('#poll-grades')).toHaveText('Correct: 1 · Partly correct: 1 · Incorrect: 1');
+  await expect(proj.locator('.poll-result.poll-right')).toHaveCount(2);
+  await expect(proj.locator('#poll-grades')).toBeVisible();
+
+  // Reopened: the solution goes away again.
+  await card(p).locator('[data-action=open]').click();
+  await expect(v.locator('.poll-form')).toBeVisible();
+  await expect(v.locator('#poll-verdict')).toBeHidden();
+  await expect(proj.locator('.poll-result.poll-right')).toHaveCount(0);
+
+  expect((await putPoll(demo.poll)).statusCode).toBe(200);
+  await Promise.all([pc.close(), projc.close(), ...people.map((o) => o.context.close())]);
 });

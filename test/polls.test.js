@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { buildServer } from '../src/server.js';
-import { cleanPoll, pollOf, createPolls } from '../src/polls.js';
+import { cleanPoll, pollOf, createPolls, gradeOf } from '../src/polls.js';
 import { summarize } from '../src/notes.js';
 import { onCleanup, tempDirs, makeDeck, listen, wsClient, openRooms } from './helpers.js';
 
@@ -184,7 +184,7 @@ test('the presenter shows a poll; participants answer; presenters and displays s
   p.send({ t: 'poll', action: 'show', slide: 'quiz' });
   const shown = await p.next(isPolls((m) => m.shown === 'quiz'));
   assert.deepEqual(runOf(shown, 'quiz'), {
-    slide: 'quiz', id: runOf(shown, 'quiz').id, question: QUIZ.question, options: QUIZ.options, multiple: false, open: true, counts: [0, 0, 0], voters: 0,
+    slide: 'quiz', id: runOf(shown, 'quiz').id, question: QUIZ.question, options: QUIZ.options, multiple: false, correct: [], open: true, counts: [0, 0, 0], voters: 0, grades: null,
   });
   await proj.next(isPolls((m) => m.shown === 'quiz'));
   const { poll } = await v1.next(isPoll((m) => m.poll));
@@ -200,7 +200,7 @@ test('the presenter shows a poll; participants answer; presenters and displays s
   assert.deepEqual(runOf(counted, 'quiz').counts, [0, 1, 1]);
   // Anonymous: nothing in the presenters' message says who answered what.
   assert.equal(JSON.stringify(counted).includes('"mine"'), false);
-  assert.deepEqual(Object.keys(runOf(counted, 'quiz')).sort(), ['counts', 'id', 'multiple', 'open', 'options', 'question', 'slide', 'voters']);
+  assert.deepEqual(Object.keys(runOf(counted, 'quiz')).sort(), ['correct', 'counts', 'grades', 'id', 'multiple', 'open', 'options', 'question', 'slide', 'voters']);
   await proj.next(isPolls((m) => runOf(m, 'quiz')?.voters === 2 && runOf(m, 'quiz').counts[2] === 1));
   // Participants never get the results while answers are open.
   assert.ok(v1.messages.filter((m) => m.t === 'poll').every((m) => m.poll === null || m.poll.results === null));
@@ -481,4 +481,115 @@ test('an unanswered run whose poll was deleted from deck.json is not shown again
   await p.next(isPolls((m) => m.runs.length === 0));
   p.send({ t: 'poll', action: 'show', slide: 'quiz' });
   await p.next(isError('no-poll'));
+});
+
+// ---- right answers (0007) --------------------------------------------------------
+
+test('right answers are cleaned: they follow their answers, and none means an opinion poll', () => {
+  assert.deepEqual(cleanPoll({ question: 'q', options: ['a', '', 'b', 'c'], correct: [2, 1, 2, 9] }).poll,
+    { question: 'q', options: ['a', 'b', 'c'], multiple: false, correct: [1] }, 'the empty answer and out-of-range ones go; b moves to 1');
+  assert.deepEqual(cleanPoll({ question: 'q', options: ['a', 'b'], correct: [] }).poll, { question: 'q', options: ['a', 'b'], multiple: false });
+  assert.deepEqual(cleanPoll({ question: 'q', options: ['a', 'b', 'c'], multiple: true, correct: [2, 0] }).poll.correct, [0, 2]);
+  for (const correct of ['0', [0.5], [-1], ['1'], { 0: true }, null]) {
+    assert.ok(cleanPoll({ question: 'q', options: ['a', 'b'], correct }).error, JSON.stringify(correct));
+  }
+  assert.deepEqual(pollOf({ poll: { ...QUIZ, correct: [1] } }), { ...QUIZ, multiple: false, correct: [1] });
+});
+
+test('an answer is right, partly right or wrong', () => {
+  // One answer: any of the right ones.
+  assert.equal(gradeOf([1], [1], false), 'right');
+  assert.equal(gradeOf([2], [1, 2], false), 'right');
+  assert.equal(gradeOf([0], [1], false), 'wrong');
+  // Several: exactly the right ones; only right ones but not all; any wrong one.
+  assert.equal(gradeOf([0, 2], [0, 2], true), 'right');
+  assert.equal(gradeOf([0], [0, 2], true), 'partial');
+  assert.equal(gradeOf([0, 1], [0, 2], true), 'wrong', 'a wrong one is not partly right');
+  assert.equal(gradeOf([0, 1, 2, 3], [0, 2], true), 'wrong', 'ticking everything');
+  assert.equal(gradeOf([1], [0, 2], true), 'wrong');
+  assert.equal(gradeOf([0], [0], true), 'right');
+  // Nothing to grade.
+  assert.equal(gradeOf([0], [], true), null);
+  assert.equal(gradeOf(null, [0], true), null);
+});
+
+test('the notes API stores right answers and removes them', async (t) => {
+  const { app, dirs } = await setup(t);
+  const put = (poll) => app.inject({ method: 'PUT', url: '/api/admin/decks/talk/slides/quiz', headers: LOCAL, payload: { notes: 'n', steps: {}, poll } });
+  const onDisk = async () => JSON.parse(await readFile(join(dirs.dataDir, 'talk', 'deck.json'), 'utf8')).slides.quiz.poll;
+  assert.equal((await put({ ...QUIZ, correct: [1] })).statusCode, 200);
+  assert.deepEqual((await onDisk()).correct, [1]);
+  assert.equal((await put({ ...QUIZ })).statusCode, 200);
+  assert.equal('correct' in (await onDisk()), false, 'no right answers any more');
+  assert.equal((await put({ ...QUIZ, correct: 'B' })).statusCode, 400);
+});
+
+test('participants get the right answers and their grade only once answers close; presenters always', async (t) => {
+  const slides = { slidecast: 1, slides: { gas: { poll: { ...MULTI, correct: [0, 2, 3] } } } };
+  const { presenter, display, viewer } = await setup(t, { slides });
+  const p = await presenter();
+  const proj = display();
+  await proj.next(isPolls());
+  const [v1, v2, v3, v4] = [viewer(), viewer(), viewer(), viewer()];
+  for (const v of [v1, v2, v3, v4]) await v.next(isPoll());
+  p.send({ t: 'poll', action: 'show', slide: 'gas' });
+  const shown = runOf(await p.next(isPolls((m) => m.shown === 'gas')), 'gas');
+  assert.deepEqual(shown.correct, [0, 2, 3], 'presenters know the right answers');
+  assert.deepEqual(shown.grades, { right: 0, partial: 0, wrong: 0 });
+
+  const choices = [[0, 2, 3], [0, 2], [0, 1], null];
+  for (const [i, v] of [v1, v2, v3, v4].entries()) {
+    const { poll } = await v.next(isPoll((m) => m.poll));
+    assert.equal(JSON.stringify(poll).includes('correct'), false, 'nothing about the right answers while open');
+    if (choices[i]) {
+      v.send({ t: 'vote', id: poll.id, choice: choices[i] });
+      await v.next(isPoll((m) => m.mine));
+    }
+  }
+  const counted = await p.next(isPolls((m) => runOf(m, 'gas')?.voters === 3));
+  assert.deepEqual(runOf(counted, 'gas').grades, { right: 1, partial: 1, wrong: 1 });
+
+  p.send({ t: 'poll', action: 'close', slide: 'gas' });
+  const grades = { right: 1, partial: 1, wrong: 1 };
+  for (const [v, grade] of [[v1, 'right'], [v2, 'partial'], [v3, 'wrong'], [v4, null]]) {
+    const closed = await v.next(isPoll((m) => m.poll && !m.poll.open));
+    assert.deepEqual(closed.poll.results, { counts: [3, 1, 2, 1], voters: 3, correct: [0, 2, 3], grades, grade });
+  }
+  await proj.next(isPolls((m) => runOf(m, 'gas')?.open === false));
+});
+
+test('a wrong answer key fixed in the editor applies to an answered poll, which keeps its answers', async (t) => {
+  const { app, presenter, viewer } = await setup(t);
+  const p = await presenter();
+  const v = viewer();
+  p.send({ t: 'poll', action: 'show', slide: 'quiz' });
+  const { poll } = await v.next(isPoll((m) => m.poll));
+  v.send({ t: 'vote', id: poll.id, choice: [1] });
+  await v.next(isPoll((m) => m.mine));
+  p.send({ t: 'poll', action: 'close', slide: 'quiz' });
+  const plain = await v.next(isPoll((m) => m.poll && !m.poll.open));
+  assert.deepEqual(plain.poll.results, { counts: [0, 1, 0], voters: 1 }, 'no right answers: a plain poll');
+
+  const put = (poll) => app.inject({ method: 'PUT', url: '/api/admin/decks/talk/slides/quiz', headers: LOCAL, payload: { notes: 'n', steps: {}, poll } });
+  await put({ ...QUIZ, correct: [0] });
+  let keyed = await v.next(isPoll((m) => m.poll?.results?.correct));
+  assert.equal(keyed.poll.id, poll.id, 'the same run, answers kept');
+  assert.equal(keyed.poll.results.grade, 'wrong');
+  await put({ ...QUIZ, correct: [1] });
+  keyed = await v.next(isPoll((m) => m.poll?.results?.grade === 'right'));
+  assert.deepEqual(keyed.poll.results.correct, [1]);
+  await p.next(isPolls((m) => runOf(m, 'quiz')?.grades?.right === 1));
+});
+
+test('an answered run with a new text keeps its right answers until Reset', () => {
+  const polls = createPolls();
+  polls.show('quiz', { ...QUIZ, multiple: false, correct: [1] });
+  polls.vote('p1', polls.shown.id, [1]);
+  assert.equal(polls.refresh({ quiz: { poll: { ...QUIZ, question: 'Another?', correct: [2] } } }), false);
+  assert.deepEqual(polls.shown.correct, [1]);
+  assert.equal(polls.refresh({ quiz: { poll: { ...QUIZ, correct: [0] } } }), true, 'same text: the new key');
+  assert.deepEqual(polls.forPresenters().runs[0].grades, { right: 0, partial: 0, wrong: 1 });
+  polls.hide();
+  polls.show('quiz', { ...QUIZ, multiple: false, correct: [1] });
+  assert.deepEqual(polls.shown.correct, [1], 'shown again: the key of deck.json');
 });

@@ -11,23 +11,46 @@ const MAX_RUNS = 100;
 // Cleans a poll as written by the editor or in deck.json (D1). Returns
 // {poll} — null when it says nothing — or {error} when it has the wrong shape.
 // Answers left empty are dropped, so the editor may save a poll half written.
+// `correct` (0007) lists the right answers by position in `options`; it
+// follows its answers when empty ones are dropped, and is left out when the
+// poll has no right answers (an opinion poll).
 export function cleanPoll(raw) {
   if (raw === null || raw === undefined) return { poll: null };
   if (typeof raw !== 'object' || Array.isArray(raw)) return { error: 'poll must be an object' };
-  const { question = '', options = [], multiple = false } = raw;
+  const { question = '', options = [], multiple = false, correct = [] } = raw;
   if (typeof question !== 'string' || question.length > 2000) return { error: 'invalid poll question' };
   if (!Array.isArray(options) || options.length > 50) return { error: 'invalid poll answers' };
   if (typeof multiple !== 'boolean') return { error: 'invalid poll kind' };
+  if (!Array.isArray(correct) || correct.length > 50 || !correct.every((i) => Number.isInteger(i) && i >= 0)) {
+    return { error: 'invalid poll correct answers' };
+  }
   const answers = [];
-  for (const o of options) {
+  const right = [];
+  for (const [i, o] of options.entries()) {
     if (typeof o !== 'string' || o.length > 1000) return { error: 'invalid poll answer' };
     const text = cleanLine(o, POLL_LIMITS.option);
-    if (text) answers.push(text);
+    if (!text) continue;
+    if (correct.includes(i)) right.push(answers.length);
+    answers.push(text);
   }
   if (answers.length > POLL_LIMITS.options) return { error: 'too many poll answers' };
   const q = cleanLine(question, POLL_LIMITS.question);
   if (!q && !answers.length) return { poll: null };
-  return { poll: { question: q, options: answers, multiple } };
+  const poll = { question: q, options: answers, multiple };
+  if (right.length) poll.correct = right;
+  return { poll };
+}
+
+// How a participant's answer fares against the right ones (0007): null when
+// the poll has none or there is no answer. One answer: right if it is one of
+// them. Several: right with exactly them, partial with only right ones but
+// not all, wrong with any wrong one.
+export function gradeOf(choice, correct, multiple) {
+  if (!correct?.length || !choice?.length) return null;
+  const hits = choice.filter((i) => correct.includes(i)).length;
+  if (!multiple) return hits ? 'right' : 'wrong';
+  if (hits < choice.length) return 'wrong';
+  return hits === correct.length ? 'right' : 'partial';
 }
 
 // The poll of a slide entry of deck.json when it can be launched: a question
@@ -39,6 +62,7 @@ export function pollOf(entry) {
 
 const sameText = (a, b) => a.question === b.question && a.multiple === b.multiple
   && a.options.length === b.options.length && a.options.every((o, i) => o === b.options[i]);
+const sameList = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
 
 const newId = () => randomBytes(6).toString('hex');
 
@@ -55,12 +79,30 @@ export function createPolls() {
     run.question = def.question;
     run.options = [...def.options];
     run.multiple = def.multiple;
+    run.correct = [...(def.correct ?? [])];
     run.ballots = new Map();
     run.counts = def.options.map(() => 0);
   }
 
   function shownRun() {
     return shown === null ? null : runs.get(shown) ?? null;
+  }
+
+  // The right answers of a run follow deck.json even once answered, while its
+  // text stays the same: a wrong answer key can be fixed in class (0007).
+  function rekey(run, def) {
+    const next = def.correct ?? [];
+    if (sameList(run.correct, next)) return false;
+    run.correct = [...next];
+    return true;
+  }
+
+  // How many got it right, partly right or wrong; null without right answers.
+  function grades(run) {
+    if (!run.correct.length) return null;
+    const g = { right: 0, partial: 0, wrong: 0 };
+    for (const ballot of run.ballots.values()) g[gradeOf(ballot, run.correct, run.multiple)]++;
+    return g;
   }
 
   function publicRun(run) {
@@ -70,9 +112,11 @@ export function createPolls() {
       question: run.question,
       options: run.options,
       multiple: run.multiple,
+      correct: run.correct,
       open: run.open,
       counts: run.counts,
       voters: run.ballots.size,
+      grades: grades(run),
     };
   }
 
@@ -97,6 +141,8 @@ export function createPolls() {
         define(run, def);
       } else if (def && !run.ballots.size && !sameText(run, def)) {
         define(run, def);
+      } else if (def && sameText(run, def)) {
+        rekey(run, def);
       }
       runs.delete(slide); // the cap below drops the run shown longest ago
       runs.set(slide, run);
@@ -133,17 +179,23 @@ export function createPolls() {
 
     // New texts from deck.json (`slides`): runs nobody has answered yet take
     // them (D2), and go away, unless on the screens, when their poll is gone.
+    // Answered runs with the same text take only the new right answers (0007).
     // Returns true if any run changed.
     refresh(slides) {
       let changed = false;
       for (const run of [...runs.values()]) {
-        if (run.ballots.size) continue;
         const def = pollOf(Object.hasOwn(slides ?? {}, run.slide) ? slides[run.slide] : null);
+        if (run.ballots.size) {
+          if (def && sameText(run, def) && rekey(run, def)) changed = true;
+          continue;
+        }
         if (!def && run.slide !== shown) {
           runs.delete(run.slide);
           changed = true;
         } else if (def && !sameText(run, def)) {
           define(run, def);
+          changed = true;
+        } else if (def && rekey(run, def)) {
           changed = true;
         }
       }
@@ -193,10 +245,13 @@ export function createPolls() {
     },
 
     // For one participant: the shown poll, its own answer, and the results
-    // once answers are closed (D7).
+    // once answers are closed (D7) — with the right answers and how its own
+    // answer fared, never before (0007).
     forParticipant(voter) {
       const run = shownRun();
       if (!run) return { t: 'poll', poll: null, mine: null };
+      const mine = run.ballots.get(voter) ?? null;
+      const graded = !run.open && run.correct.length > 0;
       return {
         t: 'poll',
         poll: {
@@ -205,9 +260,13 @@ export function createPolls() {
           options: run.options,
           multiple: run.multiple,
           open: run.open,
-          results: run.open ? null : { counts: run.counts, voters: run.ballots.size },
+          results: run.open ? null : {
+            counts: run.counts,
+            voters: run.ballots.size,
+            ...(graded ? { correct: run.correct, grades: grades(run), grade: gradeOf(mine, run.correct, run.multiple) } : {}),
+          },
         },
-        mine: run.ballots.get(voter) ?? null,
+        mine,
       };
     },
   };

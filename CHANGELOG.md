@@ -25,6 +25,13 @@ include breaking changes, always listed here.
   stays on the screens until taken off, keeps its answers when hidden, and
   answers can be closed, reopened or reset (back to before it was
   launched). The demo deck has one.
+- Polls with a solution: mark the right answers in the notes editor (or
+  `correct` in `deck.json`). The presenter sees them marked, with how many
+  got it right, partly right or wrong; when answers close, viewers and the
+  projector see them too, and each viewer whether they got it right (partly
+  right when several are to be chosen and only some of the right ones were).
+  A right answer fixed in the editor applies at once, even to a poll already
+  answered.
 - Viewer: Enter or Space on a focused button (raise hand, poll) presses it
   instead of moving the slide.
 - Updating a deck now also lists the slides whose poll would be deleted.

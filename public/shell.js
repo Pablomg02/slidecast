@@ -77,6 +77,9 @@ const ICONS = {
   next: '<path d="M9 5l7 7-7 7"/>',
   remote: '<path d="M9 7l-5 5 5 5M15 7l5 5-5 5"/>',
   close: '<path d="M6 6l12 12M18 6L6 18"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7"/>',
+  cross: '<path d="M7 7l10 10M17 7L7 17"/>',
+  partial: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/>',
 };
 
 export function icon(name, cls = 'icon') {

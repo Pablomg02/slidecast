@@ -353,8 +353,10 @@ addEventListener('click', (e) => {
 - Also write deck.json with {"slidecast": 1, "title": "…", "slides": {"&lt;slide id&gt;":
   {"notes": "speaker notes in Markdown", "steps": {"1": "note for step 1"}}}}.
 - For a question to the audience, give that slide a poll in deck.json:
-  "poll": {"question": "…", "options": ["…", "…"], "multiple": false}
-  (2 to 10 short plain-text answers; "multiple": true allows several).</pre>
+  "poll": {"question": "…", "options": ["…", "…"], "multiple": false, "correct": [0]}
+  (2 to 10 short plain-text answers; "multiple": true allows several;
+  "correct" lists the right answers by position from 0, or leave it out for
+  an opinion poll).</pre>
             </div>
             <button type="button" class="prompt-toggle" aria-expanded="false" aria-controls="prompt-text">Read the full prompt</button>
           </div>

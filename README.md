@@ -30,9 +30,10 @@ moves with you: the projector, your phone, your audience's laptops.
 - **An audience that takes part**: viewers raise their hand, with an optional
   note, and you queue and answer them from the presenter view. They can give
   a name only you see, or stay anonymous.
-- **Live polls**: give a slide a question with its answers; launch it from the
-  presenter view and everyone answers from their own device while the results,
-  anonymous, fill in live on your screen and the projector.
+- **Live polls and quizzes**: give a slide a question with its answers, and
+  mark the right ones if it has a solution; launch it from the presenter view
+  and everyone answers from their own device while the results, anonymous,
+  fill in live on your screen and the projector.
 - **Rooms you open and close**: open the deck you are about to present with
   one click; the main address takes everyone to it.
 - **Notes and polls in the browser**: write them slide by slide in the admin
@@ -253,6 +254,8 @@ presenter view:
 A slide can carry a poll: a question and 2 to 10 answers, with one answer or
 several allowed. Write it in the notes editor (**Add a poll**, under the
 slide's notes) or in `deck.json` ([deck format](docs/deck-format.md#deckjson)).
+Tick **Correct** next to the right answers to make it a question with a
+solution; leave them all unticked for an opinion poll.
 
 - **Launch it.** On a slide with a poll, the presenter view says so above the
   notes: **Launch poll**. On a computer the **Poll** tab then shows the
@@ -269,6 +272,13 @@ slide's notes) or in `deck.json` ([deck format](docs/deck-format.md#deckjson)).
   projector (the viewer window of the presenter, controlling or not), never
   saying who answered what. Viewers see them on their own device once you
   close the answers, so they do not lean towards the leading answer.
+- **Right answers.** If the poll has them, you see them marked from the start,
+  with how many got it right, partly right or wrong. Viewers and the projector
+  see them only once you close the answers: each viewer is told whether they
+  got it right. With several answers to choose, choosing exactly the right
+  ones is right, only some of them is partly right, and any wrong one makes
+  it wrong. A right answer fixed in the editor applies at once, even to a
+  poll already answered.
 - **It stays until you take it away.** The poll stays on the screens while
   you go on through the slides. **Close answers** / **Reopen answers** stop
   and resume voting; **Take off the screens** hides it, keeping its answers,

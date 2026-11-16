@@ -263,7 +263,7 @@ export function createDeckStore({
   }
 
   // `poll`: undefined keeps the slide's poll, null removes it, an object
-  // replaces its text (D1 of 0006); its other fields are kept.
+  // replaces its text and right answers (D1 of 0006, 0007); its other fields are kept.
   async function updateSlide(slug, slideId, { notes = '', steps = {}, poll } = {}) {
     if (typeof slideId !== 'string' || !slideId || slideId.length > 200 || /[\0-\x1f]/.test(slideId)) {
       throw new DeckError('ERR_BAD_INPUT', 'invalid slide id');
@@ -289,6 +289,7 @@ export function createDeckStore({
       else if (cleaned) {
         const old = slide.poll && typeof slide.poll === 'object' && !Array.isArray(slide.poll) ? slide.poll : {};
         slide.poll = { ...old, ...cleaned.poll };
+        if (!cleaned.poll.correct) delete slide.poll.correct; // no right answers: an opinion poll (0007)
       }
       meta.slides[slideId] = slide;
     });

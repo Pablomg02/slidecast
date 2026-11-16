@@ -506,6 +506,29 @@ body.room-waiting .remote { visibility: hidden; }
 }
 .poll-lead .poll-fill { background: var(--accent); }
 .poll-total { margin: 1.1rem 0 0; font-size: .9rem; color: var(--muted); }
+/* Right answers (0007): marked in green instead of the leading answer; a
+   wrong answer of one's own in red. */
+.poll-right-mark {
+  flex: none; display: inline-flex; align-items: center; gap: .2rem; font-size: .68rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .06em; padding: .05rem .45rem .05rem .3rem; border-radius: 999px;
+  background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok);
+}
+.poll-right-mark .icon { width: 1.1em; height: 1.1em; stroke-width: 3; }
+.poll-keyed .poll-fill { background: color-mix(in srgb, var(--muted) 35%, var(--surface-2)); }
+.poll-keyed .poll-right .poll-fill { background: var(--ok); }
+.poll-right .poll-letter { background: var(--ok); color: var(--surface); }
+.poll-own-wrong .poll-letter { background: var(--danger); color: var(--surface); }
+.poll-own-wrong .poll-mine { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+.poll-verdict {
+  display: flex; align-items: center; gap: .6rem; margin: 0 0 1.1rem; padding: .7rem .85rem; border-radius: 12px;
+  font-weight: 650; line-height: 1.3; border: 1px solid currentColor;
+}
+.poll-verdict-icon { flex: none; display: inline-grid; place-items: center; width: 1.9rem; height: 1.9rem; border-radius: 50%; background: currentColor; }
+.poll-verdict-icon .icon { width: 1.15rem; height: 1.15rem; stroke-width: 3; color: var(--surface); }
+.poll-verdict-right { color: var(--ok); background: color-mix(in srgb, var(--ok) 10%, transparent); }
+.poll-verdict-partial { color: var(--warn); background: color-mix(in srgb, var(--warn) 10%, transparent); }
+.poll-verdict-wrong { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }
+.poll-grades { margin: .35rem 0 0; font-size: .9rem; color: var(--muted); }
 /* The projector: read from the back of the room. --poll-scale shrinks it all
    to fit without scrolling (viewer-poll.js). */
 .poll-display .poll-question { font-size: calc(clamp(1.3rem, 2.3vw, 2.3rem) * var(--poll-scale, 1)); }
@@ -514,6 +537,8 @@ body.room-waiting .remote { visibility: hidden; }
 .poll-display .poll-result .poll-letter { width: 1.8em; height: 1.8em; font-size: .8em; }
 .poll-display .poll-bar { height: calc(clamp(.7rem, 1.1vw, 1.25rem) * var(--poll-scale, 1)); }
 .poll-display .poll-total { font-size: calc(clamp(.9rem, 1.2vw, 1.2rem) * var(--poll-scale, 1)); }
+.poll-display .poll-right-mark { font-size: .62em; }
+.poll-display .poll-grades { font-size: calc(clamp(.9rem, 1.2vw, 1.2rem) * var(--poll-scale, 1)); }
 .poll-pill {
   min-height: 2.25rem; padding: .3rem .9rem; border-radius: 999px; font-size: .88rem; gap: .4rem;
   background: var(--accent); color: var(--accent-ink); border-color: transparent; box-shadow: 0 8px 24px -8px rgba(0, 0, 0, .6);
@@ -690,6 +715,8 @@ body.room-waiting .remote { visibility: hidden; }
 .p-poll-preview li { display: flex; align-items: center; gap: .55rem; overflow-wrap: anywhere; }
 .p-poll-preview .poll-letter { width: 1.5rem; height: 1.5rem; font-size: .76rem; }
 .p-poll-total { margin: .8rem 0 0; font-size: .88rem; }
+.p-poll-grades { margin: .3rem 0 0; font-size: .88rem; font-weight: 600; }
+.p-poll-preview .poll-right-mark { margin-left: auto; }
 .p-poll-edited { margin: .5rem 0 0; font-size: .85rem; color: var(--warn); }
 .p-poll-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; margin-top: 12px; }
 .p-poll-error { margin: 0; color: var(--danger); font-size: .9rem; }
@@ -954,6 +981,14 @@ dialog .password-control { margin-top: 1.25rem; }
 .e-poll-option { display: flex; align-items: center; gap: 8px; }
 .e-poll-option input { flex: 1; min-width: 0; }
 .e-poll-remove-option { font-size: 1.1rem; color: var(--muted); }
+.e-poll-correct {
+  flex: none; display: inline-flex; align-items: center; gap: .35rem; margin: 0; padding: .3rem .55rem; border-radius: 8px;
+  font-size: .8rem; font-weight: 600; color: var(--muted); cursor: pointer; border: 1px solid transparent;
+}
+.e-poll-option .e-poll-correct input { flex: none; margin: 0; accent-color: var(--ok); }
+.e-poll-right .e-poll-correct { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); background: color-mix(in srgb, var(--ok) 10%, transparent); }
+.e-poll-right .poll-letter { background: var(--ok); color: var(--surface); }
+.e-poll-correct-hint { margin: .2rem 0 0; }
 .e-poll-kind { gap: .5rem 1.25rem; margin-top: 1rem; }
 .e-poll-incomplete { color: var(--warn); }
 .e-poll-foot { margin-top: .8rem; }

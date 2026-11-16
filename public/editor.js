@@ -5,7 +5,7 @@ import {
   t, el, api, setTitle, createDeckFrame, keyActionFromEvent, isOwnKey, icon, confirmButton,
 } from './shell.js';
 import { renderMarkdown } from './markdown.js';
-import { POLL_LIMITS, letter, pollOf } from './poll.js';
+import { POLL_LIMITS, letter, pollOf, validCorrect } from './poll.js';
 
 const slug = decodeURIComponent(location.pathname.split('/')[3] ?? '');
 const app = document.getElementById('app');
@@ -30,13 +30,17 @@ function editablePoll(raw) {
   const options = (Array.isArray(raw.options) ? raw.options : [])
     .filter((o) => typeof o === 'string').slice(0, POLL_LIMITS.options).map((o) => clip(o, POLL_LIMITS.option));
   const question = typeof raw.question === 'string' ? clip(raw.question, POLL_LIMITS.question) : '';
-  return { question, options, multiple: raw.multiple === true };
+  // Right answers (0007): positions of answers the form holds.
+  const correct = validCorrect(raw.correct) ? [...new Set(raw.correct ?? [])].filter((i) => i < options.length) : [];
+  return { question, options, multiple: raw.multiple === true, correct };
 }
 for (const [id, entry] of Object.entries(notes)) {
   if (!entry || typeof entry !== 'object' || !('poll' in entry)) continue;
   const raw = entry.poll;
   const poll = editablePoll(raw);
-  const same = poll && JSON.stringify(poll) === JSON.stringify({ question: raw.question, options: raw.options, multiple: raw.multiple ?? false });
+  const same = poll && JSON.stringify(poll) === JSON.stringify({
+    question: raw.question, options: raw.options, multiple: raw.multiple ?? false, correct: raw.correct ?? [],
+  });
   if (!same) {
     pollFixed.add(id);
     pollTouched.add(id);
@@ -74,6 +78,8 @@ const pollAddOption = el('button.small', { type: 'button', id: 'poll-add-option'
 const kindSingle = el('input', { type: 'radio', name: 'poll-kind', id: 'poll-kind-single' });
 const kindMultiple = el('input', { type: 'radio', name: 'poll-kind', id: 'poll-kind-multiple' });
 const pollIncomplete = el('p.hint.e-poll-incomplete', { id: 'poll-incomplete' }, t('pollIncomplete'));
+const pollCorrectHint = el('p.hint.e-poll-correct-hint', { id: 'poll-correct-hint' }, t('pollCorrectHint'));
+const pollCorrectAny = el('p.hint.e-poll-correct-hint', { id: 'poll-correct-any', hidden: true }, t('pollCorrectAny'));
 const pollFixedHint = el('p.hint.e-poll-incomplete', { id: 'poll-fixed', hidden: true }, t('pollFixedHint'));
 const pollArmed = { key: null, until: 0 };
 const pollFoot = el('div.row.e-poll-foot');
@@ -82,9 +88,11 @@ const pollFields = el('div.e-poll-fields', { hidden: true },
   el('p.e-poll-label', { id: 'poll-options-label' }, t('pollOptionsLabel')),
   pollOptions,
   pollAddOption,
+  pollCorrectHint,
   el('div.row.e-poll-kind', { role: 'radiogroup', 'aria-label': t('pollKind') },
     el('label.inline', { htmlFor: 'poll-kind-single' }, kindSingle, t('pollKindSingle')),
     el('label.inline', { htmlFor: 'poll-kind-multiple' }, kindMultiple, t('pollKindMultiple'))),
+  pollCorrectAny,
   pollIncomplete,
   pollFoot);
 const pollBox = el('section.e-poll', { id: 'poll-editor' },
@@ -186,6 +194,7 @@ function pollHints() {
   if (!poll) return;
   pollIncomplete.hidden = Boolean(pollOf({ poll }));
   pollAddOption.disabled = poll.options.length >= POLL_LIMITS.options;
+  pollCorrectAny.hidden = poll.multiple || poll.correct.length < 2;
 }
 
 function buildOptions(focus = null) {
@@ -204,19 +213,34 @@ function buildOptions(focus = null) {
       if (e.key !== 'Enter') return;
       e.preventDefault();
       if (i === poll.options.length - 1) addOption();
-      else pollOptions.querySelectorAll('input')[i + 1]?.focus();
+      else pollOptions.querySelectorAll('input[type=text]')[i + 1]?.focus();
+    });
+    // Right or not (0007).
+    const right = el('input', {
+      type: 'checkbox', checked: poll.correct.includes(i), 'aria-label': t('pollCorrectN', { letter: letter(i) }),
+      dataset: { correct: String(i) },
+    });
+    right.addEventListener('change', () => {
+      poll.correct = poll.correct.filter((k) => k !== i);
+      if (right.checked) poll.correct.push(i);
+      poll.correct.sort((a, b) => a - b);
+      right.closest('li').classList.toggle('e-poll-right', right.checked);
+      pollEdited();
     });
     const remove = el('button.small.icon-btn.e-poll-remove-option', {
       type: 'button', title: t('pollRemoveOption', { letter: letter(i) }), 'aria-label': t('pollRemoveOption', { letter: letter(i) }),
       onclick: () => {
         poll.options.splice(i, 1);
+        // The right answers after it move up with their answers.
+        poll.correct = poll.correct.filter((k) => k !== i).map((k) => (k > i ? k - 1 : k));
         buildOptions(Math.min(i, poll.options.length - 1));
         pollEdited();
       },
     }, '×');
-    return el('li.e-poll-option', {}, el('span.poll-letter', {}, letter(i)), input, remove);
+    return el(`li.e-poll-option${poll.correct.includes(i) ? '.e-poll-right' : ''}`, {}, el('span.poll-letter', {}, letter(i)), input,
+      el('label.e-poll-correct', { title: t('pollCorrectN', { letter: letter(i) }) }, right, el('span', {}, t('pollRight'))), remove);
   }));
-  if (focus !== null) (pollOptions.querySelectorAll('input')[focus] ?? pollAddOption).focus();
+  if (focus !== null) (pollOptions.querySelectorAll('input[type=text]')[focus] ?? pollAddOption).focus();
 }
 
 function pollEdited() {
@@ -235,7 +259,7 @@ function pollEdited() {
 function addPoll() {
   const id = current()?.slide;
   if (!id) return;
-  notes[id] = { ...(notes[id] ?? {}), poll: { question: '', options: ['', ''], multiple: false } };
+  notes[id] = { ...(notes[id] ?? {}), poll: { question: '', options: ['', ''], multiple: false, correct: [] } };
   pollFor = null;
   renderPoll();
   pollQuestion.focus();
@@ -267,7 +291,7 @@ pollQuestion.addEventListener('input', () => {
 pollQuestion.addEventListener('keydown', (e) => {
   if (e.key !== 'Enter') return;
   e.preventDefault();
-  pollOptions.querySelector('input')?.focus();
+  pollOptions.querySelector('input[type=text]')?.focus();
 });
 for (const radio of [kindSingle, kindMultiple]) {
   radio.addEventListener('change', () => {

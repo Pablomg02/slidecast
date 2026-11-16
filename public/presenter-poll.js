@@ -4,7 +4,7 @@
 // Every presenter sees the same; commands go to the server, which takes the
 // text from deck.json and sends everyone the new state.
 import { t, el, icon, confirmButton } from './shell.js';
-import { createResults, pollOf, samePoll, letter, answers } from './poll.js';
+import { createResults, pollOf, samePoll, letter, answers, gradesText } from './poll.js';
 
 export function createPresenterPoll({ send, onSee, onLaunch }) {
   let polls = { shown: null, runs: [] };
@@ -39,6 +39,7 @@ export function createPresenterPoll({ send, onSee, onLaunch }) {
     const preview = el('ol.p-poll-preview');
     const results = createResults();
     const total = el('p.p-poll-total.muted');
+    const gradesLine = el('p.p-poll-grades', { hidden: true });
     const edited = el('p.p-poll-edited', { hidden: true }, t('pollEdited'));
     const toggleLabel = el('span');
     const buttons = {
@@ -50,7 +51,7 @@ export function createPresenterPoll({ send, onSee, onLaunch }) {
     };
     buttons.reset.dataset.action = 'reset';
     const actions = el('div.p-poll-actions', {}, Object.values(buttons));
-    const root = el(`section.p-poll-card.p-poll-${name}`, { hidden: true }, chips, question, preview, results.element, total, edited, actions);
+    const root = el(`section.p-poll-card.p-poll-${name}`, { hidden: true }, chips, question, preview, results.element, total, gradesLine, edited, actions);
     const chip = (text, cls = '') => el(`span.p-poll-chip${cls}`, {}, text);
     const only = (...names) => {
       for (const [k, b] of Object.entries(buttons)) b.hidden = !names.includes(k);
@@ -67,17 +68,25 @@ export function createPresenterPoll({ send, onSee, onLaunch }) {
         setText(question, p.question);
         const where = p === run && run.slide !== slide ? chip(t('pollFromSlide', { id: run.slide }), '.p-poll-chip-quiet') : null;
         const kind = chip(p.multiple ? t('pollMultiple') : t('pollSingle'), '.p-poll-chip-quiet');
+        // The presenter always sees the right answers (0007); the audience
+        // only once answers close.
+        const keyed = p.correct?.length ? chip(t('pollHasKey'), '.p-poll-chip-quiet') : null;
         if (!run) {
           target = slide;
-          chips.replaceChildren(chip(t('pollNotLaunched')), kind);
+          chips.replaceChildren(...[chip(t('pollNotLaunched')), kind, keyed].filter(Boolean));
           preview.hidden = false;
-          const key = JSON.stringify(def.options);
+          const key = JSON.stringify([def.options, def.correct ?? []]);
           if (key !== previewKey) {
             previewKey = key;
-            preview.replaceChildren(...def.options.map((o, i) => el('li', {}, el('span.poll-letter', {}, letter(i)), el('span', {}, o))));
+            preview.replaceChildren(...def.options.map((o, i) => {
+              const right = Boolean(def.correct?.includes(i));
+              return el(`li${right ? '.poll-right' : ''}`, {}, el('span.poll-letter', {}, letter(i)), el('span', {}, o),
+                right ? el('span.poll-right-mark', {}, icon('check'), el('span', {}, t('pollRight'))) : null);
+            }));
           }
           results.element.hidden = true;
           total.hidden = true;
+          gradesLine.hidden = true;
           edited.hidden = true;
           only('launch');
           return;
@@ -87,12 +96,14 @@ export function createPresenterPoll({ send, onSee, onLaunch }) {
         chips.replaceChildren(...[
           chip(onScreens ? t('pollOnScreens') : t('pollHiddenState'), onScreens ? '.p-poll-chip-live' : ''),
           chip(run.open ? t('pollAccepting') : t('pollClosedState'), run.open ? '' : '.p-poll-chip-closed'),
-          kind, where].filter(Boolean));
+          kind, keyed, where].filter(Boolean));
         preview.hidden = true;
         results.element.hidden = false;
-        results.update(run);
+        results.update(run, { correct: run.correct });
         total.hidden = false;
         setText(total, `${answers(run.voters)} · ${t('pollConnected', { m: viewers })}`);
+        gradesLine.hidden = !run.grades;
+        setText(gradesLine, gradesText(run.grades, run.multiple));
         const now = defOf(run.slide);
         edited.hidden = !(now && run.voters > 0 && !samePoll(now, run));
         if (onScreens) {

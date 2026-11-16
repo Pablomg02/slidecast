@@ -108,7 +108,9 @@ closing the room, or restarting the server, forgets everyone.
 **Polls.** A poll's text is read from the deck's `deck.json` by the server
 when a presenter shows it, never taken from a message, and shown as text
 (never HTML). Participants receive a poll only while it is on the screens,
-and its results only once answers are closed. They can answer only that
+and its results, its right answers and whether they got it right only once
+answers are closed: nothing about the right answers reaches them, or the
+projector's screen, while answers are open. They can answer only that
 poll, once per participant (a new answer replaces the previous one, from
 any of its windows), with options the server checks; at most 10 answers per
 10 s. A participant is a browser, not a person: like any poll without

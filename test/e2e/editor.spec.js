@@ -120,21 +120,36 @@ test('write a poll for a slide: saved to deck.json, marked in the step list, rem
   await page.keyboard.type('F');
   await page.keyboard.press('Enter'); // a third answer, added at the end
   await page.keyboard.type('L');
-  await expect(page.locator('#poll-options input')).toHaveCount(3);
+  await expect(page.locator('#poll-options input[type=text]')).toHaveCount(3);
   await expect(page.locator('#poll-incomplete')).toBeHidden();
   await page.check('#poll-kind-multiple');
+  // Right answers (0007): B and L.
+  await expect(page.locator('#poll-correct-hint')).toBeVisible();
+  await page.check('#poll-options li:nth-child(1) input[type=checkbox]');
+  await page.check('#poll-options li:nth-child(3) input[type=checkbox]');
+  await expect(page.locator('#poll-options li:nth-child(3)')).toHaveClass(/e-poll-right/);
   await expect(page.locator('#save-status')).toHaveText('Saved', { timeout: 5000 });
   await expect(page.locator('.e-group[data-slide=keys]')).toHaveClass(/has-poll/);
-  expect((await deckJson()).slides.keys.poll).toEqual({ question: 'Which key blanks the screen?', options: ['B', 'F', 'L'], multiple: true });
+  expect((await deckJson()).slides.keys.poll).toEqual({ question: 'Which key blanks the screen?', options: ['B', 'F', 'L'], multiple: true, correct: [0, 2] });
   expect((await deckJson()).slides.keys.notes).toBe('`B` blanks every viewer screen. Press it again to come back.');
 
   // The presenter on that slide can launch it at once.
   await expect(presenter.locator('#poll-strip')).toContainText('This slide has a poll');
 
   await page.click('#poll-options li:nth-child(2) button');
-  await expect(page.locator('#poll-options input')).toHaveCount(2);
+  await expect(page.locator('#poll-options input[type=text]')).toHaveCount(2);
   await expect(page.locator('#save-status')).toHaveText('Saved', { timeout: 5000 });
   expect((await deckJson()).slides.keys.poll.options).toEqual(['B', 'L']);
+  expect((await deckJson()).slides.keys.poll.correct).toEqual([0, 1], 'L moved up, still right');
+  await expect(page.locator('#poll-options li:nth-child(2) input[type=checkbox]')).toBeChecked();
+  // One answer to choose with two right ones: either counts, and it says so.
+  await page.check('#poll-kind-single');
+  await expect(page.locator('#poll-correct-any')).toBeVisible();
+  await page.uncheck('#poll-options li:nth-child(1) input[type=checkbox]');
+  await page.uncheck('#poll-options li:nth-child(2) input[type=checkbox]');
+  await expect(page.locator('#poll-correct-any')).toBeHidden();
+  await expect(page.locator('#save-status')).toHaveText('Saved', { timeout: 5000 });
+  expect('correct' in (await deckJson()).slides.keys.poll).toBe(false, 'none ticked: an opinion poll');
 
   const remove = page.locator('#poll-editor .e-poll-foot button');
   await remove.click();
@@ -160,7 +175,7 @@ test('a poll written by hand that is not valid is shown corrected, with a warnin
   await writeFile(join(srv.dataDir, 'demo', 'deck.json'), JSON.stringify(meta));
   await page.goto(`${srv.url}/admin/edit/demo?slide=end`);
   await expect(page.locator('#poll-fixed')).toBeVisible();
-  await expect(page.locator('#poll-options input')).toHaveCount(10);
+  await expect(page.locator('#poll-options input[type=text]')).toHaveCount(10);
   await expect(page.locator('#poll-kind-single')).toBeChecked();
   // Opening the editor writes nothing; the next change on the slide does.
   expect((await deckJson()).slides.end.poll.multiple).toBe('no');

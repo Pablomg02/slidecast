@@ -3,7 +3,7 @@
 // or not) shows its results live. The panel can be minimised to a button, and
 // opens again by itself when a new poll comes or one is shown again.
 import { t, el, icon } from './shell.js';
-import { createResults, letter, answers } from './poll.js';
+import { createResults, letter, answers, gradesText } from './poll.js';
 
 const sameSet = (a, b) => a.length === b.length && a.every((x) => b.includes(x));
 
@@ -35,7 +35,12 @@ export function createViewerPoll(app, { display, badges }) {
   const results = createResults();
   const closedNote = el('p.poll-closed-note', { id: 'poll-closed-note', hidden: display });
   const total = el('p.poll-total', { id: 'poll-total' });
-  const resultsBox = el('div.poll-results-box', {}, closedNote, results.element, total);
+  // Once answers close, with right answers (0007): how one's own answer fared,
+  // and how the room did.
+  const verdictText = el('span');
+  const verdict = el('p.poll-verdict', { id: 'poll-verdict', hidden: true }, el('span.poll-verdict-icon'), verdictText);
+  const grades = el('p.poll-grades', { id: 'poll-grades', hidden: true });
+  const resultsBox = el('div.poll-results-box', {}, closedNote, verdict, results.element, total, grades);
   const body = el('div.poll-body', {}, question, display ? null : form, resultsBox);
   const panel = el(`aside.poll-panel${display ? '.poll-display' : ''}`, { id: 'poll-panel', hidden: true, 'aria-labelledby': 'poll-question' },
     el('header.poll-head', {}, el('span.poll-kicker', {}, icon('poll'), t('poll')), kind, minBtn),
@@ -133,8 +138,11 @@ export function createViewerPoll(app, { display, badges }) {
     kind.textContent = poll.multiple ? t('pollMultiple') : t('pollSingle');
     pill.querySelector('.poll-pill-dot').hidden = display || !poll.open || mine !== null;
     if (display) {
-      results.update(poll);
+      // The projector shows the right answers only once answers close.
+      const key = poll.open ? null : poll.correct;
+      results.update(poll, { correct: key });
       total.textContent = `${answers(poll.voters)} · ${poll.open ? t('pollAnswerOnDevice') : t('pollClosedState')}`;
+      showGrades(key?.length ? poll.grades : null);
       fit();
       return;
     }
@@ -148,8 +156,21 @@ export function createViewerPoll(app, { display, badges }) {
     }
     closedNote.textContent = mine ? t('pollClosedYou') : `${t('pollClosedYou')} ${t('pollNotAnswered')}`;
     const r = poll.results ?? { counts: poll.options.map(() => 0), voters: 0 };
-    results.update({ options: poll.options, ...r }, { mine });
+    results.update({ options: poll.options, ...r }, { mine, correct: r.correct ?? null });
     total.textContent = answers(r.voters);
+    showGrades(r.correct?.length ? r.grades : null);
+    const grade = r.correct?.length ? r.grade : null;
+    verdict.hidden = !grade;
+    verdict.className = grade ? `poll-verdict poll-verdict-${grade}` : 'poll-verdict';
+    if (grade) {
+      verdict.firstChild.replaceChildren(icon({ right: 'check', partial: 'partial', wrong: 'cross' }[grade]));
+      verdictText.textContent = t({ right: 'pollVerdictRight', partial: 'pollVerdictPartial', wrong: 'pollVerdictWrong' }[grade]);
+    }
+  }
+
+  function showGrades(g) {
+    grades.hidden = !g;
+    grades.textContent = g ? gradesText(g, poll.multiple) : '';
   }
 
   // The poll as the server has it now: `next` is null when none is shown;
