@@ -5,7 +5,7 @@ import fastifyWebsocket from '@fastify/websocket';
 import { readFileSync, watchFile, unwatchFile } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve, join } from 'node:path';
-import { loadConfig } from './config.js';
+import { loadConfig, isOwnConfigWrite } from './config.js';
 import { readJson } from './store.js';
 import { createDeckStore } from './decks.js';
 import { registerDeckFiles } from './deckfiles.js';
@@ -73,13 +73,17 @@ export async function buildServer(opts = {}) {
   registerAdmin(app, ctx);
   registerPages(app, ctx);
 
-  // `slidecast passwd` edits config.json while the server may be running.
+  // `slidecast passwd` edits config.json while the server may be running. The
+  // poll sees the server's own writes too, maybe an older one after a newer
+  // change in memory: those are skipped (see isOwnConfigWrite).
   const configPath = join(stateDir, 'config.json');
+  ctx.configFileChanged = async (fresh) => {
+    if (fresh && !isOwnConfigWrite(configPath, fresh)) await ctx.auth.onConfigFileChanged(fresh);
+  };
   watchFile(configPath, { interval: 2000, persistent: false }, async (cur, prev) => {
     if (cur.mtimeMs === prev.mtimeMs) return;
     try {
-      const fresh = await readJson(configPath, null);
-      if (fresh) await ctx.auth.onConfigFileChanged(fresh);
+      await ctx.configFileChanged(await readJson(configPath, null));
     } catch (err) {
       app.log.warn(`could not reload config.json: ${err.message}`);
     }

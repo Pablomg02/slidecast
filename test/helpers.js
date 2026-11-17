@@ -1,6 +1,8 @@
 import { mkdtemp, rm, mkdir } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 // Node 20 has no global WebSocket; ws is what @fastify/websocket runs on.
 import WebSocket from 'ws';
 
@@ -97,4 +99,13 @@ export function wsClient(url, { origin, cookie, headers = {}, join } = {}) {
     },
     close: () => socket.close(),
   };
+}
+
+// `slidecast passwd <args>`, in a process of its own as on a real server.
+const BIN = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'slidecast.js');
+export function passwd(args, input = '') {
+  return new Promise((resolve, reject) => {
+    const child = execFile(process.execPath, [BIN, 'passwd', ...args], (err, stdout, stderr) => (err ? reject(new Error(stderr)) : resolve()));
+    child.stdin.end(input);
+  });
 }

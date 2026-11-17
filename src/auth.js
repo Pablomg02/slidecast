@@ -289,19 +289,25 @@ export async function createAuth(ctx) {
     await revoke(kind, slug);
   }
 
-  // The CLI may change config.json while the server runs: reload it, and
-  // revoke the scopes whose password changed.
+  // `slidecast passwd` changed config.json while the server runs (`fresh`,
+  // not a write of this server's): take its passwords, the only thing the CLI
+  // changes, and revoke the scopes whose password changed. The rest of the
+  // file is what the CLI read, maybe older than what the server holds now.
   let lastHashes = hashFields(config);
   function onConfigFileChanged(fresh) {
     const before = lastHashes;
-    Object.assign(config, fresh);
-    lastHashes = hashFields(config);
-    for (const key of new Set([...Object.keys(before), ...Object.keys(lastHashes)])) {
-      if ((before[key] ?? null) !== (lastHashes[key] ?? null)) {
-        const [kind, slug] = key.split(':');
-        revokeScope(sessions, config, kind, slug);
-      }
+    const now = hashFields({ ...fresh, decks: fresh.decks ?? {} });
+    const changed = [...new Set([...Object.keys(before), ...Object.keys(now)])]
+      .filter((key) => (before[key] ?? null) !== (now[key] ?? null));
+    for (const key of changed) {
+      const [kind, slug = null] = key.split(':');
+      applyPasswordHash(config, kind, slug, now[key] ?? null);
     }
+    for (const key of changed) {
+      const [kind, slug = null] = key.split(':');
+      revokeScope(sessions, config, kind, slug);
+    }
+    lastHashes = hashFields(config);
     return save();
   }
 

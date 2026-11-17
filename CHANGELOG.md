@@ -6,6 +6,15 @@ include breaking changes, always listed here.
 
 ## [Unreleased]
 
+- Opening or closing a room, or any other change in the admin panel, could be
+  undone by itself a moment later. The server checks `config.json` every 2 s
+  for passwords changed with `slidecast passwd`, and it took its own earlier
+  write, read late, for one of those: a room just opened went back to closed
+  (its waiting audience stayed on "This room is closed" until a reload), and
+  a password just changed in the panel could go back to the old one. Now the
+  server tells its own writes apart (each one carries a new `writeId` in
+  `config.json`), and from a change made with the CLI it only takes the
+  passwords.
 - Sign-in limits fit a class behind one school address. Before, the 6th
   person signing in within a minute from the same address got "Too many
   attempts", even with the right password, and 20 typos in an hour shut the

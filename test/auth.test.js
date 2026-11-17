@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { buildServer } from '../src/server.js';
 import { hashPassword, verifyPassword, isLocalDirect, revokeScope } from '../src/auth.js';
 import { LOGIN_LIMITS } from '../src/loginlimits.js';
-import { onCleanup, tempDirs, makeDeck } from './helpers.js';
+import { onCleanup, tempDirs, makeDeck, passwd } from './helpers.js';
 
 const HOST = 'slidecast.test';
 const ORIGIN = `http://${HOST}`;
@@ -323,13 +323,8 @@ test('a running server picks up a password changed by the CLI and revokes sessio
   const { app, auth, dirs } = await setup(t);
   await auth.setPassword('presenter', null, 'presenter-pass');
   const cookie = cookieOf(await login(app, { scope: 'presenter', password: 'presenter-pass' }));
-  const { loadConfig, saveConfig } = await import('../src/config.js');
-  const { applyPasswordHash } = await import('../src/auth.js');
-  // What `slidecast passwd presenter` does, from another process.
   await new Promise((r) => setTimeout(r, 1100)); // distinct mtime
-  const onDisk = await loadConfig(dirs.stateDir);
-  applyPasswordHash(onDisk, 'presenter', null, await hashPassword('changed-by-cli'));
-  await saveConfig(dirs.stateDir, onDisk);
+  await passwd(['presenter', '--state', dirs.stateDir], 'changed-by-cli1\n');
   const remote = { cookie, 'x-real-ip': '1.1.1.1' };
   await assert.doesNotReject(async () => {
     for (let i = 0; i < 40; i++) {
@@ -339,7 +334,7 @@ test('a running server picks up a password changed by the CLI and revokes sessio
     }
     throw new Error('session not revoked');
   });
-  assert.equal((await login(app, { scope: 'presenter', password: 'changed-by-cli' })).statusCode, 204);
+  assert.equal((await login(app, { scope: 'presenter', password: 'changed-by-cli1' })).statusCode, 204);
 });
 
 test('20 failed logins in an hour lock that address out, and failures are logged', async (t) => {
