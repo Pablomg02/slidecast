@@ -189,13 +189,15 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
 
   // ---- polls (0006) -------------------------------------------------------------
 
-  // Every run, counts only, to presenters and displays (D6, D7).
+  // Every run, counts only, to presenters (D6, D7 of 0006); the shown one to
+  // displays, its counts only once public (D1, D4 of 0008).
   function sendPolls(s, only = null) {
     if (!only) {
       clearTimeout(s.pollTimer);
       s.pollTimer = null;
     }
-    const msg = JSON.stringify(s.polls.forPresenters());
+    let forPresenters = null;
+    let forDisplays = null;
     for (const c of only ? [only] : s.clients) {
       if (!isPresenterKind(c)) continue;
       // Live counts only to windows that may still present: a projector
@@ -204,14 +206,23 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
         c.socket.close(CLOSE.unauthorized, 'unauthorized');
         continue;
       }
-      send(c, msg);
+      if (c.kind === 'presenter') send(c, forPresenters ??= JSON.stringify(s.polls.forPresenters()));
+      else send(c, forDisplays ??= JSON.stringify(s.polls.forDisplays()));
     }
   }
 
   // While answers arrive: at most every 300 ms (1 s above 200 participants).
+  // Participants follow too while the results of an open poll are public:
+  // the same small message, built once, for all of them.
   function pollsSoon(s) {
     if (s.pollTimer) return;
-    s.pollTimer = setTimeout(() => sendPolls(s), s.people.size > 200 ? 1000 : 300);
+    s.pollTimer = setTimeout(() => {
+      sendPolls(s);
+      const counts = s.polls.liveCounts();
+      if (!counts) return;
+      const msg = JSON.stringify(counts);
+      for (const p of s.people.all()) for (const c of p.sockets) send(c, msg);
+    }, s.people.size > 200 ? 1000 : 300);
     s.pollTimer.unref?.();
   }
 
@@ -222,21 +233,24 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
     for (const c of p.sockets) send(c, msg);
   }
 
-  // A poll was shown, hidden, opened, closed or reset: everyone at once.
+  // A poll was shown, hidden, opened, closed, its results shown or hidden,
+  // or reset: everyone at once.
   function pollChanged(s) {
     sendPolls(s);
     for (const p of s.people.all()) if (p.sockets.size) sendPoll(s, p);
   }
 
-  const POLL_ACTIONS = new Set(['show', 'hide', 'open', 'close', 'reset']);
+  const POLL_ACTIONS = new Set(['show', 'hide', 'open', 'close', 'reveal', 'conceal', 'reset']);
   const validSlideId = (v) => typeof v === 'string' && v.length > 0 && v.length <= 200 && !/[\0-\x1f]/.test(v);
 
-  // {t: 'poll', action, slide}; false if invalid. The text comes from
+  // {t: 'poll', action, slide}, and `results` (whether they go public) on
+  // close; false if invalid. The text comes from
   // deck.json, never from the message (D2), so show reads it first;
   // the queue keeps a room's commands in the order they came (D4).
   function pollCommand(s, client, msg) {
     if (!POLL_ACTIONS.has(msg.action)) return false;
     if (msg.action !== 'hide' && !validSlideId(msg.slide)) return false;
+    if (msg.results !== undefined && (msg.action !== 'close' || typeof msg.results !== 'boolean')) return false;
     pollTask(s, () => runPollCommand(s, client, msg));
     return true;
   }
@@ -254,7 +268,9 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
     } else if (action === 'reset') {
       changed = s.polls.reset(slide);
     } else if (action === 'open' || action === 'close') {
-      changed = s.polls.setOpen(slide, action === 'open');
+      changed = s.polls.setOpen(slide, action === 'open', msg.results === true);
+    } else if (action === 'reveal' || action === 'conceal') {
+      changed = s.polls.setRevealed(slide, action === 'reveal');
     } else {
       const epoch = s.epoch;
       const meta = await ctx.decks.readMeta(s.slug).catch(() => null);
@@ -575,8 +591,9 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
         c.socket.close(CLOSE.kicked, 'kicked');
       }
       if (s.polls.forget(p.id)) {
-        // Closed answers: participants see the results, which just changed.
-        if (s.polls.shown && !s.polls.shown.open) pollChanged(s);
+        // Public results of closed answers: participants see them, and they
+        // just changed (open ones follow the counts anyway).
+        if (s.polls.shown?.revealed && !s.polls.shown.open) pollChanged(s);
         else pollsSoon(s);
       }
       handsChanged(s);

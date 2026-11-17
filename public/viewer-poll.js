@@ -1,6 +1,6 @@
 // The poll beside the slide in the viewer (D8 of 0006). A participant answers
 // it; a display (the projector: a viewer with presenter rights, controlling
-// or not) shows its results live. The panel can be minimised to a button, and
+// or not) shows it, with its results once the presenter makes them public. The panel can be minimised to a button, and
 // opens again by itself when a new poll comes or one is shown again.
 import { t, el, icon } from './shell.js';
 import { createResults, letter, answers, gradesText } from './poll.js';
@@ -33,7 +33,7 @@ export function createViewerPoll(app, { display, badges }) {
     el('div.poll-actions', {}, sendBtn),
     status);
   const results = createResults();
-  const closedNote = el('p.poll-closed-note', { id: 'poll-closed-note', hidden: display });
+  const closedNote = el('p.poll-closed-note', { id: 'poll-closed-note', hidden: true });
   const total = el('p.poll-total', { id: 'poll-total' });
   // Once answers close, with right answers (0007): how one's own answer fared,
   // and how the room did.
@@ -138,34 +138,45 @@ export function createViewerPoll(app, { display, badges }) {
     kind.textContent = poll.multiple ? t('pollMultiple') : t('pollSingle');
     pill.querySelector('.poll-pill-dot').hidden = display || !poll.open || mine !== null;
     if (display) {
-      // The projector shows the right answers only once answers close.
-      const key = poll.open ? null : poll.correct;
-      results.update(poll, { correct: key });
+      // The projector shows the counts only once the presenter makes them
+      // public, and the right answers only once answers close too. A display
+      // gets none before; a projector tab that controls the slides connects
+      // as a presenter and gets them, so it holds them back itself.
+      const key = poll.open || !poll.revealed ? null : poll.correct;
+      results.update(poll.revealed ? poll : { ...poll, counts: null }, { correct: key });
       total.textContent = `${answers(poll.voters)} · ${poll.open ? t('pollAnswerOnDevice') : t('pollClosedState')}`;
       showGrades(key?.length ? poll.grades : null);
       fit();
       return;
     }
     // A participant answers while answers are open, and sees the results
-    // once they are closed (D7).
+    // once the presenter makes them public (D1 of 0008): usually on closing answers,
+    // possibly while they are still open.
+    const r = poll.results;
     form.hidden = !poll.open;
-    resultsBox.hidden = poll.open;
-    if (poll.open) {
-      renderForm();
-      return;
-    }
+    resultsBox.hidden = poll.open && !r;
+    closedNote.hidden = poll.open;
+    if (poll.open) renderForm();
+    if (resultsBox.hidden) return;
     closedNote.textContent = mine ? t('pollClosedYou') : `${t('pollClosedYou')} ${t('pollNotAnswered')}`;
-    const r = poll.results ?? { counts: poll.options.map(() => 0), voters: 0 };
-    results.update({ options: poll.options, ...r }, { mine, correct: r.correct ?? null });
-    total.textContent = answers(r.voters);
-    showGrades(r.correct?.length ? r.grades : null);
-    const grade = r.correct?.length ? r.grade : null;
+    // Closed but not public yet: the answers, one's own marked, no counts.
+    results.update({ options: poll.options, counts: r?.counts ?? null, voters: r?.voters ?? 0 }, { mine, correct: r?.correct ?? null });
+    total.textContent = r ? answers(r.voters) : t('pollResultsNotYet');
+    showGrades(r?.correct?.length ? r.grades : null);
+    const grade = r?.correct?.length ? r.grade : null;
     verdict.hidden = !grade;
     verdict.className = grade ? `poll-verdict poll-verdict-${grade}` : 'poll-verdict';
     if (grade) {
       verdict.firstChild.replaceChildren(icon({ right: 'check', partial: 'partial', wrong: 'cross' }[grade]));
       verdictText.textContent = t({ right: 'pollVerdictRight', partial: 'pollVerdictPartial', wrong: 'pollVerdictWrong' }[grade]);
     }
+  }
+
+  // Public results of a poll still taking answers: the counts as they grow.
+  function followCounts({ id, counts, voters }) {
+    if (!poll?.results || poll.id !== id || !Array.isArray(counts)) return;
+    poll = { ...poll, results: { ...poll.results, counts, voters } };
+    render();
   }
 
   function showGrades(g) {
@@ -202,6 +213,7 @@ export function createViewerPoll(app, { display, badges }) {
     // `poll` (participant) or `polls` (display) messages.
     onMessage(msg) {
       if (msg.t === 'poll' && !display) take(msg.poll ?? null, Array.isArray(msg.mine) ? msg.mine : null, msg.ack === true);
+      else if (msg.t === 'poll-counts' && !display) followCounts(msg);
       else if (msg.t === 'polls' && display) take(msg.runs?.find((r) => r.slide === msg.shown) ?? null);
     },
     onError(msg) {

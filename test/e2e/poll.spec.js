@@ -58,7 +58,7 @@ async function participant(browser, opts) {
 const card = (page) => page.locator('.p-poll-shown');
 const result = (page, i) => page.locator('.poll-result').nth(i).locator('.poll-count');
 
-test('the presenter launches the slide\'s poll; participants answer; the presenter and the projector see the counts', async ({ browser }) => {
+test('the presenter launches the slide\'s poll; participants answer; only the presenter sees the counts until they are shown', async ({ browser }) => {
   const { page: p, context: pc } = await presenter(browser);
   const strip = p.locator('#poll-strip');
   await expect(strip).toContainText('This slide has a poll');
@@ -93,10 +93,13 @@ test('the presenter launches the slide\'s poll; participants answer; the present
   await expect(result(card(p), 1)).toHaveText('2 · 100%');
   await expect(card(p)).toContainText('2 answers · 2 viewers connected');
   await expect(p.locator('#tab-poll .p-tab-count')).toHaveText('2');
-  // The projector shows the results, never a form.
+  // The projector shows the poll, never a form, and how many answered, but
+  // not what: the results are secret until the presenter shows them.
   await expect(proj.locator('#poll-panel.poll-display')).toBeVisible();
   await expect(proj.locator('#poll-send')).toHaveCount(0);
-  await expect(result(proj, 1)).toHaveText('2 · 100%');
+  await expect(proj.locator('#poll-total')).toHaveText('2 answers · Answer from your device');
+  await expect(proj.locator('.poll-result')).toHaveCount(3);
+  await expect(proj.locator('.poll-count:visible, .poll-bar:visible')).toHaveCount(0);
   // Participants do not see the results while answers are open.
   await expect(v.locator('.poll-results-box')).toBeHidden();
 
@@ -106,8 +109,16 @@ test('the presenter launches the slide\'s poll; participants answer; the present
   await v.click('#poll-send');
   await expect(result(card(p), 2)).toHaveText('1 · 50%');
   await expect(result(card(p), 1)).toHaveText('1 · 50%');
-  await expect(result(proj, 2)).toHaveText('1 · 50%');
   await expect(card(p)).toContainText('2 answers');
+  await expect(card(p)).toContainText('Results hidden');
+
+  // Closed with the results: now the projector shows them too.
+  await card(p).locator('[data-action=close-results]').click();
+  await expect(result(proj, 2)).toHaveText('1 · 50%');
+  await expect(card(p)).toContainText('Results shown');
+  await expect(card(p).locator('[data-action=close-results]')).toBeHidden();
+  await card(p).locator('[data-action=open]').click();
+  await expect(proj.locator('.poll-count:visible')).toHaveCount(0); // reopened: secret again
 
   // A reload keeps the answer.
   await v.reload();
@@ -116,7 +127,7 @@ test('the presenter launches the slide\'s poll; participants answer; the present
   await Promise.all([pc.close(), vc.close(), wc.close(), projc.close()]);
 });
 
-test('closing answers shows participants the results; a hidden poll comes back as it was', async ({ browser }) => {
+test('closing answers and showing the results; a hidden poll comes back as it was', async ({ browser }) => {
   const { page: p, context: pc } = await presenter(browser);
   const { page: v, context: vc } = await participant(browser);
   await p.click('#poll-launch');
@@ -124,7 +135,7 @@ test('closing answers shows participants the results; a hidden poll comes back a
   await v.click('#poll-send');
   await expect(result(card(p), 0)).toHaveText('1 · 100%');
 
-  await card(p).locator('[data-action=close]').click();
+  await card(p).locator('[data-action=close-results]').click();
   await expect(card(p)).toContainText('Answers closed');
   await expect(v.locator('#poll-closed-note')).toHaveText('Answers are closed.');
   await expect(v.locator('.poll-form')).toBeHidden();
@@ -155,14 +166,16 @@ test('closing answers shows participants the results; a hidden poll comes back a
   await expect(v.locator('#poll-answer-0')).toBeChecked();
   await expect(result(card(p), 0)).toHaveText('1 · 100%');
 
-  // Reset asks once more, then takes it back to before it was launched.
-  const reset = card(p).locator('[data-action=reset]');
+  // Reset, folded under "More options", asks once more, then takes it back
+  // to before it was launched.
+  await card(p).locator('[data-action=more]').click();
+  const reset = card(p).locator('.p-poll-menu [data-action=reset]');
   await reset.click();
   await expect(reset).toHaveText('Delete the answers?');
   await reset.click();
   await expect(v.locator('#poll-panel')).toBeHidden();
   await expect(p.locator('.p-poll-slide')).toContainText('Not launched');
-  await expect(reset).toHaveText('Reset');
+  await expect(reset).toHaveText('Reset poll');
   await p.locator('.p-poll-slide [data-action=launch]').click();
   await expect(v.locator('#poll-panel')).toBeVisible();
   await expect(v.locator('#poll-answer-0')).not.toBeChecked();
@@ -241,8 +254,9 @@ test('phone presenter: a strip launches the poll and "See" opens the results in 
   const dialog = p.locator('#poll-dialog');
   await expect(dialog).toBeVisible();
   await expect(result(dialog, 1)).toHaveText('1 · 100%');
-  await dialog.locator('[data-action=close]').tap();
+  await dialog.locator('.p-poll-shown [data-action=close-results]').tap();
   await expect(v.locator('#poll-closed-note')).toBeVisible();
+  await expect(result(v, 1)).toHaveText('1 · 100%');
   await p.locator('#poll-dialog-close').tap();
   await expect(dialog).toBeHidden();
   await expect(p.locator('#notes')).toBeVisible();
@@ -320,10 +334,10 @@ test('while answers stream in, the presenter\'s buttons keep the focus and Enter
   await p.click('#poll-launch');
   const voters = [busyVoter(), busyVoter(), busyVoter()];
   await expect(card(p)).toContainText('3 answers');
-  const toggle = card(p).locator('[data-action=close]');
+  const toggle = card(p).locator('[data-action=close-results]');
   await toggle.focus();
   await p.waitForTimeout(800); // several updates of the counts
-  expect(await p.evaluate(() => document.activeElement?.dataset.action)).toBe('close');
+  expect(await p.evaluate(() => document.activeElement?.dataset.action)).toBe('close-results');
   await p.keyboard.press('Enter');
   await expect(card(p)).toContainText('Answers closed');
   await expect(p.locator('#counter')).toHaveText('5 / 7');
@@ -360,11 +374,12 @@ test('right answers: the presenter sees them; once answers close, each participa
   await expect(card(p).locator('.poll-result.poll-right')).toHaveCount(2);
   // Nobody else sees them while answers are open.
   await expect(proj.locator('#poll-panel')).toBeVisible();
-  await expect(result(proj, 1)).toHaveText('3 · 100%');
+  await expect(proj.locator('#poll-total')).toContainText('3 answers');
   await expect(proj.locator('.poll-result.poll-right')).toHaveCount(0);
   await expect(proj.locator('#poll-grades')).toBeHidden();
 
-  await card(p).locator('[data-action=close]').click();
+  await card(p).locator('[data-action=close-results]').click();
+  await expect(result(proj, 1)).toHaveText('3 · 100%');
   await expect(v.locator('#poll-verdict')).toHaveText('Correct!');
   await expect(v.locator('#poll-verdict')).toHaveClass(/poll-verdict-right/);
   await expect(w.locator('#poll-verdict')).toHaveText('Partly correct: some right answers are missing.');
@@ -384,4 +399,176 @@ test('right answers: the presenter sees them; once answers close, each participa
 
   expect((await putPoll(demo.poll)).statusCode).toBe(200);
   await Promise.all([pc.close(), projc.close(), ...people.map((o) => o.context.close())]);
+});
+
+// ---- results made public by the presenter -------------------------------------
+
+const menu = (page) => page.locator('.p-poll-shown .p-poll-menu');
+const visibleCounts = (page) => page.locator('.poll-count:visible, .poll-bar:visible');
+
+test('closing without the results keeps them secret on every screen until the presenter shows them', async ({ browser }) => {
+  const { page: p, context: pc } = await presenter(browser);
+  const { page: v, context: vc } = await participant(browser);
+  const { page: proj, context: projc } = await open(browser, '/demo/view', { cookie: adminCookie });
+  await p.click('#poll-launch');
+  await v.click('label[for=poll-answer-1]');
+  await v.click('#poll-send');
+  await expect(result(card(p), 1)).toHaveText('1 · 100%');
+
+  // In sight: close showing the results, and take off the screens; the rest folded.
+  const more = card(p).locator('[data-action=more]');
+  await expect(card(p).locator('.p-poll-actions button:visible')).toHaveText(['Close and show results', 'Take off the screens', 'More options']);
+  await expect(menu(p)).toBeHidden();
+  await more.click();
+  await expect(more).toHaveAttribute('aria-expanded', 'true');
+  await expect(menu(p).locator('button:visible')).toHaveText(['Close without results', 'Show results', 'Reset poll']);
+  // Esc folds it, and gives the focus back to its button; so does a click elsewhere.
+  await p.keyboard.press('Escape');
+  await expect(menu(p)).toBeHidden();
+  expect(await p.evaluate(() => document.activeElement?.dataset.action)).toBe('more');
+  await more.click();
+  await card(p).locator('.p-poll-question').click();
+  await expect(menu(p)).toBeHidden();
+  await expect(more).toHaveAttribute('aria-expanded', 'false');
+
+  await more.click();
+  await menu(p).locator('[data-action=close]').click();
+  await expect(menu(p)).toBeHidden();
+  await expect(card(p)).toContainText('Answers closed');
+  await expect(card(p)).toContainText('Results hidden');
+  await expect(card(p).locator('.p-poll-actions button:visible')).toHaveText(['Reopen answers', 'Take off the screens', 'More options']);
+  await expect(result(card(p), 1)).toHaveText('1 · 100%'); // the presenter always sees them
+  // The participant sees its own answer, no counts; the projector, how many answered.
+  await expect(v.locator('#poll-closed-note')).toHaveText('Answers are closed.');
+  await expect(v.locator('.poll-form')).toBeHidden();
+  await expect(v.locator('.poll-result').nth(1)).toHaveClass(/poll-own/);
+  await expect(v.locator('#poll-total')).toHaveText('The results have not been shown yet.');
+  await expect(visibleCounts(v)).toHaveCount(0);
+  await expect(proj.locator('#poll-total')).toHaveText('1 answer · Answers closed');
+  await expect(visibleCounts(proj)).toHaveCount(0);
+
+  await more.click();
+  await expect(menu(p).locator('button:visible')).toHaveText(['Show results', 'Reset poll']);
+  await menu(p).locator('[data-action=reveal]').click();
+  await expect(result(v, 1)).toHaveText('1 · 100%');
+  await expect(v.locator('#poll-total')).toHaveText('1 answer');
+  await expect(result(proj, 1)).toHaveText('1 · 100%');
+  await expect(card(p)).toContainText('Results shown');
+  await expect(p.locator('#poll-strip')).toBeHidden(); // the Poll tab is open
+
+  await more.click();
+  await menu(p).locator('[data-action=conceal]').click();
+  await expect(visibleCounts(v)).toHaveCount(0);
+  await expect(visibleCounts(proj)).toHaveCount(0);
+  await expect(card(p)).toContainText('Results hidden');
+  await Promise.all([pc.close(), vc.close(), projc.close()]);
+});
+
+test('results shown while answers are open: participants follow the counts and can still answer', async ({ browser }) => {
+  const { page: p, context: pc } = await presenter(browser);
+  const { page: v, context: vc } = await participant(browser);
+  const { page: w, context: wc } = await participant(browser);
+  await p.click('#poll-launch');
+  await card(p).locator('[data-action=more]').click();
+  await menu(p).locator('[data-action=reveal]').click();
+  await expect(card(p)).toContainText('Results shown');
+  await expect(card(p)).toContainText('Taking answers');
+  await expect(card(p).locator('[data-action=close-results]')).toBeVisible();
+  await expect(v.locator('.poll-form')).toBeVisible();
+  await expect(v.locator('#poll-closed-note')).toBeHidden();
+  await expect(result(v, 0)).toHaveText('0 · 0%');
+
+  await w.click('label[for=poll-answer-0]');
+  await w.click('#poll-send');
+  await expect(result(v, 0)).toHaveText('1 · 100%');
+  await v.click('label[for=poll-answer-2]');
+  await v.click('#poll-send');
+  await expect(result(v, 2)).toHaveText('1 · 50%');
+  await expect(result(w, 2)).toHaveText('1 · 50%');
+  await Promise.all([pc.close(), vc.close(), wc.close()]);
+});
+
+// Phones (Android, iPhone, small and sideways) and a dark computer screen:
+// every control fits, in its colour, and the folded options can be reached.
+for (const [label, opts] of [
+  ['Android phone upright', { viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true }],
+  ['small iPhone upright', { viewport: { width: 320, height: 568 }, isMobile: true, hasTouch: true }],
+  ['iPhone sideways', { viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true }],
+]) {
+  test(`poll controls on a ${label}: they fit, and the folded options open inside the pop-up`, async ({ browser }) => {
+    const { page: p, context: pc } = await presenter(browser, opts);
+    await p.locator('#poll-launch').tap();
+    await p.locator('#poll-see').tap();
+    const dialog = p.locator('#poll-dialog');
+    await expect(dialog).toBeVisible();
+    const shown = dialog.locator('.p-poll-shown');
+    const go = shown.locator('[data-action=close-results]');
+    const off = shown.locator('[data-action=hide]');
+    const more = shown.locator('[data-action=more]');
+    for (const b of [go, off, more]) await expect(b).toBeVisible();
+    await more.tap();
+    const items = shown.locator('.p-poll-menu button:visible');
+    await expect(items).toHaveCount(3);
+    const { width } = opts.viewport;
+    const fits = await dialog.evaluate((d, w) => [...d.querySelectorAll('.p-poll-actions button, .p-poll-menu button')]
+      .filter((b) => b.offsetParent)
+      .map((b) => { const r = b.getBoundingClientRect(); return { text: b.textContent, ok: r.left >= 0 && r.right <= w && b.scrollWidth <= b.clientWidth + 1, h: r.height }; }), width);
+    for (const f of fits) {
+      expect(f.ok, `${f.text} fits`).toBe(true);
+      expect(f.h, `${f.text} is easy to tap`).toBeGreaterThanOrEqual(43);
+    }
+    const body = dialog.locator('.p-poll-dialog-body');
+    expect(await body.evaluate((b) => b.scrollWidth <= b.clientWidth)).toBe(true);
+    expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    const color = (loc, prop) => loc.evaluate((b, k) => getComputedStyle(b)[k], prop);
+    expect(await color(go, 'backgroundColor')).toBe('rgb(21, 128, 61)');
+    expect(await color(off, 'color')).toBe('rgb(3, 105, 161)');
+    const reset = shown.locator('.p-poll-menu [data-action=reset]');
+    expect(await color(reset, 'color')).toBe('rgb(210, 59, 48)');
+    // The last option can be reached and pressed, even on a short screen.
+    await reset.tap();
+    await expect(reset).toHaveText('Delete the answers?');
+    await reset.tap();
+    await expect(dialog.locator('.p-poll-slide')).toContainText('Not launched');
+    await pc.close();
+  });
+}
+
+test('poll controls in dark mode keep their colours', async ({ browser }) => {
+  const { page: p, context: pc } = await presenter(browser, { colorScheme: 'dark' });
+  await p.click('#poll-launch');
+  const color = (sel, prop) => card(p).locator(sel).evaluate((b, k) => getComputedStyle(b)[k], prop);
+  expect(await color('[data-action=close-results]', 'backgroundColor')).toBe('rgb(95, 208, 142)');
+  expect(await color('[data-action=close-results]', 'color')).toBe('rgb(10, 12, 17)');
+  expect(await color('[data-action=hide]', 'color')).toBe('rgb(124, 196, 245)');
+  await pc.close();
+});
+
+test('keyboard: the poll controls keep the focus, so Enter never moves the slide by surprise', async ({ browser }) => {
+  const { page: p, context: pc } = await presenter(browser);
+  await p.click('#poll-launch');
+  const focused = () => p.evaluate(() => document.activeElement?.dataset.action ?? document.activeElement?.tagName);
+  await card(p).locator('[data-action=more]').focus();
+  await p.keyboard.press('Enter');
+  await expect(menu(p)).toBeVisible();
+  await p.keyboard.press('Tab');
+  expect(await focused()).toBe('close');
+  await p.keyboard.press('Enter'); // Close without results: the menu folds
+  await expect(card(p)).toContainText('Answers closed');
+  await expect(menu(p)).toBeHidden();
+  expect(await focused()).toBe('more');
+  await p.keyboard.press('Enter');
+  await expect(menu(p)).toBeVisible();
+  await p.keyboard.press('Escape');
+
+  // Reopen and close swap places: the focus goes with them.
+  await card(p).locator('[data-action=open]').focus();
+  await p.keyboard.press('Enter');
+  await expect(card(p)).toContainText('Taking answers');
+  await expect.poll(focused).toBe('close-results');
+  await p.keyboard.press('Enter');
+  await expect(card(p)).toContainText('Results shown');
+  await expect.poll(focused).toBe('open');
+  await expect(p.locator('#counter')).toHaveText('5 / 7');
+  await pc.close();
 });

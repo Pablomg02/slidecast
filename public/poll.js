@@ -66,6 +66,7 @@ const percent = (count, voters) => (voters ? Math.round((100 * count) / voters) 
 // While the options stay the same, the bars are updated in place, so they
 // grow smoothly as answers arrive. With `correct` (0007), the right answers
 // are marked instead of the leading one, and a wrong answer of one's own too.
+// Without `counts` (results not public yet), only the answers are listed.
 export function createResults() {
   const list = el('ol.poll-results');
   let key = null;
@@ -75,12 +76,13 @@ export function createResults() {
     rows = options.map((text, i) => {
       const count = el('span.poll-count');
       const fill = el('span.poll-fill');
+      const bar = el('div.poll-bar', { 'aria-hidden': 'true' }, fill);
       const mineMark = el('span.poll-mine', { hidden: true }, t('pollYourAnswer'));
       const rightMark = el('span.poll-right-mark', { hidden: true }, icon('check'), el('span', {}, t('pollRight')));
       const li = el('li.poll-result', {},
         el('div.poll-result-label', {}, el('span.poll-letter', {}, letter(i)), el('span.poll-text', {}, text), rightMark, mineMark, count),
-        el('div.poll-bar', { 'aria-hidden': 'true' }, fill));
-      return { li, count, fill, mineMark, rightMark };
+        bar);
+      return { li, count, bar, fill, mineMark, rightMark };
     });
     list.replaceChildren(...rows.map((r) => r.li));
   }
@@ -93,15 +95,18 @@ export function createResults() {
         key = k;
         build(options);
       }
-      const top = Math.max(0, ...counts);
+      const secret = !counts;
+      const top = Math.max(0, ...(counts ?? []));
       const keyed = Boolean(correct?.length);
       list.classList.toggle('poll-keyed', keyed);
       rows.forEach((r, i) => {
-        const n = counts[i] ?? 0;
+        const n = counts?.[i] ?? 0;
         const pct = percent(n, voters);
-        r.count.textContent = t('pollCount', { n, pct });
+        r.count.hidden = secret;
+        r.bar.hidden = secret;
+        r.count.textContent = secret ? '' : t('pollCount', { n, pct });
         r.fill.style.setProperty('--pct', `${pct}%`);
-        r.li.classList.toggle('poll-lead', !keyed && top > 0 && n === top);
+        r.li.classList.toggle('poll-lead', !secret && !keyed && top > 0 && n === top);
         const right = keyed && correct.includes(i);
         r.li.classList.toggle('poll-right', right);
         r.rightMark.hidden = !right;

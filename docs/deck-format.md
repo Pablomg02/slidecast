@@ -56,8 +56,8 @@ slide; the audience answers it on their devices. `question` (up to 300
 characters) and `options` (2 to 10 answers of up to 150 characters) are plain
 text; `multiple: true` lets each person choose several answers (default: one).
 `correct` optionally lists the right answers by position, counting from 0
-(`[1]` is the second answer): when answers close, everyone sees them and
-whether they got it right. With one answer to choose, any of the listed ones
+(`[1]` is the second answer): when the presenter closes answers and shows
+the results, everyone sees them and whether they got it right. With one answer to choose, any of the listed ones
 counts as right; with several, choosing exactly them is right, only some of
 them is partly right, and any other answer makes it wrong. Without `correct`
 it is an opinion poll. A poll without a question or with fewer than two

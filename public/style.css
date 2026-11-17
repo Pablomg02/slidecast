@@ -16,6 +16,8 @@
   --warn: #b45309;
   --danger: #d23b30;
   --ok: #15803d;
+  --ok-ink: #ffffff;
+  --info: #0369a1;
   --radius: 10px;
   --radius-lg: 18px;
   --shadow-sm: 0 1px 2px rgba(15, 20, 32, .06);
@@ -43,6 +45,8 @@
     --warn: #f0a24b;
     --danger: #f37b71;
     --ok: #5fd08e;
+    --ok-ink: #0a0c11;
+    --info: #7cc4f5;
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
     --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px -8px rgba(0, 0, 0, .55);
     --shadow-lg: 0 2px 4px rgba(0, 0, 0, .3), 0 24px 48px -16px rgba(0, 0, 0, .7);
@@ -719,6 +723,32 @@ body.room-waiting .remote { visibility: hidden; }
 .p-poll-preview .poll-right-mark { margin-left: auto; }
 .p-poll-edited { margin: .5rem 0 0; font-size: .85rem; color: var(--warn); }
 .p-poll-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; margin-top: 12px; }
+.p-poll-chip-public { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+/* Close and show the results: the usual next step, in green. */
+.p-poll-actions .p-poll-go { background: var(--ok); color: var(--ok-ink); border-color: transparent; box-shadow: 0 1px 2px rgba(0, 0, 0, .1), 0 4px 14px -4px var(--ok); }
+.p-poll-actions .p-poll-go:hover { background: color-mix(in srgb, var(--ok) 85%, var(--ink)); color: var(--ok-ink); border-color: transparent; }
+/* Take off the screens: light blue. */
+.p-poll-actions .p-poll-off {
+  background: color-mix(in srgb, var(--info) 13%, var(--surface)); color: var(--info);
+  border-color: color-mix(in srgb, var(--info) 35%, transparent);
+}
+.p-poll-actions .p-poll-off:hover { background: color-mix(in srgb, var(--info) 22%, var(--surface)); color: var(--info); border-color: color-mix(in srgb, var(--info) 55%, transparent); }
+.p-poll-more .icon { transform: rotate(180deg); transition: transform .2s var(--ease); }
+.p-poll-more[aria-expanded="true"] { background: var(--surface-2); }
+.p-poll-more[aria-expanded="true"] .icon { transform: none; }
+/* The folded options open inside the card, under the buttons. */
+.p-poll-menu {
+  display: flex; flex-direction: column; gap: 4px; width: min(100%, 17rem); margin: 6px 0 0 auto; padding: 5px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface-2);
+}
+.p-poll-menu > button { justify-content: flex-start; width: 100%; text-align: left; box-shadow: none; }
+.p-poll-card button.danger { border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+/* Phones and touch screens: full rows and bigger targets. */
+@media (max-width: 899px), (pointer: coarse) {
+  .p-poll-actions > button.small { flex: 1 1 auto; min-height: 2.75rem; }
+  .p-poll-menu { width: 100%; }
+  .p-poll-menu > button.small { min-height: 2.75rem; }
+}
 .p-poll-error { margin: 0; color: var(--danger); font-size: .9rem; }
 dialog.card.p-poll-dialog { padding: 0; }
 .p-poll-dialog[open] { display: flex; flex-direction: column; max-height: calc(100dvh - 32px); }

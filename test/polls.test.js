@@ -90,7 +90,7 @@ test('runs: answers counted once per voter, changed, refused when closed, forgot
   assert.equal(polls.vote('p3', id, []), 'bad-message');
   assert.equal(polls.vote('p3', id, ['0']), 'bad-message');
   assert.equal(polls.vote('p3', 'other', [0]), 'poll-gone');
-  polls.setOpen('quiz', false);
+  polls.setOpen('quiz', false, true);
   assert.equal(polls.vote('p3', id, [2]), 'poll-closed');
   assert.deepEqual(polls.forParticipant('p1').poll.results, { counts: [1, 1, 0], voters: 2 });
   assert.equal(polls.forget('p2'), true);
@@ -104,6 +104,50 @@ test('runs: answers counted once per voter, changed, refused when closed, forgot
   assert.equal(polls.vote('p1', gas, [0, 0]), 'bad-message', 'no repeats');
   assert.deepEqual(polls.forParticipant('p1').mine, [0, 3]);
   assert.deepEqual(polls.forPresenters().runs.map((r) => [r.slide, r.voters]), [['quiz', 1], ['gas', 1]]);
+});
+
+test('results stay secret to participants and displays until the presenter makes them public', () => {
+  const polls = createPolls();
+  polls.show('quiz', { ...QUIZ, multiple: false, correct: [1] });
+  const { id } = polls.shown;
+  polls.vote('p1', id, [1]);
+  polls.vote('p2', id, [0]);
+  const secret = (who) => {
+    assert.equal(polls.forParticipant(who).poll.results, null);
+    assert.deepEqual(polls.forDisplays().runs.map((r) => [r.voters, r.counts, r.correct, r.grades]), [[2, null, [], null]]);
+  };
+  secret('p1');
+  assert.deepEqual(polls.forPresenters().runs[0].counts, [1, 1, 0], 'presenters always see them');
+  assert.equal(polls.liveCounts(), null);
+
+  assert.equal(polls.setOpen('quiz', false), true, 'closed without results');
+  assert.equal(polls.vote('p3', id, [2]), 'poll-closed');
+  secret('p1');
+  assert.equal(polls.setOpen('quiz', false), false, 'nothing changed');
+
+  assert.equal(polls.setRevealed('quiz', true), true, 'shown afterwards, with the solution');
+  assert.deepEqual(polls.forParticipant('p1').poll.results, { counts: [1, 1, 0], voters: 2, correct: [1], grades: { right: 1, partial: 0, wrong: 1 }, grade: 'right' });
+  assert.deepEqual(polls.forDisplays().runs[0].counts, [1, 1, 0]);
+  assert.deepEqual(polls.forDisplays().runs[0].correct, [1]);
+  assert.equal(polls.setRevealed('quiz', true), false);
+  assert.equal(polls.setRevealed('quiz', false), true, 'hidden again');
+  secret('p2');
+
+  assert.equal(polls.setOpen('quiz', false, true), true, 'close with results at once');
+  assert.equal(polls.forParticipant('p2').poll.results.grade, 'wrong');
+  assert.equal(polls.setOpen('quiz', true), true, 'reopened');
+  assert.equal(polls.shown.revealed, false, 'reopened: secret again');
+  secret('p1');
+
+  // Public while answers are open: counts, never the solution.
+  assert.equal(polls.setRevealed('quiz', true), true);
+  assert.deepEqual(polls.liveCounts(), { t: 'poll-counts', id, counts: [1, 1, 0], voters: 2 });
+  assert.deepEqual(polls.forParticipant('p1').poll.results, { counts: [1, 1, 0], voters: 2 });
+  assert.deepEqual(polls.forDisplays().runs.map((r) => [r.counts, r.correct, r.grades]), [[[1, 1, 0], [], null]]);
+  polls.hide();
+  assert.equal(polls.liveCounts(), null);
+  assert.deepEqual(polls.forDisplays(), { t: 'polls', shown: null, runs: [] }, 'displays get only the shown poll');
+  assert.equal(polls.setRevealed('nope', true), false);
 });
 
 test('a run takes a new text only while nobody has answered it', () => {
@@ -184,11 +228,11 @@ test('the presenter shows a poll; participants answer; presenters and displays s
   p.send({ t: 'poll', action: 'show', slide: 'quiz' });
   const shown = await p.next(isPolls((m) => m.shown === 'quiz'));
   assert.deepEqual(runOf(shown, 'quiz'), {
-    slide: 'quiz', id: runOf(shown, 'quiz').id, question: QUIZ.question, options: QUIZ.options, multiple: false, correct: [], open: true, counts: [0, 0, 0], voters: 0, grades: null,
+    slide: 'quiz', id: runOf(shown, 'quiz').id, question: QUIZ.question, options: QUIZ.options, multiple: false, correct: [], open: true, revealed: false, counts: [0, 0, 0], voters: 0, grades: null,
   });
   await proj.next(isPolls((m) => m.shown === 'quiz'));
   const { poll } = await v1.next(isPoll((m) => m.poll));
-  assert.deepEqual(poll, { id: poll.id, question: QUIZ.question, options: QUIZ.options, multiple: false, open: true, results: null });
+  assert.deepEqual(poll, { id: poll.id, question: QUIZ.question, options: QUIZ.options, multiple: false, open: true, revealed: false, results: null });
 
   v1.send({ t: 'vote', id: poll.id, choice: [1] });
   assert.deepEqual((await v1.next(isPoll((m) => m.mine))).mine, [1]);
@@ -200,13 +244,16 @@ test('the presenter shows a poll; participants answer; presenters and displays s
   assert.deepEqual(runOf(counted, 'quiz').counts, [0, 1, 1]);
   // Anonymous: nothing in the presenters' message says who answered what.
   assert.equal(JSON.stringify(counted).includes('"mine"'), false);
-  assert.deepEqual(Object.keys(runOf(counted, 'quiz')).sort(), ['correct', 'counts', 'grades', 'id', 'multiple', 'open', 'options', 'question', 'slide', 'voters']);
-  await proj.next(isPolls((m) => runOf(m, 'quiz')?.voters === 2 && runOf(m, 'quiz').counts[2] === 1));
-  // Participants never get the results while answers are open.
+  assert.deepEqual(Object.keys(runOf(counted, 'quiz')).sort(), ['correct', 'counts', 'grades', 'id', 'multiple', 'open', 'options', 'question', 'revealed', 'slide', 'voters']);
+  // The projector learns how many answered, never what, until the results go public.
+  const onScreen = await proj.next(isPolls((m) => runOf(m, 'quiz')?.voters === 2));
+  assert.deepEqual(onScreen.runs.map((r) => [r.slide, r.counts, r.correct, r.grades]), [['quiz', null, [], null]]);
+  assert.ok(proj.messages.filter((m) => m.t === 'polls').every((m) => m.runs.every((r) => r.counts === null)));
+  // Participants never get the results while they are secret.
   assert.ok(v1.messages.filter((m) => m.t === 'poll').every((m) => m.poll === null || m.poll.results === null));
 });
 
-test('closing answers refuses new ones and shows participants the results; reopening takes them again', async (t) => {
+test('closing answers with the results refuses new ones and shows participants the results; reopening takes them again', async (t) => {
   const { presenter, viewer } = await setup(t);
   const p = await presenter();
   const v = viewer();
@@ -216,7 +263,7 @@ test('closing answers refuses new ones and shows participants the results; reope
   v.send({ t: 'vote', id: poll.id, choice: [0] });
   await v.next(isPoll((m) => m.mine));
 
-  p.send({ t: 'poll', action: 'close', slide: 'quiz' });
+  p.send({ t: 'poll', action: 'close', slide: 'quiz', results: true });
   const closed = await v.next(isPoll((m) => m.poll && !m.poll.open));
   assert.deepEqual(closed.poll.results, { counts: [1, 0, 0], voters: 1 });
   assert.deepEqual(closed.mine, [0]);
@@ -226,10 +273,54 @@ test('closing answers refuses new ones and shows participants the results; reope
 
   p.send({ t: 'poll', action: 'open', slide: 'quiz' });
   const reopened = await v.next(isPoll((m) => m.poll?.open));
-  assert.equal(reopened.poll.results, null);
+  assert.equal(reopened.poll.results, null, 'reopened: secret again');
+  assert.equal(reopened.poll.revealed, false);
   assert.equal(reopened.poll.id, poll.id, 'the same run');
   v.send({ t: 'vote', id: poll.id, choice: [2] });
   assert.deepEqual((await v.next(isPoll((m) => m.mine?.[0] === 2))).mine, [2]);
+});
+
+test('closing without the results keeps them secret until shown; public while open, participants follow the counts', async (t) => {
+  const { presenter, display, viewer } = await setup(t);
+  const p = await presenter();
+  const proj = display();
+  await proj.next(isPolls());
+  const v1 = viewer();
+  const v2 = viewer();
+  p.send({ t: 'poll', action: 'show', slide: 'quiz' });
+  const { poll } = await v1.next(isPoll((m) => m.poll));
+  await v2.next(isPoll((m) => m.poll));
+  v1.send({ t: 'vote', id: poll.id, choice: [0] });
+  await v1.next(isPoll((m) => m.ack && m.mine));
+
+  // Public while answers are open: the counts follow the answers.
+  p.send({ t: 'poll', action: 'reveal', slide: 'quiz' });
+  assert.deepEqual((await v2.next(isPoll((m) => m.poll?.revealed))).poll.results, { counts: [1, 0, 0], voters: 1 });
+  await proj.next(isPolls((m) => runOf(m, 'quiz')?.counts?.[0] === 1));
+  // One small message for everyone, counts only: not the whole poll again to each.
+  const before = v2.messages.length;
+  v1.send({ t: 'vote', id: poll.id, choice: [2] });
+  assert.deepEqual(await v2.next((m) => m.t === 'poll-counts'), { t: 'poll-counts', id: poll.id, counts: [0, 0, 1], voters: 1 });
+  assert.ok(!v2.messages.slice(before).some((m) => m.t === 'poll'), 'no full poll on a tick');
+  await proj.next(isPolls((m) => runOf(m, 'quiz')?.counts?.[2] === 1));
+
+  // Closed without the results: secret again, for everyone but presenters.
+  p.send({ t: 'poll', action: 'close', slide: 'quiz', results: false });
+  const closed = await v2.next(isPoll((m) => m.poll && !m.poll.open));
+  assert.equal(closed.poll.revealed, false);
+  assert.equal(closed.poll.results, null);
+  const mine = await v1.next(isPoll((m) => m.poll && !m.poll.open));
+  assert.deepEqual([mine.mine, mine.poll.results], [[2], null], 'a participant still sees its own answer');
+  const dark = runOf(await proj.next(isPolls((m) => runOf(m, 'quiz')?.open === false)), 'quiz');
+  assert.deepEqual([dark.voters, dark.counts], [1, null]);
+  assert.deepEqual(runOf(await p.next(isPolls((m) => runOf(m, 'quiz')?.open === false)), 'quiz').counts, [0, 0, 1]);
+
+  p.send({ t: 'poll', action: 'reveal', slide: 'quiz' });
+  assert.deepEqual((await v2.next(isPoll((m) => m.poll?.revealed))).poll.results, { counts: [0, 0, 1], voters: 1 });
+  await proj.next(isPolls((m) => runOf(m, 'quiz')?.counts?.[2] === 1));
+  p.send({ t: 'poll', action: 'conceal', slide: 'quiz' });
+  assert.equal((await v2.next(isPoll((m) => m.poll && !m.poll.revealed))).poll.results, null);
+  await proj.next(isPolls((m) => runOf(m, 'quiz')?.counts === null));
 });
 
 test('a hidden poll keeps its answers; showing another hides it; showing it again brings it back as it was', async (t) => {
@@ -240,7 +331,7 @@ test('a hidden poll keeps its answers; showing another hides it; showing it agai
   const { poll } = await v.next(isPoll((m) => m.poll));
   v.send({ t: 'vote', id: poll.id, choice: [1] });
   await v.next(isPoll((m) => m.mine));
-  p.send({ t: 'poll', action: 'close', slide: 'quiz' });
+  p.send({ t: 'poll', action: 'close', slide: 'quiz', results: true });
   p.send({ t: 'poll', action: 'hide' });
   await v.next(isPoll((m) => m.poll === null));
 
@@ -285,7 +376,8 @@ test('reset takes the poll off the screens with its answers, as if never launche
     p.send({ t: 'poll', action: 'show', slide });
     await p.next(isError('no-poll'));
   }
-  for (const bad of [{ t: 'poll', action: 'show' }, { t: 'poll', action: 'explode', slide: 'quiz' }, { t: 'poll', action: 'show', slide: 'a\nb' }]) {
+  for (const bad of [{ t: 'poll', action: 'show' }, { t: 'poll', action: 'explode', slide: 'quiz' }, { t: 'poll', action: 'show', slide: 'a\nb' },
+    { t: 'poll', action: 'close', slide: 'quiz', results: 'yes' }, { t: 'poll', action: 'show', slide: 'quiz', results: true }]) {
     p.send(bad);
     await p.next(isError('bad-message'));
   }
@@ -430,13 +522,44 @@ test('the answer of a removed participant leaves the results participants see wh
   v2.send({ t: 'vote', id: poll.id, choice: [1] });
   await v1.next(isPoll((m) => m.ack && m.mine));
   await v2.next(isPoll((m) => m.ack && m.mine));
-  p.send({ t: 'poll', action: 'close', slide: 'quiz' });
+  p.send({ t: 'poll', action: 'close', slide: 'quiz', results: true });
   assert.equal((await v1.next(isPoll((m) => m.poll && !m.poll.open))).poll.results.voters, 2);
   const room = await p.next((m) => m.t === 'room' && m.people.length === 2);
   const n2 = (await v2.next((m) => m.t === 'you')).n;
   p.send({ t: 'kick', id: room.people.find((x) => x.n === n2).id });
   const after = await v1.next(isPoll((m) => m.poll?.results?.voters === 1));
   assert.deepEqual(after.poll.results.counts, [1, 0, 0]);
+});
+
+test('removing a participant while results are secret tells participants nothing; while public and open, they get the new counts', async (t) => {
+  const { presenter, viewer } = await setup(t);
+  const p = await presenter();
+  const [v1, v2, v3] = [viewer(), viewer(), viewer()];
+  p.send({ t: 'poll', action: 'show', slide: 'quiz' });
+  const { poll } = await v1.next(isPoll((m) => m.poll));
+  for (const [v, i] of [[v1, 0], [v2, 1], [v3, 2]]) {
+    v.send({ t: 'vote', id: poll.id, choice: [i] });
+    await v.next(isPoll((m) => m.ack && m.mine));
+  }
+  const room = await p.next((m) => m.t === 'room' && m.people.length === 3);
+  const kick = async (v) => {
+    const { n } = v.messages.findLast((m) => m.t === 'you');
+    p.send({ t: 'kick', id: room.people.find((x) => x.n === n).id });
+  };
+
+  p.send({ t: 'poll', action: 'close', slide: 'quiz', results: false });
+  await v1.next(isPoll((m) => m.poll && !m.poll.open));
+  const mark = v1.messages.length;
+  await kick(v2);
+  await p.next(isPolls((m) => runOf(m, 'quiz')?.voters === 2));
+  await new Promise((r) => setTimeout(r, 400)); // past a throttle tick
+  assert.ok(v1.messages.slice(mark).every((m) => m.t !== 'poll-counts' && (m.t !== 'poll' || m.poll.results === null)), 'nothing about the results');
+
+  p.send({ t: 'poll', action: 'open', slide: 'quiz' });
+  p.send({ t: 'poll', action: 'reveal', slide: 'quiz' });
+  await v1.next(isPoll((m) => m.poll?.open && m.poll.revealed));
+  await kick(v3);
+  assert.deepEqual(await v1.next((m) => m.t === 'poll-counts'), { t: 'poll-counts', id: poll.id, counts: [1, 0, 0], voters: 1 });
 });
 
 test('a projector whose session ended stops getting live counts', async (t) => {
@@ -549,13 +672,14 @@ test('participants get the right answers and their grade only once answers close
   const counted = await p.next(isPolls((m) => runOf(m, 'gas')?.voters === 3));
   assert.deepEqual(runOf(counted, 'gas').grades, { right: 1, partial: 1, wrong: 1 });
 
-  p.send({ t: 'poll', action: 'close', slide: 'gas' });
+  p.send({ t: 'poll', action: 'close', slide: 'gas', results: true });
   const grades = { right: 1, partial: 1, wrong: 1 };
   for (const [v, grade] of [[v1, 'right'], [v2, 'partial'], [v3, 'wrong'], [v4, null]]) {
     const closed = await v.next(isPoll((m) => m.poll && !m.poll.open));
     assert.deepEqual(closed.poll.results, { counts: [3, 1, 2, 1], voters: 3, correct: [0, 2, 3], grades, grade });
   }
-  await proj.next(isPolls((m) => runOf(m, 'gas')?.open === false));
+  const solved = runOf(await proj.next(isPolls((m) => runOf(m, 'gas')?.open === false)), 'gas');
+  assert.deepEqual([solved.counts, solved.correct, solved.grades], [[3, 1, 2, 1], [0, 2, 3], grades]);
 });
 
 test('a wrong answer key fixed in the editor applies to an answered poll, which keeps its answers', async (t) => {
@@ -566,7 +690,7 @@ test('a wrong answer key fixed in the editor applies to an answered poll, which 
   const { poll } = await v.next(isPoll((m) => m.poll));
   v.send({ t: 'vote', id: poll.id, choice: [1] });
   await v.next(isPoll((m) => m.mine));
-  p.send({ t: 'poll', action: 'close', slide: 'quiz' });
+  p.send({ t: 'poll', action: 'close', slide: 'quiz', results: true });
   const plain = await v.next(isPoll((m) => m.poll && !m.poll.open));
   assert.deepEqual(plain.poll.results, { counts: [0, 1, 0], voters: 1 }, 'no right answers: a plain poll');
 

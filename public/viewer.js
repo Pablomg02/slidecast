@@ -2,7 +2,8 @@
 // this session can present (projector case, D16). Without presenter rights the
 // viewer is a participant of the room (0003): name, hand, room notices. A poll
 // shown by the presenter takes a column beside the slide (0006): participants
-// answer it, the projector shows its results.
+// answer it, the projector shows it, with its results once the presenter
+// shows them (0008).
 import {
   t, el, api, slugFromPath, setTitle, connectLive, createDeckFrame, keyActionFromEvent,
   toggleFullscreen, acceptKey, isOwnKey, icon,
@@ -165,7 +166,7 @@ const conn = connectLive(slug, controlling ? 'presenter' : 'viewer', (msg) => {
     else participant.onMessage(msg);
     return;
   }
-  if (msg.t === 'poll' || msg.t === 'polls') {
+  if (msg.t === 'poll' || msg.t === 'polls' || msg.t === 'poll-counts') {
     poll.onMessage(msg);
     return;
   }

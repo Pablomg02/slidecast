@@ -33,7 +33,7 @@ moves with you: the projector, your phone, your audience's laptops.
 - **Live polls and quizzes**: give a slide a question with its answers, and
   mark the right ones if it has a solution; launch it from the presenter view
   and everyone answers from their own device while the results, anonymous,
-  fill in live on your screen and the projector.
+  fill in live on your screen, secret to everyone else until you show them.
 - **Rooms you open and close**: open the deck you are about to present with
   one click; the main address takes everyone to it.
 - **Notes and polls in the browser**: write them slide by slide in the admin
@@ -268,23 +268,31 @@ solution; leave them all unticked for an opinion poll.
   the slide, and comes back with one tap. As in any poll without accounts,
   someone could answer again from a private window: **Do not admit more
   people** (in **People**) stops that once everyone is in.
-- **The results are anonymous** and live on the presenter view and on the
-  projector (the viewer window of the presenter, controlling or not), never
-  saying who answered what. Viewers see them on their own device once you
-  close the answers, so they do not lean towards the leading answer.
+- **The results are anonymous** and live on the presenter view, never saying
+  who answered what. Until you show the results, viewers see only their own
+  answer, and the projector (the viewer window of the presenter, controlling
+  or not) how many answered, so nobody leans towards the leading answer.
 - **Right answers.** If the poll has them, you see them marked from the start,
   with how many got it right, partly right or wrong. Viewers and the projector
-  see them only once you close the answers: each viewer is told whether they
-  got it right. With several answers to choose, choosing exactly the right
+  see them only once you close the answers and show the results: each viewer
+  is told whether they got it right. With several answers to choose, choosing exactly the right
   ones is right, only some of them is partly right, and any wrong one makes
   it wrong. A right answer fixed in the editor applies at once, even to a
   poll already answered.
+- **Closing and showing the results.** **Close and show results** (green)
+  stops voting and shows everyone the results, with the right answers if
+  there are any. Under **More options**: **Close without results** stops
+  voting and keeps the results secret, to show them later; **Show results** /
+  **Hide results** at any time (shown while answers are open, viewers follow
+  the counts live, but the right answers wait until answers close); and
+  **Reset poll**. Once closed, **Reopen answers** resumes voting with the
+  results secret again, for a second round.
 - **It stays until you take it away.** The poll stays on the screens while
-  you go on through the slides. **Close answers** / **Reopen answers** stop
-  and resume voting; **Take off the screens** hides it, keeping its answers,
-  and back on its slide **Show again** brings it back as it was. **Reset**
-  takes it back to before it was launched: off the screens, with no answers,
-  ready to launch again (when you give the talk again, or to another group). Launching another slide's poll puts
+  you go on through the slides. **Take off the screens** (light blue) hides
+  it, keeping its answers, and back on its slide **Show again** brings it back
+  as it was. **Reset poll** takes it back to before it was launched: off the
+  screens, with no answers, ready to launch again (when you give the talk
+  again, or to another group). Launching another slide's poll puts
   it in place of the one on the screens, so a quiz with a poll per slide
   takes one click per question.
 

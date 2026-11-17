@@ -6,6 +6,19 @@ include breaking changes, always listed here.
 
 ## [Unreleased]
 
+- Poll results stay secret until the presenter shows them. Before, closing
+  answers always showed them to viewers, and the projector showed the counts
+  live from the start, telling the room what people were answering. Now the
+  presenter view has **Close and show results** (green) and **Take off the
+  screens** (light blue) in sight, and under **More options**: **Close
+  without results**, **Show results** / **Hide results** and **Reset poll**
+  (red). Until shown, viewers see only their own answer and the projector
+  how many answered; the right answers wait until answers are closed and the
+  results shown. Reopening answers makes the results secret again.
+  Presenters always see them live. Decisions in plan 0008. Protocol: `close`
+  takes `results: true|false` (omitted: false), and the new actions `reveal`
+  and `conceal`; runs carry `revealed`; while an open poll's results are
+  shown, participants get `{t: 'poll-counts', id, counts, voters}`.
 - Opening or closing a room, or any other change in the admin panel, could be
   undone by itself a moment later. The server checks `config.json` every 2 s
   for passwords changed with `slidecast passwd`, and it took its own earlier

@@ -114,11 +114,16 @@ export function createPolls() {
       multiple: run.multiple,
       correct: run.correct,
       open: run.open,
+      revealed: run.revealed,
       counts: run.counts,
       voters: run.ballots.size,
       grades: grades(run),
     };
   }
+
+  // The right answers are made public only once answers close and the
+  // presenter shows the results: nobody copies them while answering.
+  const solved = (run) => run.revealed && !run.open && run.correct.length > 0;
 
   return {
     get shown() { return shownRun(); },
@@ -137,7 +142,7 @@ export function createPolls() {
       }
       if (!run) {
         if (!def) return false;
-        run = { slide, open: true };
+        run = { slide, open: true, revealed: false };
         define(run, def);
       } else if (def && !run.ballots.size && !sameText(run, def)) {
         define(run, def);
@@ -160,12 +165,34 @@ export function createPolls() {
       return true;
     },
 
-    // Answers accepted or not; false if nothing changed.
-    setOpen(slide, on) {
+    // Answers accepted or not; false if nothing changed. Closing says
+    // whether the results go public at the same time; reopening makes them
+    // secret again, so a second round of answers is as blind as the first.
+    setOpen(slide, on, revealed = false) {
       const run = runs.get(slide);
-      if (!run || run.open === on) return false;
+      const next = on ? false : revealed;
+      if (!run || (run.open === on && run.revealed === next)) return false;
       run.open = on;
+      run.revealed = next;
       return true;
+    },
+
+    // The results public (to participants and displays) or secret; false if
+    // nothing changed. The presenters always see them.
+    setRevealed(slide, on) {
+      const run = runs.get(slide);
+      if (!run || run.revealed === on) return false;
+      run.revealed = on;
+      return true;
+    },
+
+    // While the shown poll takes answers with its results public, what
+    // participants follow as answers arrive: one message for all, counts
+    // only (each one's own answer comes back with its ack). Null otherwise.
+    liveCounts() {
+      const run = shownRun();
+      if (!run?.open || !run.revealed) return null;
+      return { t: 'poll-counts', id: run.id, counts: run.counts, voters: run.ballots.size };
     },
 
     // As if never launched: the run and its answers go, and it leaves the
@@ -239,19 +266,45 @@ export function createPolls() {
       shown = null;
     },
 
-    // For presenters and displays: every run, counts only (D6, D7).
+    // For presenters: every run, counts only (D6, D7 of 0006).
     forPresenters() {
       return { t: 'polls', shown, runs: [...runs.values()].map(publicRun) };
     },
 
+    // For displays (the projector): only the shown poll, and its counts only
+    // once the presenter makes them public, so the screen in the room never
+    // tells what people are answering.
+    forDisplays() {
+      const run = shownRun();
+      if (!run) return { t: 'polls', shown: null, runs: [] };
+      const key = solved(run);
+      return {
+        t: 'polls',
+        shown,
+        runs: [{
+          slide: run.slide,
+          id: run.id,
+          question: run.question,
+          options: run.options,
+          multiple: run.multiple,
+          open: run.open,
+          revealed: run.revealed,
+          voters: run.ballots.size,
+          counts: run.revealed ? run.counts : null,
+          correct: key ? run.correct : [],
+          grades: key ? grades(run) : null,
+        }],
+      };
+    },
+
     // For one participant: the shown poll, its own answer, and the results
-    // once answers are closed (D7) — with the right answers and how its own
-    // answer fared, never before (0007).
+    // once the presenter makes them public (D1 of 0008) — with the right answers and
+    // how its own answer fared only once answers are closed too (0007).
     forParticipant(voter) {
       const run = shownRun();
       if (!run) return { t: 'poll', poll: null, mine: null };
       const mine = run.ballots.get(voter) ?? null;
-      const graded = !run.open && run.correct.length > 0;
+      const graded = solved(run);
       return {
         t: 'poll',
         poll: {
@@ -260,7 +313,8 @@ export function createPolls() {
           options: run.options,
           multiple: run.multiple,
           open: run.open,
-          results: run.open ? null : {
+          revealed: run.revealed,
+          results: !run.revealed ? null : {
             counts: run.counts,
             voters: run.ballots.size,
             ...(graded ? { correct: run.correct, grades: grades(run), grade: gradeOf(mine, run.correct, run.multiple) } : {}),

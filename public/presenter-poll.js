@@ -2,7 +2,8 @@
 // the slide's poll and the one on the screens; the panel (the Poll tab on a
 // computer, a pop-up on a phone) shows them with their results and controls.
 // Every presenter sees the same; commands go to the server, which takes the
-// text from deck.json and sends everyone the new state.
+// text from deck.json and sends everyone the new state. Presenters always see
+// the results; the audience and the projector only once they are made public.
 import { t, el, icon, confirmButton } from './shell.js';
 import { createResults, pollOf, samePoll, letter, answers, gradesText } from './poll.js';
 
@@ -19,7 +20,7 @@ export function createPresenterPoll({ send, onSee, onLaunch }) {
   const shownRun = () => runOf(polls.shown);
   const defOf = (id) => (id && Object.hasOwn(notes, id) ? pollOf(notes[id]) : null);
 
-  const act = (action, id) => send(action === 'hide' ? { t: 'poll', action } : { t: 'poll', action, slide: id });
+  const act = (action, id, extra = {}) => send(action === 'hide' ? { t: 'poll', action } : { t: 'poll', action, slide: id, ...extra });
   function launch(id) {
     act('show', id);
     onLaunch?.();
@@ -41,20 +42,76 @@ export function createPresenterPoll({ send, onSee, onLaunch }) {
     const total = el('p.p-poll-total.muted');
     const gradesLine = el('p.p-poll-grades', { hidden: true });
     const edited = el('p.p-poll-edited', { hidden: true }, t('pollEdited'));
-    const toggleLabel = el('span');
+    const resultsLabel = el('span');
+    const reset = (key) => {
+      const b = confirmButton(t('pollReset'), t('pollConfirmReset'), `${key}:${name}`, () => {
+        setMenu(false);
+        act('reset', target);
+      }, armed);
+      b.dataset.action = 'reset';
+      return b;
+    };
+    // On the screens, the usual two in sight (close showing the results, take
+    // it off the screens) and the rest folded behind "More options", which
+    // opens inside the card: nothing to cut off in the phone's pop-up.
+    const menuId = `poll-menu-${name}`;
     const buttons = {
       launch: el('button.small.primary', { type: 'button', dataset: { action: 'launch' }, onclick: () => launch(target) }, icon('play'), el('span', {}, t('pollLaunch'))),
-      toggle: el('button.small', { type: 'button', onclick: (e) => act(e.currentTarget.dataset.action, target) }, toggleLabel),
-      hide: el('button.small', { type: 'button', dataset: { action: 'hide' }, onclick: () => act('hide') }, el('span', {}, t('pollHide'))),
+      closeShow: el('button.small.p-poll-go', { type: 'button', dataset: { action: 'close-results' }, onclick: () => act('close', target, { results: true }) },
+        icon('check'), el('span', {}, t('pollCloseShow'))),
+      reopen: el('button.small', { type: 'button', dataset: { action: 'open' }, onclick: () => act('open', target) }, el('span', {}, t('pollReopenAnswers'))),
+      hide: el('button.small.p-poll-off', { type: 'button', dataset: { action: 'hide' }, onclick: () => act('hide') }, el('span', {}, t('pollHide'))),
+      more: el('button.small.p-poll-more', {
+        type: 'button', dataset: { action: 'more' }, 'aria-expanded': 'false', 'aria-controls': menuId, onclick: () => setMenu(!menuOpen),
+      }, el('span', {}, t('pollMore')), icon('chevron')),
       show: el('button.small.primary', { type: 'button', dataset: { action: 'show' }, onclick: () => launch(target) }, icon('play'), el('span', {}, t('pollShowAgain'))),
-      reset: confirmButton(t('pollReset'), t('pollConfirmReset'), `reset:${name}`, () => act('reset', target), armed),
+      reset: reset('reset'),
     };
-    buttons.reset.dataset.action = 'reset';
+    const items = {
+      closeQuiet: el('button.small', { type: 'button', dataset: { action: 'close' }, onclick: () => {
+        setMenu(false);
+        act('close', target, { results: false });
+      } }, el('span', {}, t('pollCloseQuiet'))),
+      results: el('button.small', { type: 'button', onclick: (e) => {
+        setMenu(false);
+        act(e.currentTarget.dataset.action, target);
+      } }, resultsLabel),
+      reset: reset('reset-menu'),
+    };
     const actions = el('div.p-poll-actions', {}, Object.values(buttons));
-    const root = el(`section.p-poll-card.p-poll-${name}`, { hidden: true }, chips, question, preview, results.element, total, gradesLine, edited, actions);
+    const menu = el('div.p-poll-menu', { id: menuId, hidden: true }, Object.values(items));
+    const root = el(`section.p-poll-card.p-poll-${name}`, { hidden: true }, chips, question, preview, results.element, total, gradesLine, edited, actions, menu);
     const chip = (text, cls = '') => el(`span.p-poll-chip${cls}`, {}, text);
+    let menuOpen = false;
+    // A focused button that goes away leaves the focus on the page, where the
+    // next Enter would move the slide: its stand-in takes the focus instead.
+    function setMenu(on) {
+      if (on === menuOpen) return;
+      menuOpen = on;
+      if (!on && menu.contains(document.activeElement)) buttons.more.focus({ preventScroll: true });
+      menu.hidden = !on;
+      buttons.more.setAttribute('aria-expanded', String(on));
+    }
+    // Esc folds it (before the phone's pop-up closes), and so does a tap elsewhere.
+    root.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || !menuOpen) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setMenu(false);
+      buttons.more.focus({ preventScroll: true });
+    });
+    document.addEventListener('pointerdown', (e) => {
+      if (menuOpen && !menu.contains(e.target) && !buttons.more.contains(e.target)) setMenu(false);
+    });
+    const twin = { closeShow: 'reopen', reopen: 'closeShow' };
     const only = (...names) => {
+      const had = Object.keys(buttons).find((k) => buttons[k] === document.activeElement);
       for (const [k, b] of Object.entries(buttons)) b.hidden = !names.includes(k);
+      if (!names.includes('more')) setMenu(false);
+      if (had && buttons[had].hidden) {
+        const next = [twin[had], 'more', ...names].find((k) => names.includes(k));
+        if (next) buttons[next].focus({ preventScroll: true });
+      }
     };
     let previewKey = null;
 
@@ -63,13 +120,16 @@ export function createPresenterPoll({ send, onSee, onLaunch }) {
       // A run (launched) or only the slide's poll (`def`), or neither.
       fill(run, def) {
         root.hidden = !run && !def;
-        if (root.hidden) return;
+        if (root.hidden) {
+          setMenu(false);
+          return;
+        }
         const p = run ?? def;
         setText(question, p.question);
         const where = p === run && run.slide !== slide ? chip(t('pollFromSlide', { id: run.slide }), '.p-poll-chip-quiet') : null;
         const kind = chip(p.multiple ? t('pollMultiple') : t('pollSingle'), '.p-poll-chip-quiet');
         // The presenter always sees the right answers (0007); the audience
-        // only once answers close.
+        // only once answers close and the results are shown (0008).
         const keyed = p.correct?.length ? chip(t('pollHasKey'), '.p-poll-chip-quiet') : null;
         if (!run) {
           target = slide;
@@ -96,6 +156,7 @@ export function createPresenterPoll({ send, onSee, onLaunch }) {
         chips.replaceChildren(...[
           chip(onScreens ? t('pollOnScreens') : t('pollHiddenState'), onScreens ? '.p-poll-chip-live' : ''),
           chip(run.open ? t('pollAccepting') : t('pollClosedState'), run.open ? '' : '.p-poll-chip-closed'),
+          chip(run.revealed ? t('pollResultsPublic') : t('pollResultsSecret'), run.revealed ? '.p-poll-chip-public' : ''),
           kind, keyed, where].filter(Boolean));
         preview.hidden = true;
         results.element.hidden = false;
@@ -107,9 +168,10 @@ export function createPresenterPoll({ send, onSee, onLaunch }) {
         const now = defOf(run.slide);
         edited.hidden = !(now && run.voters > 0 && !samePoll(now, run));
         if (onScreens) {
-          buttons.toggle.dataset.action = run.open ? 'close' : 'open';
-          setText(toggleLabel, run.open ? t('pollCloseAnswers') : t('pollReopenAnswers'));
-          only('toggle', 'hide', 'reset');
+          items.closeQuiet.hidden = !run.open;
+          items.results.dataset.action = run.revealed ? 'conceal' : 'reveal';
+          setText(resultsLabel, run.revealed ? t('pollHideResults') : t('pollShowResults'));
+          only(run.open ? 'closeShow' : 'reopen', 'hide', 'more');
         } else {
           only('show', 'reset');
         }
@@ -147,7 +209,8 @@ export function createPresenterPoll({ send, onSee, onLaunch }) {
     let text = '';
     let own = null; // what the launch button does for this slide's poll
     if (shown) {
-      text = [t('pollOnScreens'), answers(shown.voters), shown.open ? null : t('pollClosedState')].filter(Boolean).join(' · ');
+      text = [t('pollOnScreens'), answers(shown.voters), shown.open ? null : t('pollClosedState'),
+        shown.revealed ? t('pollResultsPublic') : null].filter(Boolean).join(' · ');
       // This slide has a poll of its own: one tap puts it in place of the
       // other (a quiz, a poll per slide).
       own = current && current !== shown ? t('pollShowAgain') : !current && def ? t('pollLaunch') : null;
