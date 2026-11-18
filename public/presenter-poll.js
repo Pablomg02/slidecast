@@ -7,8 +7,13 @@
 import { t, el, icon, confirmButton } from './shell.js';
 import { createResults, pollOf, samePoll, letter, answers, gradesText } from './poll.js';
 
-export function createPresenterPoll({ send, onSee, onLaunch }) {
+export function createPresenterPoll({ send, onSee, onLaunch, contestConfig = () => null }) {
   let polls = { shown: null, runs: [] };
+  let receivedAt = 0; // when the last polls message came: `left` counts from then
+  // Contest mode (0009): whether the ranking is on the screens, and graded
+  // polls closed with their results never shown (they do not count yet).
+  let rankingShown = false;
+  let confirmLaunch = null; // slide id waiting for a second tap (D26)
   let slide = null; // the current slide's id
   let notes = {};
   let viewers = 0;
@@ -22,8 +27,33 @@ export function createPresenterPoll({ send, onSee, onLaunch }) {
 
   const act = (action, id, extra = {}) => send(action === 'hide' ? { t: 'poll', action } : { t: 'poll', action, slide: id, ...extra });
   function launch(id) {
+    // Another question that has not scored yet would be left behind: ask once.
+    // Known from the polls message itself, which comes with the closing.
+    const behind = polls.runs.filter((r) => r.contest?.counts && !r.open && !r.scored && r.slide !== id);
+    if (behind.length && confirmLaunch !== id) {
+      confirmLaunch = id;
+      setTimeout(() => { if (confirmLaunch === id) { confirmLaunch = null; render(); } }, 4000);
+      render();
+      return;
+    }
+    confirmLaunch = null;
     act('show', id);
     onLaunch?.();
+  }
+
+  // The contest chip of a poll: what it gives, or that it does not count.
+  function contestChip(p, run) {
+    const c = run ? run.contest : (() => {
+      const cfg = contestConfig();
+      if (!cfg?.on) return null;
+      if (!p.correct?.length || p.contest === false) return { counts: false };
+      const time = Object.hasOwn(p, 'time') ? p.time : cfg.time;
+      return { counts: true, points: p.points ?? cfg.points, limit: time === null ? null : time * 1000 };
+    })();
+    if (!c) return null;
+    if (!c.counts) return t('pollChipNoCount');
+    const points = Number(c.points).toLocaleString();
+    return c.limit ? t('pollChipContest', { points, s: Math.round(c.limit / 1000) }) : t('pollChipContestNoTime', { points });
   }
 
   // Text changed only when it differs: nodes under the pointer or the focus
@@ -43,6 +73,9 @@ export function createPresenterPoll({ send, onSee, onLaunch }) {
     const gradesLine = el('p.p-poll-grades', { hidden: true });
     const edited = el('p.p-poll-edited', { hidden: true }, t('pollEdited'));
     const resultsLabel = el('span');
+    // The countdown of an open run, ticking here between messages.
+    const countdown = el('span.p-poll-countdown', { hidden: true, role: 'timer' });
+    let deadline = null;
     const reset = (key) => {
       const b = confirmButton(t('pollReset'), t('pollConfirmReset'), `${key}:${name}`, () => {
         setMenu(false);
@@ -59,7 +92,18 @@ export function createPresenterPoll({ send, onSee, onLaunch }) {
       launch: el('button.small.primary', { type: 'button', dataset: { action: 'launch' }, onclick: () => launch(target) }, icon('play'), el('span', {}, t('pollLaunch'))),
       closeShow: el('button.small.p-poll-go', { type: 'button', dataset: { action: 'close-results' }, onclick: () => act('close', target, { results: true }) },
         icon('check'), el('span', {}, t('pollCloseShow'))),
+      // Closed with results secret: showing them is the next step (D12 of 0009).
+      reveal: el('button.small.p-poll-go', { type: 'button', dataset: { action: 'reveal' }, onclick: () => act('reveal', target) },
+        icon('check'), el('span', {}, t('pollShowResults'))),
       reopen: el('button.small', { type: 'button', dataset: { action: 'open' }, onclick: () => act('open', target) }, el('span', {}, t('pollReopenAnswers'))),
+      timeUp: el('span.p-poll-timeup', { dataset: { action: 'time-up' } }, t('pollTimeUp')),
+      ranking: el('button.small.primary', { type: 'button', dataset: { action: 'show-ranking' }, onclick: () => {
+        // The card goes away with the poll: "Take off" in the panel takes the focus.
+        // Until the ranking message comes (the polls message may come first).
+        focusTakeOff = true;
+        setTimeout(() => { focusTakeOff = false; }, 3000);
+        send({ t: 'contest', action: 'show-ranking' });
+      } }, el('span', {}, t('rankingShow'))),
       hide: el('button.small.p-poll-off', { type: 'button', dataset: { action: 'hide' }, onclick: () => act('hide') }, el('span', {}, t('pollHide'))),
       more: el('button.small.p-poll-more', {
         type: 'button', dataset: { action: 'more' }, 'aria-expanded': 'false', 'aria-controls': menuId, onclick: () => setMenu(!menuOpen),
@@ -80,7 +124,7 @@ export function createPresenterPoll({ send, onSee, onLaunch }) {
     };
     const actions = el('div.p-poll-actions', {}, Object.values(buttons));
     const menu = el('div.p-poll-menu', { id: menuId, hidden: true }, Object.values(items));
-    const root = el(`section.p-poll-card.p-poll-${name}`, { hidden: true }, chips, question, preview, results.element, total, gradesLine, edited, actions, menu);
+    const root = el(`section.p-poll-card.p-poll-${name}`, { hidden: true }, el('div.row.p-poll-top', {}, chips, countdown), question, preview, results.element, total, gradesLine, edited, actions, menu);
     const chip = (text, cls = '') => el(`span.p-poll-chip${cls}`, {}, text);
     let menuOpen = false;
     // A focused button that goes away leaves the focus on the page, where the
@@ -103,20 +147,31 @@ export function createPresenterPoll({ send, onSee, onLaunch }) {
     document.addEventListener('pointerdown', (e) => {
       if (menuOpen && !menu.contains(e.target) && !buttons.more.contains(e.target)) setMenu(false);
     });
-    const twin = { closeShow: 'reopen', reopen: 'closeShow' };
+    // Stand-ins that can take the focus ("Time's up" is only text).
+    const twin = { closeShow: ['reveal', 'ranking', 'reopen'], reopen: ['closeShow'], reveal: ['ranking', 'reopen'] };
     const only = (...names) => {
       const had = Object.keys(buttons).find((k) => buttons[k] === document.activeElement);
       for (const [k, b] of Object.entries(buttons)) b.hidden = !names.includes(k);
       if (!names.includes('more')) setMenu(false);
       if (had && buttons[had].hidden) {
-        const next = [twin[had], 'more', ...names].find((k) => names.includes(k));
+        const next = [...(twin[had] ?? []), 'more', ...names].find((k) => names.includes(k));
         if (next) buttons[next].focus({ preventScroll: true });
       }
     };
     let previewKey = null;
 
+    function tick() {
+      const ms = deadline === null ? null : Math.max(0, deadline - performance.now());
+      countdown.hidden = ms === null;
+      if (ms === null) return;
+      const sec = Math.ceil(ms / 1000);
+      setText(countdown, sec > 0 ? t('pollSecondsLeft', { s: sec }) : t('pollTimeUp'));
+      countdown.classList.toggle('p-poll-countdown-warn', sec <= 5);
+    }
+
     return {
       root,
+      tick,
       // A run (launched) or only the slide's poll (`def`), or neither.
       fill(run, def) {
         root.hidden = !run && !def;
@@ -131,9 +186,13 @@ export function createPresenterPoll({ send, onSee, onLaunch }) {
         // The presenter always sees the right answers (0007); the audience
         // only once answers close and the results are shown (0008).
         const keyed = p.correct?.length ? chip(t('pollHasKey'), '.p-poll-chip-quiet') : null;
+        const contestText = contestChip(p, run);
+        const contestTag = contestText ? chip(contestText, '.p-poll-chip-contest') : null;
+        deadline = run?.open && Number.isFinite(run.left) ? receivedAt + run.left : null;
+        tick();
         if (!run) {
           target = slide;
-          chips.replaceChildren(...[chip(t('pollNotLaunched')), kind, keyed].filter(Boolean));
+          chips.replaceChildren(...[chip(t('pollNotLaunched')), kind, keyed, contestTag].filter(Boolean));
           preview.hidden = false;
           const key = JSON.stringify([def.options, def.correct ?? []]);
           if (key !== previewKey) {
@@ -157,7 +216,7 @@ export function createPresenterPoll({ send, onSee, onLaunch }) {
           chip(onScreens ? t('pollOnScreens') : t('pollHiddenState'), onScreens ? '.p-poll-chip-live' : ''),
           chip(run.open ? t('pollAccepting') : t('pollClosedState'), run.open ? '' : '.p-poll-chip-closed'),
           chip(run.revealed ? t('pollResultsPublic') : t('pollResultsSecret'), run.revealed ? '.p-poll-chip-public' : ''),
-          kind, keyed, where].filter(Boolean));
+          kind, keyed, contestTag, where].filter(Boolean));
         preview.hidden = true;
         results.element.hidden = false;
         results.update(run, { correct: run.correct });
@@ -171,7 +230,13 @@ export function createPresenterPoll({ send, onSee, onLaunch }) {
           items.closeQuiet.hidden = !run.open;
           items.results.dataset.action = run.revealed ? 'conceal' : 'reveal';
           setText(resultsLabel, run.revealed ? t('pollHideResults') : t('pollShowResults'));
-          only(run.open ? 'closeShow' : 'reopen', 'hide', 'more');
+          // Closed and secret: "Show results" in sight, not in the fold.
+          items.results.hidden = !run.open && !run.revealed;
+          const again = run.timeUp ? 'timeUp' : 'reopen';
+          if (run.open) only('closeShow', 'hide', 'more');
+          else if (!run.revealed) only('reveal', again, 'hide', 'more');
+          else if (run.scored) only('ranking', again, 'hide', 'more');
+          else only(again, 'hide', 'more');
         } else {
           only('show', 'reset');
         }
@@ -184,15 +249,27 @@ export function createPresenterPoll({ send, onSee, onLaunch }) {
   const slideCard = createCard('slide');
   const errorBox = el('p.p-poll-error', { role: 'status', hidden: true });
   const empty = el('p.p-empty.muted', { hidden: true }, t('pollNone'));
-  const panel = el('div.p-panel.p-poll', { id: 'poll-panel', hidden: true }, errorBox, shownCard.root, slideCard.root, empty);
+  // While the ranking is on the screens, the Poll tab says so and can take
+  // it off: the strip above is hidden while this tab is open (D26 of 0009).
+  let focusTakeOff = false;
+  const rankingOffPanel = el('button.small.p-poll-off', { type: 'button', id: 'ranking-off-panel',
+    onclick: () => send({ t: 'contest', action: 'hide-ranking' }) }, t('rankingTakeOff'));
+  const rankingBox = el('div.row.p-poll-ranking-on', { id: 'poll-ranking-on', hidden: true },
+    el('span.grow', {}, t('rankingOnScreens')), rankingOffPanel);
+  // The second tap launches anyway (D26 of 0009); said where the tap was.
+  const confirmBox = el('p.p-poll-confirm', { id: 'poll-confirm', role: 'status', hidden: true }, t('pollLaunchUnscored'));
+  const panel = el('div.p-panel.p-poll', { id: 'poll-panel', hidden: true }, errorBox, confirmBox, rankingBox, shownCard.root, slideCard.root, empty);
 
   // ---- strip -------------------------------------------------------------------------
   const stripText = el('span.p-poll-strip-text');
   const stripLaunchLabel = el('span');
-  const stripLaunch = el('button.small.primary', { type: 'button', id: 'poll-launch', onclick: () => launch(slide) }, stripLaunchLabel);
+  const stripLaunch = el('button.small.primary', { type: 'button', id: 'poll-launch', onclick: () => launch(confirmLaunch ?? slide) }, stripLaunchLabel);
   const stripSee = el('button.small', { type: 'button', id: 'poll-see', onclick: () => onSee() }, t('pollSee'));
+  const stripRanking = el('button.small.p-poll-off', { type: 'button', id: 'ranking-off', hidden: true,
+    onclick: () => send({ t: 'contest', action: 'hide-ranking' }) }, t('rankingTakeOff'));
   const strip = el('div.p-poll-strip', { id: 'poll-strip', hidden: true },
-    icon('poll'), stripText, el('span.p-poll-strip-actions', {}, stripLaunch, stripSee));
+    icon('poll'), stripText, el('span.p-poll-strip-actions', {}, stripLaunch, stripRanking, stripSee));
+  setInterval(() => { shownCard.tick(); slideCard.tick(); }, 250);
 
   function render() {
     const shown = shownRun();
@@ -202,7 +279,13 @@ export function createPresenterPoll({ send, onSee, onLaunch }) {
     slideCard.fill(current === shown ? null : current, current ? null : def);
     empty.hidden = !shownCard.root.hidden || !slideCard.root.hidden;
     errorBox.hidden = !error;
-    setText(errorBox, error ? t('pollError', { code: error }) : '');
+    setText(errorBox, error ? errorText(error) : '');
+    confirmBox.hidden = !confirmLaunch;
+    const hadFocus = rankingBox.contains(document.activeElement);
+    rankingBox.hidden = !rankingShown || Boolean(shown);
+    if (!rankingBox.hidden && focusTakeOff) rankingOffPanel.focus({ preventScroll: true });
+    if (rankingBox.hidden && hadFocus) panel.querySelector('button:not([hidden])')?.focus({ preventScroll: true });
+    if (!rankingBox.hidden) focusTakeOff = false;
 
     strip.hidden = !shown && !current && !def;
     strip.classList.toggle('p-poll-strip-live', Boolean(shown));
@@ -221,16 +304,32 @@ export function createPresenterPoll({ send, onSee, onLaunch }) {
       text = t('pollSlideHas');
       own = t('pollLaunch');
     }
-    setText(stripText, error ? t('pollError', { code: error }) : text);
+    if (rankingShown && !shown) {
+      strip.hidden = false;
+      strip.classList.add('p-poll-strip-live');
+      text = t('rankingOnScreens');
+    }
+    if (confirmLaunch) text = t('pollLaunchUnscored');
+    setText(stripText, error ? errorText(error) : text);
     stripLaunch.hidden = !own;
     if (own) setText(stripLaunchLabel, own);
+    stripRanking.hidden = !rankingShown || Boolean(shown);
+    strip.classList.toggle('p-poll-strip-confirm', Boolean(confirmLaunch));
+    if (confirmLaunch) {
+      // The launch buttons now confirm: a second tap launches anyway.
+      stripLaunch.hidden = false;
+      setText(stripLaunchLabel, t('pollLaunch'));
+    }
   }
+
+  const errorText = (code) => (code === 'time-up' ? t('pollTimeUp') : t('pollError', { code }));
 
   return {
     panel,
     strip,
     update(msg) {
       polls = { shown: msg.shown ?? null, runs: Array.isArray(msg.runs) ? msg.runs : [] };
+      receivedAt = performance.now();
       render();
     },
     setSlide(id) {
@@ -240,6 +339,11 @@ export function createPresenterPoll({ send, onSee, onLaunch }) {
     },
     setNotes(slides) {
       notes = slides ?? {};
+      render();
+    },
+    // The contest's ranking message (0009).
+    setRanking({ shown }) {
+      rankingShown = Boolean(shown);
       render();
     },
     setViewers(n) {

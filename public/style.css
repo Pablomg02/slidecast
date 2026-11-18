@@ -358,6 +358,11 @@ body.idle .badge-control, body.idle .control-toggle { opacity: 0; }
   background: rgba(10, 12, 17, .66);
 }
 .hand-status:empty { display: none; }
+/* Contest mode (0009): own points and place */
+.p-score {
+  font-size: .85rem; font-weight: 600; color: #fff; padding: .25rem .7rem; border-radius: 999px;
+  background: rgba(10, 12, 17, .66); white-space: nowrap; font-variant-numeric: tabular-nums;
+}
 .participant-bar.attending .hand-status { background: var(--accent); color: var(--accent-ink); animation: pulse 1.6s var(--ease) infinite; }
 /* Dimmed while idle, but always tappable: on a phone the first tap must reach
    the button, not the idle cover (which would turn the slide). */
@@ -403,6 +408,9 @@ body.room-waiting .viewer-stage, body.room-waiting .back-to-live { visibility: h
 .join-dialog p { margin: 0 0 1rem; font-size: .94rem; }
 .join-actions { margin-top: .5rem; }
 .join-actions button { flex: 1 1 auto; }
+.join-dialog .join-rules { font-size: .88rem; color: var(--muted); }
+.join-dialog .join-notice { font-weight: 600; color: var(--accent); }
+.join-dialog .join-error { color: var(--danger); margin: .5rem 0 0; }
 @keyframes pulse { 50% { box-shadow: 0 0 0 6px var(--accent-soft); } }
 
 /* viewer: the arrows for touch screens (viewer.js), bottom right, above the
@@ -464,6 +472,39 @@ body.room-waiting .remote { visibility: hidden; }
 .poll-kind { flex: 1; min-width: 0; font-size: .82rem; color: var(--muted); }
 .poll-min { width: 2.4rem; padding: 0; border-color: transparent; background: transparent; box-shadow: none; color: var(--muted); }
 .poll-min:hover { color: var(--ink); }
+/* Contest mode (0009): the countdown, what a question gives, its points */
+.poll-countdown {
+  flex: none; font-weight: 700; font-variant-numeric: tabular-nums; padding: .15rem .6rem; border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent);
+}
+.poll-countdown-warn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.poll-display .poll-countdown { font-size: calc(clamp(1.4rem, 2.6vw, 2.6rem) * var(--poll-scale, 1)); padding: .2rem .8rem; }
+.poll-contest-line { margin: 0 0 .35rem; font-size: .85rem; font-weight: 600; color: var(--accent); }
+.poll-display .poll-contest-line { font-size: calc(clamp(.95rem, 1.3vw, 1.35rem) * var(--poll-scale, 1)); }
+.poll-time-hint { margin: .1rem 0 .5rem; font-size: .8rem; color: var(--muted); }
+.poll-score { margin: .35rem 0 .75rem; font-size: .9rem; font-weight: 600; }
+
+/* The contest's top 10 on the projector (0009, D27) */
+.ranking-overlay {
+  position: absolute; inset: 0; z-index: 9; display: grid; place-items: center; padding: 3vh 4vw;
+  background: var(--bg);
+}
+.ranking-card { width: min(100%, 60rem); max-height: 100%; overflow: hidden; }
+.ranking-title { margin: 0 0 2vh; font-size: clamp(1.4rem, 3.6vh, 3rem); }
+.ranking-sub { font-weight: 500; color: var(--muted); font-size: .6em; }
+.ranking-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .8vh; }
+.ranking-row {
+  display: grid; grid-template-columns: 3.2em 1fr auto; align-items: center; gap: 1em;
+  /* Ten rows fit any projector: about 7.5 % of the height each. */
+  font-size: max(.9rem, min(3vh, 2.2vw)); line-height: 1.3; padding: .3em .8em; border-radius: 12px;
+  background: var(--surface); border: 1px solid var(--line);
+}
+.ranking-pos { font-weight: 700; font-variant-numeric: tabular-nums; text-align: center; color: var(--muted); }
+.ranking-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ranking-points { font-weight: 700; font-variant-numeric: tabular-nums; }
+.ranking-top { font-weight: 700; border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.ranking-top .ranking-pos { color: var(--accent); }
+.ranking-pos-1 { background: color-mix(in srgb, var(--accent) 14%, var(--surface)); }
 .poll-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 1.15rem 1.15rem 1.5rem; }
 .poll-question {
   margin: 0 0 1.1rem; font-size: 1.25rem; line-height: 1.3; font-weight: 650; letter-spacing: -.01em; overflow-wrap: anywhere;
@@ -714,6 +755,20 @@ body.room-waiting .remote { visibility: hidden; }
 .p-poll-chip-live { background: var(--accent); color: var(--accent-ink); }
 .p-poll-chip-closed { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
 .p-poll-chip-quiet { background: none; padding-left: 0; padding-right: 0; text-transform: none; letter-spacing: 0; font-weight: 550; font-size: .8rem; }
+/* Contest mode in the poll card (0009) */
+.p-poll-top { align-items: flex-start; gap: 8px; }
+.p-poll-top .p-poll-chips { flex: 1; min-width: 0; }
+.p-poll-chip-contest { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+.p-poll-countdown {
+  flex: none; font-weight: 700; font-variant-numeric: tabular-nums; font-size: .95rem; padding: .05rem .55rem; border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent);
+}
+.p-poll-countdown-warn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.p-poll-timeup { display: inline-flex; align-items: center; font-size: .85rem; font-weight: 600; color: var(--warn); padding: 0 .4rem; }
+.p-poll-ranking-on { align-items: center; gap: 8px; padding: 8px 8px 8px 12px; border-radius: 10px; font-weight: 600; background: var(--accent-soft); color: var(--accent); }
+.p-poll-confirm { margin: 0; padding: 8px 12px; border-radius: 10px; font-weight: 600; color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); }
+.p-poll-strip-confirm { background: color-mix(in srgb, var(--warn) 14%, var(--surface-2)); }
+.p-poll-strip-confirm .p-poll-strip-text { white-space: normal; }
 .p-poll-question { margin: .55rem 0 .8rem; font-size: 1.12rem; line-height: 1.3; font-weight: 650; overflow-wrap: anywhere; }
 .p-poll-preview { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .p-poll-preview li { display: flex; align-items: center; gap: .55rem; overflow-wrap: anywhere; }
@@ -913,6 +968,14 @@ dialog.card.p-poll-dialog { padding: 0; }
 .room-limits input { width: 100%; }
 .deck-settings > label.inline { display: flex; margin-top: .75rem; }
 .deck-settings > label.inline + .row { margin-top: 1.25rem; }
+/* Contest mode (0009) */
+.deck-settings .contest-fields { margin-top: .5rem; }
+.deck-settings .contest-time { grid-column: 1 / -1; }
+.deck-settings .contest-time .row { gap: 1rem; align-items: center; flex-wrap: nowrap; }
+.deck-settings .contest-time input[type=number] { width: 50%; flex: none; }
+.deck-settings .contest-time label.inline { margin: 0; white-space: nowrap; }
+.deck-settings > .hint + .row { margin-top: 1.25rem; }
+.deck-settings > #contest-names-hint { margin: .25rem 0 0; }
 /* "Close" stays in view however far the dialog scrolls. */
 dialog.card.deck-settings { --pad: 1.75rem; padding-bottom: 0; }
 .deck-settings .settings-foot {
@@ -1032,6 +1095,14 @@ dialog .password-control { margin-top: 1.25rem; }
 .e-poll-right .poll-letter { background: var(--ok); color: var(--surface); }
 .e-poll-correct-hint { margin: .2rem 0 0; }
 .e-poll-kind { gap: .5rem 1.25rem; margin-top: 1rem; }
+/* Contest fields of a poll (0009) */
+.e-poll-contest-box { margin-top: 1rem; }
+.e-poll-contest { border: 1px solid var(--line); border-radius: 8px; padding: .5rem .75rem .75rem; margin: .35rem 0 0; min-width: 0; }
+.e-poll-contest[disabled] { opacity: .6; }
+.e-poll-contest-row { gap: .5rem 1rem; align-items: end; flex-wrap: wrap; margin-top: .4rem; }
+.e-poll-contest-row input[type=number] { width: 7rem; }
+.e-poll-contest .hint { margin: .5rem 0 0; }
+.e-poll-contest input[aria-invalid=true] { border-color: var(--danger); }
 .e-poll-incomplete { color: var(--warn); }
 .e-poll-foot { margin-top: .8rem; }
 .e-poll-mark { display: none; width: .9rem; height: .9rem; margin-right: 4px; color: var(--accent); }
@@ -1051,4 +1122,37 @@ dialog .password-control { margin-top: 1.25rem; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before { transition: none !important; animation: none !important; }
+}
+
+/* presenter: the contest's ranking (0009). The Ranking tab on a computer,
+   a pop-up from "More" on a phone. */
+@media (min-width: 900px) { .p-ranking-group { display: none !important; } }
+.p-ranking { display: flex; flex-direction: column; gap: 10px; padding-top: 12px; }
+.p-ranking-head { flex-wrap: wrap; gap: 6px; }
+.p-ranking-head .grow { flex: 1; }
+.p-ranking-restart { border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent); border-radius: 10px; padding: 10px 12px; }
+.p-ranking-restart p { margin: 0 0 8px; font-weight: 600; }
+.p-ranking-restart .row { gap: 6px; flex-wrap: wrap; }
+.p-ranking-unscored { border: 1px solid var(--line); border-left: 3px solid var(--warn); border-radius: 10px; padding: 8px 12px; }
+.p-ranking-unscored p { margin: 0 0 6px; font-size: .9rem; font-weight: 600; color: var(--warn); }
+.p-ranking-unscored-row { gap: 8px; align-items: center; padding: 3px 0; font-size: .9rem; }
+.p-ranking-unscored-row .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.p-ranking-counted { font-size: .85rem; }
+.p-ranking-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.p-ranking-row {
+  display: grid; grid-template-columns: 2.2rem 1fr auto auto; align-items: center; gap: 4px 8px;
+  min-height: 2.4rem; padding: 4px; border-bottom: 1px solid var(--line);
+}
+.p-ranking-pos { font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; color: var(--muted); }
+.p-ranking-row:nth-child(-n+3) .p-ranking-pos { color: var(--accent); }
+.p-ranking-who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.p-ranking-right { display: block; font-size: .78rem; }
+.p-ranking-points { font-weight: 700; font-variant-numeric: tabular-nums; }
+.p-ranking-offline .p-ranking-who strong { color: var(--muted); }
+.p-ranking-actions { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.p-ranking-actions button { white-space: nowrap; }
+/* Narrow (a phone, or a narrow side panel): the actions go under the name. */
+@media (max-width: 1199px) {
+  .p-ranking-row { grid-template-columns: 2.2rem 1fr auto; }
+  .p-ranking-actions { grid-column: 2 / -1; }
 }

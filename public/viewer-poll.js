@@ -17,6 +17,13 @@ export function createViewerPoll(app, { display, badges }) {
   let error = null; // the last error about the poll, until the next action
   let minimized = false;
   let blank = false;
+  // Contest mode (0009): the countdown runs from when this page got the
+  // poll, and ends 0.5 s early, so a tap at "1" still arrives in time (D9).
+  let deadline = null; // performance.now() when the countdown reaches 0
+  let ticker = null;
+  let sentChoice = null; // the choice of the answer waiting for the server
+  let tapTimer = null; // arrow keys: send once the choice settles
+  let keyed = false; // the last change came from the keyboard
 
   // ---- panel --------------------------------------------------------------------
   const kind = el('span.poll-kind');
@@ -25,6 +32,10 @@ export function createViewerPoll(app, { display, badges }) {
     'aria-expanded': 'true', onclick: () => setMinimized(true),
   }, icon('minimize'));
   const question = el('h2.poll-question', { id: 'poll-question' });
+  const contestLine = el('p.poll-contest-line', { id: 'poll-contest-line', hidden: true });
+  const countdown = el('span.poll-countdown', { id: 'poll-countdown', hidden: true, role: 'timer' });
+  const timeHint = el('p.poll-time-hint', { id: 'poll-time-hint', hidden: true }, t('pollChangeResets'));
+  const scoreLine = el('p.poll-score', { id: 'poll-score', hidden: true });
   const options = el('div.poll-options');
   const sendBtn = el('button.primary.poll-send', { type: 'submit', id: 'poll-send' }, t('pollSend'));
   const status = el('p.poll-status', { id: 'poll-status', role: 'status' });
@@ -40,10 +51,10 @@ export function createViewerPoll(app, { display, badges }) {
   const verdictText = el('span');
   const verdict = el('p.poll-verdict', { id: 'poll-verdict', hidden: true }, el('span.poll-verdict-icon'), verdictText);
   const grades = el('p.poll-grades', { id: 'poll-grades', hidden: true });
-  const resultsBox = el('div.poll-results-box', {}, closedNote, verdict, results.element, total, grades);
-  const body = el('div.poll-body', {}, question, display ? null : form, resultsBox);
+  const resultsBox = el('div.poll-results-box', {}, closedNote, verdict, scoreLine, results.element, total, grades);
+  const body = el('div.poll-body', {}, contestLine, question, display ? null : timeHint, display ? null : form, resultsBox);
   const panel = el(`aside.poll-panel${display ? '.poll-display' : ''}`, { id: 'poll-panel', hidden: true, 'aria-labelledby': 'poll-question' },
-    el('header.poll-head', {}, el('span.poll-kicker', {}, icon('poll'), t('poll')), kind, minBtn),
+    el('header.poll-head', {}, el('span.poll-kicker', {}, icon('poll'), t('poll')), kind, countdown, minBtn),
     body);
   const pill = el('button.poll-pill', {
     type: 'button', id: 'poll-pill', hidden: true, 'aria-controls': 'poll-panel', onclick: () => setMinimized(false),
@@ -51,14 +62,77 @@ export function createViewerPoll(app, { display, badges }) {
   app.append(panel);
   badges.prepend(pill);
 
-  form.addEventListener('submit', (e) => {
-    e.preventDefault();
-    if (!poll?.open || !selection.length || pending) return;
+  function submit() {
+    if (!poll?.open || !selection.length || pending || timeUp()) return;
     error = null;
     pending = true;
+    sentChoice = [...selection];
     send({ t: 'vote', id: poll.id, choice: [...selection].sort((a, b) => a - b) });
     render();
+  }
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    submit();
   });
+
+  // ---- contest mode (0009) --------------------------------------------------------
+  const counting = () => Boolean(poll?.contest?.counts);
+  // One answer to choose in a contest: a tap sends it (D25).
+  const tapToSend = () => !display && counting() && !poll.multiple;
+  const msLeft = () => (deadline === null ? null : Math.max(0, deadline - performance.now()));
+  const timeUp = () => deadline !== null && msLeft() === 0;
+
+  function setCountdown(left) {
+    deadline = poll?.open && Number.isFinite(left) ? performance.now() + left - 500 : null;
+    clearInterval(ticker);
+    ticker = deadline === null ? null : setInterval(tick, 250);
+    tick();
+  }
+
+  function tick() {
+    const ms = msLeft();
+    countdown.hidden = ms === null;
+    if (ms === null) return;
+    const s = Math.ceil(ms / 1000);
+    countdown.textContent = s > 0 ? t('pollSecondsLeft', { s }) : t('pollTimeUp');
+    countdown.classList.toggle('poll-countdown-warn', s <= 5);
+    if (ms === 0) {
+      clearInterval(ticker);
+      ticker = null;
+      if (!display && poll?.open) renderForm(); // locks the answers
+    }
+  }
+
+  // How the points of a question that counted were made.
+  function scoreText(score, r) {
+    const max = Number(poll.contest.points).toLocaleString();
+    if (!score.answered) return t('scoreNone');
+    const parts = [];
+    if (poll.multiple) {
+      const hits = mine.filter((i) => r.correct.includes(i)).length;
+      const misses = mine.length - hits;
+      parts.push(misses ? `${t('scoreHits', { hits, right: r.correct.length })} ${t('scoreMisses', { misses })}`
+        : t('scoreHits', { hits, right: r.correct.length }));
+    } else {
+      parts.push(t(score.c >= 1 ? 'scoreRightOne' : 'scoreWrongOne'));
+    }
+    if (poll.contest.speed > 0 && score.c > 0) {
+      const sec = (ms) => (ms / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 });
+      parts.push(t('scoreTime', { t: sec(score.t), total: sec(score.T) }));
+    }
+    return `${parts.join(' · ')} → ${t('scorePoints', { points: Number(score.points).toLocaleString(), max })}`;
+  }
+
+  function renderContest() {
+    const c = poll.contest;
+    contestLine.hidden = !c;
+    if (c) {
+      contestLine.textContent = !c.counts ? t('pollNoCount')
+        : c.held && poll.open ? t('pollOnHold')
+          : t(c.speed > 0 ? 'pollUpTo' : 'pollUpToNoSpeed', { points: Number(c.points).toLocaleString() });
+    }
+    timeHint.hidden = display || !c?.counts || !poll.open || !(c.speed > 0);
+  }
 
   function setMinimized(on) {
     minimized = on;
@@ -83,8 +157,20 @@ export function createViewerPoll(app, { display, badges }) {
         else selection = [i];
         dirty = true;
         error = null;
-        render();
+        clearTimeout(tapTimer);
+        if (tapToSend() && !(mine && sameSet(selection, mine))) {
+          // A tap sends at once; arrow keys walk the options, so wait until
+          // they stop. Chosen while another answer is on its way: sent when
+          // the server has that one (take()).
+          if (keyed) tapTimer = setTimeout(() => { if (!pending) submit(); else render(); }, 400);
+          else if (!pending) submit();
+          else render();
+        } else {
+          render();
+        }
+        keyed = false;
       });
+      input.addEventListener('keydown', () => { keyed = true; });
       return el('label.poll-option', { htmlFor: `poll-answer-${i}` },
         input, el('span.poll-letter', {}, letter(i)), el('span.poll-text', {}, text));
     }));
@@ -92,13 +178,17 @@ export function createViewerPoll(app, { display, badges }) {
 
   function renderForm() {
     buildOptions();
+    const locked = !poll.open || timeUp();
     for (const input of options.querySelectorAll('input')) {
       input.checked = selection.includes(Number(input.value));
-      input.disabled = !poll.open;
+      input.disabled = locked;
     }
     const same = mine !== null && sameSet(selection, mine);
     sendBtn.textContent = mine ? t('pollChange') : t('pollSend');
-    sendBtn.disabled = !poll.open || !selection.length || same || pending;
+    sendBtn.disabled = locked || !selection.length || same || pending;
+    // One tap sends; Send shows only when a choice is stuck unsent (refused,
+    // lost with the connection, or chosen while the server had another).
+    sendBtn.parentElement.hidden = tapToSend() && (pending || same || !selection.length || locked);
     status.className = 'poll-status';
     if (error) {
       status.textContent = t({ 'poll-closed': 'pollClosedYou', 'slow-down': 'pollSlowDown' }[error] ?? 'pollNotSent');
@@ -108,8 +198,10 @@ export function createViewerPoll(app, { display, badges }) {
     } else if (same) {
       status.textContent = t('pollSent');
       status.classList.add('poll-status-ok');
+    } else if (timeUp()) {
+      status.textContent = t('pollTimeUp');
     } else {
-      status.textContent = mine ? t('pollChangedNotSent') : '';
+      status.textContent = mine ? t('pollChangedNotSent') : selection.length && counting() ? t('pollNotSentYet') : '';
     }
   }
 
@@ -136,6 +228,7 @@ export function createViewerPoll(app, { display, badges }) {
     if (!poll) return;
     question.textContent = poll.question;
     kind.textContent = poll.multiple ? t('pollMultiple') : t('pollSingle');
+    renderContest();
     pill.querySelector('.poll-pill-dot').hidden = display || !poll.open || mine !== null;
     if (display) {
       // The projector shows the counts only once the presenter makes them
@@ -168,8 +261,13 @@ export function createViewerPoll(app, { display, badges }) {
     verdict.className = grade ? `poll-verdict poll-verdict-${grade}` : 'poll-verdict';
     if (grade) {
       verdict.firstChild.replaceChildren(icon({ right: 'check', partial: 'partial', wrong: 'cross' }[grade]));
-      verdictText.textContent = t({ right: 'pollVerdictRight', partial: 'pollVerdictPartial', wrong: 'pollVerdictWrong' }[grade]);
+      const partial = counting() ? 'pollVerdictPartialContest' : 'pollVerdictPartial';
+      verdictText.textContent = t({ right: 'pollVerdictRight', partial, wrong: 'pollVerdictWrong' }[grade]);
     }
+    // Contest mode: the points of this question and how they were made.
+    const score = poll.contest?.score;
+    scoreLine.hidden = !score || !r?.correct;
+    if (score && r?.correct) scoreLine.textContent = scoreText(score, r);
   }
 
   // Public results of a poll still taking answers: the counts as they grow.
@@ -199,13 +297,18 @@ export function createViewerPoll(app, { display, badges }) {
     if (next && poll && next.open !== poll.open) error = null;
     poll = next;
     mine = nextMine;
+    setCountdown(next?.left);
     // What is ticked here is settled once the server has it (from this tab
     // or another of the same participant); an answer lost with the connection
     // stays ticked, to send again.
     if (dirty && mine && sameSet(mine, selection)) dirty = false;
     if (ack) pending = false;
     if (!dirty) selection = mine ? [...mine] : [];
-    render();
+    // Tapped again while the last answer was on its way: send the new one.
+    const changed = ack && dirty && sentChoice && !sameSet(selection, sentChoice);
+    if (ack) sentChoice = null;
+    if (changed && tapToSend() && poll?.open) submit();
+    else render();
   }
 
   return {

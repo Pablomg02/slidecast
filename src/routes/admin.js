@@ -7,6 +7,7 @@ import { checkPasswordInput } from '../auth.js';
 import { sendPage } from './pages.js';
 import { parseAppearance } from '../appearance.js';
 import { parseRoomPatch } from '../rooms.js';
+import { contestOf } from '../contest.js';
 
 const UPLOAD_LIMIT = 100 * 1024 * 1024;
 // The zip writer has no zip64 (D14 of 0004).
@@ -55,6 +56,11 @@ export function registerAdmin(app, ctx) {
     scope.addContentTypeParser(['application/zip', 'text/html'], { parseAs: 'buffer', bodyLimit: UPLOAD_LIMIT },
       (req, body, done) => done(null, body));
 
+    async function readSettings(slug) {
+      const meta = await decks.readMeta(slug);
+      return { viewerNav: meta.viewerNav, contest: contestOf(meta) };
+    }
+
     async function deckRows() {
       const rows = [];
       for (const d of await decks.list()) {
@@ -64,7 +70,7 @@ export function registerAdmin(app, ctx) {
           room: { ...rooms.settings(d.slug), ...live.counts(d.slug) },
           hasPresenterPassword: Boolean(a.presenterHash),
           hasViewerPassword: Boolean(a.viewerHash),
-          viewerNav: (await decks.readMeta(d.slug)).viewerNav,
+          ...(await readSettings(d.slug)),
         });
       }
       return rows;
@@ -179,11 +185,12 @@ export function registerAdmin(app, ctx) {
     });
 
     scope.patch('/api/admin/decks/:slug', async (req, reply) => {
-      const { title, viewerNav, aspect } = req.body ?? {};
+      const { title, viewerNav, aspect, contest } = req.body ?? {};
       try {
-        const meta = await decks.updateSettings(req.params.slug, { title, viewerNav, aspect });
+        const meta = await decks.updateSettings(req.params.slug, { title, viewerNav, aspect, contest });
         if (viewerNav !== undefined) live.setViewerNav(req.params.slug, meta.viewerNav);
-        return { title: meta.title ?? null, viewerNav: meta.viewerNav, aspect: meta.aspect };
+        if (contest !== undefined) live.setContest(req.params.slug, contestOf(meta));
+        return { title: meta.title ?? null, viewerNav: meta.viewerNav, aspect: meta.aspect, contest: contestOf(meta) };
       } catch (err) {
         return sendError(reply, err);
       }

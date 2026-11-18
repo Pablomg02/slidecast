@@ -134,7 +134,7 @@ test('settings, PATCH and DELETE', async (t) => {
     appearance: { siteName: null, landingText: null, accent: null, showLogo: true, showCredit: true },
   });
   const patch = await as({ method: 'PATCH', url: '/api/admin/decks/talk', payload: { title: 'New title', viewerNav: 'follow' } });
-  assert.deepEqual(patch.json(), { title: 'New title', viewerNav: 'follow', aspect: '16:9' });
+  assert.deepEqual(patch.json(), { title: 'New title', viewerNav: 'follow', aspect: '16:9', contest: { on: false, points: 1000, time: 30, speed: 50 } });
   assert.equal((await as({ method: 'PATCH', url: '/api/admin/decks/talk', payload: { viewerNav: 'x' } })).statusCode, 400);
   const del = await as({ method: 'DELETE', url: '/api/admin/decks/talk' });
   assert.equal(del.statusCode, 204);

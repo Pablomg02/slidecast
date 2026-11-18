@@ -39,6 +39,10 @@ export function pollOf(entry) {
   if (!question || options.length < 2 || options.length > POLL_LIMITS.options) return null;
   const poll = { question, options, multiple: raw.multiple === true };
   if (correct.length) poll.correct = correct;
+  // Its contest fields (D3 of 0009), when valid, as on the server.
+  if (Number.isInteger(raw.points) && raw.points >= 1 && raw.points <= 10000) poll.points = raw.points;
+  if (raw.time === null || (Number.isInteger(raw.time) && raw.time >= 5 && raw.time <= 600)) poll.time = raw.time;
+  if (raw.contest === false) poll.contest = false;
   return poll;
 }
 

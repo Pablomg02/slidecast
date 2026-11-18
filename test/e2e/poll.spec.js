@@ -436,7 +436,8 @@ test('closing without the results keeps them secret on every screen until the pr
   await expect(menu(p)).toBeHidden();
   await expect(card(p)).toContainText('Answers closed');
   await expect(card(p)).toContainText('Results hidden');
-  await expect(card(p).locator('.p-poll-actions button:visible')).toHaveText(['Reopen answers', 'Take off the screens', 'More options']);
+  // Closed and secret: showing the results is in sight (D12 of 0009).
+  await expect(card(p).locator('.p-poll-actions button:visible')).toHaveText(['Show results', 'Reopen answers', 'Take off the screens', 'More options']);
   await expect(result(card(p), 1)).toHaveText('1 · 100%'); // the presenter always sees them
   // The participant sees its own answer, no counts; the projector, how many answered.
   await expect(v.locator('#poll-closed-note')).toHaveText('Answers are closed.');
@@ -448,8 +449,9 @@ test('closing without the results keeps them secret on every screen until the pr
   await expect(visibleCounts(proj)).toHaveCount(0);
 
   await more.click();
-  await expect(menu(p).locator('button:visible')).toHaveText(['Show results', 'Reset poll']);
-  await menu(p).locator('[data-action=reveal]').click();
+  await expect(menu(p).locator('button:visible')).toHaveText(['Reset poll']);
+  await more.click();
+  await card(p).locator('.p-poll-actions [data-action=reveal]').click();
   await expect(result(v, 1)).toHaveText('1 · 100%');
   await expect(v.locator('#poll-total')).toHaveText('1 answer');
   await expect(result(proj, 1)).toHaveText('1 · 100%');
@@ -548,6 +550,8 @@ test('keyboard: the poll controls keep the focus, so Enter never moves the slide
   const { page: p, context: pc } = await presenter(browser);
   await p.click('#poll-launch');
   const focused = () => p.evaluate(() => document.activeElement?.dataset.action ?? document.activeElement?.tagName);
+  // focus() does not wait for the card to show: wait until it does.
+  await expect(card(p)).toContainText('Taking answers');
   await card(p).locator('[data-action=more]').focus();
   await p.keyboard.press('Enter');
   await expect(menu(p)).toBeVisible();

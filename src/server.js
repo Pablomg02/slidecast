@@ -53,7 +53,7 @@ export async function buildServer(opts = {}) {
   };
   ctx.auth = await createAuth(ctx);
   ctx.rooms = createRooms(ctx);
-  ctx.live = await createLive(ctx, { heartbeatMs: o.heartbeatMs, graceMs: o.graceMs });
+  ctx.live = await createLive(ctx, { heartbeatMs: o.heartbeatMs, graceMs: o.graceMs, now: o.now });
   app.decorate('slidecast', ctx);
 
   await app.register(fastifyCookie);

@@ -13,3 +13,5 @@ line and ask whether it is time to plan one.
   right and they win credits, get it wrong and they lose what they staked.
   Open questions: how many credits to start with, how much a right answer pays,
   what happens to someone at zero, and how the leaderboard is shown.
+  Builds on contest mode (plan 0009): the score of a question is one pure
+  function, `pointsFor` in `src/contest.js`, and the ranking already exists.

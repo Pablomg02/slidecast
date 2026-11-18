@@ -9,6 +9,7 @@ import {
 import { renderMarkdown } from './markdown.js';
 import { createRoomPanels } from './presenter-room.js';
 import { createPresenterPoll } from './presenter-poll.js';
+import { createPresenterRanking } from './presenter-ranking.js';
 
 const slug = slugFromPath();
 const app = document.getElementById('app');
@@ -19,7 +20,7 @@ setTitle(deck.title);
 
 const [aw, ah] = deck.aspect.split(':').map(Number);
 const desktop = window.matchMedia('(min-width: 900px)');
-const live = { index: 0, total: 0, blank: false, viewerNav: deck.viewerNav };
+const live = { index: 0, total: 0, blank: false, viewerNav: deck.viewerNav, contest: deck.contest };
 let notes = deck.notes ?? {};
 
 // ---- layout ----------------------------------------------------------------
@@ -93,6 +94,13 @@ const poll = createPresenterPoll({
   send: (msg) => conn.send(msg),
   onSee: () => (desktop.matches ? setTab('poll') : openPollDialog()),
   onLaunch: () => { if (desktop.matches) setTab('poll'); },
+  // Contest mode (0009): the deck's settings, on or off as the room says now.
+  contestConfig: () => (!live.contest ? null : { ...deck.contestConfig, ...ranking?.config, on: true }),
+});
+const ranking = createPresenterRanking({
+  send: (msg) => conn.send(msg),
+  slug,
+  onReveal: (id) => conn.send({ t: 'poll', action: 'reveal', slide: id }),
 });
 poll.setNotes(notes);
 const handsCount = el('span.p-tab-count', { hidden: true });
@@ -102,6 +110,8 @@ const tabs = {
   poll: el('button.p-tab', { type: 'button', role: 'tab', id: 'tab-poll', hidden: true, onclick: () => setTab('poll') }, t('poll'), pollCount),
   hands: el('button.p-tab', { type: 'button', role: 'tab', id: 'tab-hands', onclick: () => setTab('hands') }, t('tabHands'), handsCount),
   people: el('button.p-tab', { type: 'button', role: 'tab', id: 'tab-people', onclick: () => setTab('people') }, t('tabPeople')),
+  // Contest mode only, on a computer; a phone opens it from "More" (D26 of 0009).
+  ranking: el('button.p-tab', { type: 'button', role: 'tab', id: 'tab-ranking', hidden: true, onclick: () => setTab('ranking') }, t('tabRanking')),
 };
 const fontBox = el('div.p-font', {}, fontSteps, fontToggle);
 
@@ -114,7 +124,12 @@ const notesBox = el('section.p-notes', {},
   poll.panel,
   panels.handsPanel,
   panels.peoplePanel,
+  ranking.panel,
   fontBox);
+
+// Phone only, in contest mode: the ranking in a pop-up, from "More".
+const rankingOpen = el('button', { type: 'button', id: 'ranking-open', onclick: () => openRankingDialog() }, t('tabRanking'));
+const rankingGroup = el('div.p-group.p-secondary.p-ranking-group', { hidden: true }, rankingOpen);
 
 // Phone only: clock, viewer settings, the room button and first/last stay
 // folded behind this button.
@@ -133,6 +148,7 @@ const toolbar = el('div.p-toolbar', {},
   el('div.p-group.p-secondary', {}, modeSelect, viewers),
   el('div.p-group.p-secondary', { hidden: !deck.canAdmin }, roomBtn),
   el('div.p-group.p-extra', {}, openViewer, editNotes),
+  rankingGroup,
   blankedBar,
   reconnecting);
 
@@ -376,8 +392,9 @@ try { tab = localStorage.getItem('slidecast.presenterTab') || 'notes'; } catch {
 let seenHands = 0;
 // The Poll tab comes and goes with the poll, so it is never remembered.
 const pollTabShown = () => desktop.matches && poll.available();
+const rankingTabShown = () => desktop.matches && Boolean(live.contest);
 function setTab(name) {
-  tab = tabs[name] && (name !== 'poll' || pollTabShown()) ? name : 'notes';
+  tab = tabs[name] && (name !== 'poll' || pollTabShown()) && (name !== 'ranking' || rankingTabShown()) ? name : 'notes';
   for (const [k, btn] of Object.entries(tabs)) btn.setAttribute('aria-selected', String(k === tab));
   notesBody.hidden = tab !== 'notes';
   fontBox.hidden = tab !== 'notes';
@@ -385,6 +402,7 @@ function setTab(name) {
   notesBox.classList.toggle('p-tab-poll-on', tab === 'poll');
   panels.handsPanel.hidden = tab !== 'hands';
   panels.peoplePanel.hidden = tab !== 'people';
+  if (!rankingDialog.open) ranking.panel.hidden = tab !== 'ranking';
   if (tab === 'hands') seenHands = panels.handCount();
   renderHandsTab();
   if (tab !== 'poll') {
@@ -414,6 +432,31 @@ pollDialog.addEventListener('close', () => {
   setTab(tab);
 });
 document.body.append(pollDialog);
+// Phone: the ranking in a pop-up too, moved back to its tab when it closes.
+const rankingDialogBody = el('div.p-poll-dialog-body');
+const rankingDialog = el('dialog.card.p-poll-dialog', { id: 'ranking-dialog', 'aria-labelledby': 'ranking-dialog-title' },
+  el('div.p-poll-dialog-head', {},
+    el('h2', { id: 'ranking-dialog-title' }, t('tabRanking')),
+    el('button.small', { type: 'button', id: 'ranking-dialog-close', onclick: () => rankingDialog.close() }, t('close'))),
+  rankingDialogBody);
+rankingDialog.addEventListener('close', () => {
+  notesBox.insertBefore(ranking.panel, fontBox);
+  setTab(tab);
+});
+document.body.append(rankingDialog);
+function openRankingDialog() {
+  rankingDialogBody.append(ranking.panel);
+  ranking.panel.hidden = false;
+  if (!rankingDialog.open) rankingDialog.showModal();
+}
+// The Ranking tab and the phone's button come and go with contest mode.
+function renderRankingTab() {
+  tabs.ranking.hidden = !rankingTabShown();
+  rankingGroup.hidden = !live.contest;
+  if (tab === 'ranking' && tabs.ranking.hidden) setTab('notes');
+  if (!live.contest && rankingDialog.open) rankingDialog.close();
+}
+
 function openPollDialog() {
   pollDialogBody.append(poll.panel);
   poll.panel.hidden = false;
@@ -421,7 +464,9 @@ function openPollDialog() {
 }
 desktop.addEventListener('change', () => {
   if (desktop.matches && pollDialog.open) pollDialog.close();
+  if (desktop.matches && rankingDialog.open) rankingDialog.close();
   renderPollTab();
+  renderRankingTab();
   setTab(tab);
 });
 
@@ -475,6 +520,7 @@ const conn = connectLive(slug, 'presenter', (msg) => {
   if (msg.t === 'state') {
     Object.assign(live, msg);
     render();
+    renderRankingTab();
   } else if (msg.t === 'notes') {
     notes = msg.slides ?? {};
     renderNotes();
@@ -487,8 +533,12 @@ const conn = connectLive(slug, 'presenter', (msg) => {
     poll.setViewers(msg.viewers);
   } else if (msg.t === 'polls') {
     poll.update(msg);
+    ranking.setRuns(msg.runs ?? []);
     renderPollTab();
-  } else if (msg.t === 'error' && msg.code === 'no-poll') {
+  } else if (msg.t === 'ranking') {
+    ranking.update(msg);
+    poll.setRanking(msg);
+  } else if (msg.t === 'error' && (msg.code === 'no-poll' || msg.code === 'time-up' || msg.code === 'contest-off')) {
     poll.onError(msg.code);
   }
 }, (status) => {

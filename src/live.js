@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { performance } from 'node:perf_hooks';
 import { randomBytes, createHash } from 'node:crypto';
 import { readJson, writeJsonAtomic } from './store.js';
 import { originMatches } from './security.js';
@@ -7,6 +8,7 @@ import { clientIp, createFailureLimit } from './auth.js';
 import { cleanName, cleanNote, slidingLimit } from './rooms.js';
 import { createPeople } from './participants.js';
 import { createPolls, pollOf } from './polls.js';
+import { contestOf, rankingOf, csvCell } from './contest.js';
 
 export const MAX_MESSAGE = 4096;
 const HEARTBEAT_MS = 25_000;
@@ -33,16 +35,23 @@ export const CLOSE = {
 };
 
 const sha256 = (s) => createHash('sha256').update(s).digest('hex');
+
+// Column titles of the ranking spreadsheet, in the presenter page's language (D21 of 0009).
+const CSV_HEADERS = {
+  en: ['Position', 'Name', 'Number', 'Points', 'Right', 'Answered'],
+  es: ['Puesto', 'Nombre', 'Número', 'Puntos', 'Aciertos', 'Respondidas'],
+};
 const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
 
 // Per-deck live state, role-checked commands and broadcasts (D2, D3, D15, D25,
 // D26 of 0001), plus the room: participants, hands and limits (0003), and
 // its polls (0006).
-export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GRACE_MS } = {}) {
+export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GRACE_MS, now = () => performance.now() } = {}) {
   const livePath = join(ctx.stateDir, 'live.json');
   const persisted = await readJson(livePath, {}).catch(() => ({}));
   const decks = new Map(); // slug → state, see stateOf
   const wsLimits = { ...WS_LIMITS, ...ctx.wsLimits };
+  const stamp = now; // when an answer arrived, on the monotonic clock (D7 of 0009)
   const perIp = new Map(); // address → open connections
   const joins = createFailureLimit({ ...JOIN_LIMIT, ...ctx.joinLimit });
   let open = 0;
@@ -73,6 +82,7 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
       total: 0,
       blank: saved.blank === true,
       viewerNav: meta.viewerNav,
+      contest: contestOf(meta), // contest mode settings (0009)
       hands: ctx.rooms.settings(slug).hands,
       rev: 0,
       clients: new Set(), // admitted: presenters, displays, participants and pending joins
@@ -80,13 +90,24 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
       banned: new Set(), // token hashes kicked out until the room closes
       locked: false,
       roomTimer: null,
-      polls: createPolls(),
+      polls: null,
       pollTimer: null,
+      countdowns: new Map(), // slide → timer closing its answers (D10 of 0009)
+      rankingTimer: null,
+      rankingShown: false, // the top 10 on the screens (D20 of 0009)
       pollQueue: Promise.resolve(), // poll commands, one after the other (D4 of 0006)
       pollPending: 0, // tasks in that queue
       epoch: 0, // +1 each time the room closes
     };
-    s.people = createPeople({ graceMs, onExpire: () => handsChanged(s) });
+    s.polls = createPolls({ now, contest: () => s.contest });
+    // Contest mode keeps a named participant who answered while it is
+    // offline, so a locked phone keeps its score (D15 of 0009).
+    s.people = createPeople({
+      graceMs,
+      onExpire: () => handsChanged(s),
+      // Also one the presenter asked for another name: it keeps its points (D16).
+      keep: (p) => s.contest.on && (p.name !== null || p.renamed === true) && s.polls.hasAnswered(p.id),
+    });
     decks.set(slug, s);
     return s;
   }
@@ -100,6 +121,7 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
       viewerNav: s.viewerNav,
       hands: s.hands,
       askNames: ctx.rooms.settings(s.slug).askNames,
+      contest: s.contest.on,
       presenting: presenting(s),
       rev: s.rev,
     };
@@ -238,6 +260,196 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
   function pollChanged(s) {
     sendPolls(s);
     for (const p of s.people.all()) if (p.sockets.size) sendPoll(s, p);
+    syncCountdowns(s);
+    rankingSoon(s);
+  }
+
+  // ---- contest mode (0009) ------------------------------------------------------
+
+  // One timer per open run with a countdown; it closes the answers through
+  // the poll queue, so votes received in time but queued behind a command
+  // still count (D10).
+  function syncCountdowns(s) {
+    for (const timer of s.countdowns.values()) clearTimeout(timer);
+    s.countdowns.clear();
+    for (const [slide, ms] of s.polls.deadlines()) {
+      const timer = setTimeout(() => {
+        s.countdowns.delete(slide);
+        pollTask(s, () => {
+          if (decks.get(s.slug) !== s) return;
+          if (s.polls.expire(slide)) pollChanged(s);
+          else syncCountdowns(s); // woke up early: wait again
+        });
+      }, ms);
+      timer.unref?.();
+      s.countdowns.set(slide, timer);
+    }
+  }
+
+  function clearContestTimers(s) {
+    for (const timer of s.countdowns.values()) clearTimeout(timer);
+    s.countdowns.clear();
+    clearTimeout(s.rankingTimer);
+    s.rankingTimer = null;
+  }
+
+  const onlineNamed = (s) => [...s.people.all()].filter((p) => p.sockets.size && p.name !== null).map((p) => p.id);
+
+  // Everyone online with a name has answered the shown graded poll: its
+  // answers close by themselves, results secret (D11).
+  function autoClose(s) {
+    if (!s.contest.on) return;
+    pollTask(s, () => {
+      if (decks.get(s.slug) !== s || !s.contest.on) return;
+      if (s.polls.allAnswered(onlineNamed(s)) && s.polls.closeShown()) pollChanged(s);
+    });
+  }
+
+  // The ranking as every kind of client sees it (D17, D19).
+  function rankingFor(s) {
+    if (!s.contest.on) return { runs: [], rows: [] };
+    const { runs, voters } = s.polls.scores();
+    const present = voters.filter((v) => s.people.byId(v.voter));
+    const rows = rankingOf(present, (id) => s.people.byId(id));
+    return { runs, rows };
+  }
+
+  const shownName = (r) => r.name ?? `#${r.n}`;
+
+  function sendRanking(s, only = null) {
+    if (!only) {
+      clearTimeout(s.rankingTimer);
+      s.rankingTimer = null;
+    }
+    const { runs, rows } = rankingFor(s);
+    const forPresenters = JSON.stringify({
+      t: 'ranking',
+      on: s.contest.on,
+      config: s.contest, // for the presenter's chips of polls not launched yet
+      shown: s.rankingShown,
+      counted: runs.length,
+      unscored: s.contest.on ? s.polls.unscored() : [],
+      rows: rows.map((r) => ({
+        id: r.voter, n: r.n, name: r.name, online: Boolean(s.people.byId(r.voter)?.sockets.size),
+        points: r.points, pos: r.pos, answered: r.answered, right: r.right,
+      })),
+    });
+    const forDisplays = JSON.stringify({
+      t: 'ranking',
+      shown: s.rankingShown,
+      total: rows.length,
+      rows: s.rankingShown ? rows.slice(0, 10).map((r) => ({ pos: r.pos, name: shownName(r), points: r.points })) : [],
+    });
+    for (const c of only ? [only] : s.clients) {
+      if (c.kind === 'presenter' && ctx.auth.canPresent(c.req, s.slug)) send(c, forPresenters);
+      else if (c.kind === 'display') send(c, forDisplays);
+    }
+    if (only) return;
+    // Each participant its own points and place, only when they changed.
+    const last = runs.reduce((a, r) => (!a || r.scoredSeq > a.scoredSeq ? r : a), null);
+    const byVoter = new Map(rows.map((r) => [r.voter, r]));
+    for (const p of s.people.all()) if (p.sockets.size) sendScore(s, p, false, { rows, byVoter, last });
+  }
+
+  function scoreOf(s, p, { rows, byVoter, last }) {
+    const row = byVoter.get(p.id);
+    return {
+      t: 'score',
+      on: s.contest.on,
+      points: row?.points ?? 0,
+      pos: row?.pos ?? null,
+      of: rows.length,
+      last: row && last ? { id: last.id, ...row.per[last.id] } : null,
+    };
+  }
+
+  // `force`: on joining, even if nothing changed since the last one.
+  function sendScore(s, p, force = false, ranking = null) {
+    let r = ranking;
+    if (!r) {
+      const { runs, rows } = rankingFor(s);
+      r = { rows, byVoter: new Map(rows.map((x) => [x.voter, x])), last: runs.reduce((a, x) => (!a || x.scoredSeq > a.scoredSeq ? x : a), null) };
+    }
+    const msg = JSON.stringify(scoreOf(s, p, r));
+    if (!force && p.lastScore === msg) return;
+    p.lastScore = msg;
+    for (const c of p.sockets) send(c, msg);
+  }
+
+  // At most every 300 ms (1 s above 200 participants), computed once.
+  function rankingSoon(s) {
+    if (s.rankingTimer || !s.contest.on) return;
+    s.rankingTimer = setTimeout(() => sendRanking(s), s.people.size > 200 ? 1000 : 300);
+    s.rankingTimer.unref?.();
+  }
+
+  const CONTEST_ACTIONS = new Set(['show-ranking', 'hide-ranking', 'restart', 'rename']);
+
+  // {t: 'contest', action} from presenters (D16, D20), in the poll queue.
+  function contestCommand(s, client, msg) {
+    if (!CONTEST_ACTIONS.has(msg.action)) return false;
+    if (msg.action === 'rename' && typeof msg.id !== 'string') return false;
+    if (!s.contest.on) {
+      send(client, { t: 'error', code: 'contest-off' });
+      return true;
+    }
+    pollTask(s, () => {
+      if (decks.get(s.slug) !== s || !s.contest.on) return;
+      if (msg.action === 'show-ranking' || msg.action === 'hide-ranking') {
+        const on = msg.action === 'show-ranking';
+        if (s.rankingShown === on) return;
+        s.rankingShown = on;
+        // One overlay at a time on the screens.
+        if (on && s.polls.hide()) pollChanged(s);
+        sendRanking(s);
+      } else if (msg.action === 'restart') {
+        s.polls.clear();
+        s.rankingShown = false;
+        pollChanged(s);
+        sendRanking(s);
+      } else {
+        const p = s.people.byId(msg.id);
+        if (!p || p.name === null) return;
+        p.name = null;
+        p.renamed = true; // asked again on every join until it picks one
+        you(s, p, { renameAsked: true });
+        roomChanged(s);
+        rankingSoon(s);
+      }
+    });
+    return true;
+  }
+
+  // The ranking leaves the screens (a poll was shown, the slides moved).
+  function rankingOff(s) {
+    if (!s.rankingShown) return;
+    s.rankingShown = false;
+    sendRanking(s);
+  }
+
+  // The deck's contest settings changed (D9, D13, D15).
+  function applyContest(s, contest) {
+    const before = s.contest;
+    s.contest = contest;
+    s.polls.contestChanged();
+    if (before.on && !contest.on) {
+      s.rankingShown = false;
+      if (!ctx.rooms.settings(s.slug).askNames) {
+        for (const p of s.people.all()) {
+          if (p.name === null) continue;
+          p.name = null;
+          you(s, p);
+        }
+        roomChanged(s);
+      }
+      s.people.expireOffline();
+    } else if (!before.on && contest.on) {
+      s.people.keepNow();
+    }
+    s.rev++;
+    broadcast(s);
+    pollChanged(s);
+    sendRanking(s);
   }
 
   const POLL_ACTIONS = new Set(['show', 'hide', 'open', 'close', 'reveal', 'conceal', 'reset']);
@@ -269,6 +481,10 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
       changed = s.polls.reset(slide);
     } else if (action === 'open' || action === 'close') {
       changed = s.polls.setOpen(slide, action === 'open', msg.results === true);
+      if (changed === 'time-up') {
+        send(client, { t: 'error', code: 'time-up' });
+        return;
+      }
     } else if (action === 'reveal' || action === 'conceal') {
       changed = s.polls.setRevealed(slide, action === 'reveal');
     } else {
@@ -284,6 +500,7 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
         if (had && !s.polls.get(slide)) sendPolls(s); // an unanswered run whose poll is gone
         return;
       }
+      rankingOff(s);
     }
     if (changed) pollChanged(s);
   }
@@ -291,12 +508,20 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
   // A participant's answer. While poll commands wait in the queue (a show
   // reading deck.json), it waits behind them, so an answer sent after "close
   // answers" is never counted.
-  function vote(s, p, client, msg) {
+  // `at`: when the server received it (D7 of 0009).
+  function vote(s, p, client, msg, at) {
     if (s.people.byId(p.id) !== p) return; // removed meanwhile
-    const err = s.polls.vote(p.id, msg.id, msg.choice);
+    // Only a first answer can complete "everyone answered": a changed one,
+    // after answers were reopened, must not close them on the others.
+    const first = !s.polls.shown?.ballots?.has(p.id);
+    const err = s.polls.vote(p.id, msg.id, msg.choice, at);
     sendPoll(s, p, true);
-    if (err) send(client, { t: 'error', code: err, about: 'poll' });
-    else pollsSoon(s);
+    if (err) {
+      send(client, { t: 'error', code: err, about: 'poll' });
+      return;
+    }
+    pollsSoon(s);
+    if (first) autoClose(s);
   }
 
   // The audience is told when nobody with presenter rights is connected.
@@ -371,6 +596,10 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
       if (client.person) s.people.detach(client.person, client);
       if (last) presenceChanged(s);
       roomChanged(s);
+      if (client.person && s.contest.on) {
+        autoClose(s); // the one still to answer left
+        rankingSoon(s);
+      }
     });
 
     const settings = ctx.rooms.settings(slug);
@@ -403,6 +632,7 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
         sendRoom(s, client);
       }
       sendPolls(s, client);
+      sendRanking(s, client);
       roomChanged(s);
     }
     for (const data of queue.splice(0)) onMessage(client, data);
@@ -436,8 +666,15 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
     client.person = p;
     s.people.attach(p, client);
     send(client, snapshot(s));
-    you(s, p, { token });
+    you(s, p, { token, ...(p.renamed ? { renameAsked: true } : {}) });
     send(client, s.polls.forParticipant(p.id));
+    // Its score comes with the next ranking, computed once for everyone who
+    // joins meanwhile (a whole class reconnecting at once), which also marks
+    // it online for presenters.
+    if (s.contest.on) {
+      p.lastScore = null;
+      rankingSoon(s);
+    }
     roomChanged(s);
     return undefined;
   }
@@ -452,14 +689,24 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
     if (!p) return send(client, { t: 'error', code: msg.t === 'name' || msg.t === 'hand' ? 'bad-message' : 'forbidden' });
 
     if (msg.t === 'name') {
-      if (!ctx.rooms.settings(s.slug).askNames) return send(client, { t: 'error', code: 'names-off' });
+      const contest = s.contest.on;
+      if (!contest && !ctx.rooms.settings(s.slug).askNames) return send(client, { t: 'error', code: 'names-off' });
       const name = cleanName(msg.name);
       if (name === undefined) return send(client, { t: 'error', code: 'bad-message' });
+      // Contest mode: a name is needed, and nobody else in the room has it (D13, D14 of 0009).
+      if (contest && name === null) return send(client, { t: 'error', code: 'name-needed' });
+      if (contest && name !== p.name) {
+        const key = name.toLocaleLowerCase('und');
+        const other = [...s.people.all()].find((o) => o !== p && o.name !== null && o.name.toLocaleLowerCase('und') === key);
+        if (other) return send(client, { t: 'error', code: 'name-taken', offline: other.sockets.size === 0 });
+      }
       const wait = p.renames.wait(now);
       if (wait) return send(client, { t: 'error', code: 'slow-down', wait });
       p.renames.hit(now);
       p.name = name;
+      if (name !== null) p.renamed = false;
       you(s, p);
+      if (contest) rankingSoon(s);
       return roomChanged(s);
     }
     if (msg.t === 'hand') {
@@ -486,8 +733,11 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
       const wait = p.votes.wait(now);
       if (wait) return send(client, { t: 'error', code: 'slow-down', wait, about: 'poll' });
       p.votes.hit(now);
-      if (s.pollPending) pollTask(s, () => vote(s, p, client, msg));
-      else vote(s, p, client, msg);
+      // In contest mode answers come with a name (D13 of 0009).
+      if (s.contest.on && p.name === null) return send(client, { t: 'error', code: 'name-needed', about: 'poll' });
+      const at = stamp();
+      if (s.pollPending) pollTask(s, () => vote(s, p, client, msg, at));
+      else vote(s, p, client, msg, at);
       return undefined;
     }
     return send(client, { t: 'error', code: 'forbidden' });
@@ -537,11 +787,12 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
   }
 
   const DECK_COMMANDS = new Set(['meta', 'step', 'goto', 'blank', 'nav', 'hands']);
-  const ROOM_COMMANDS = new Set(['hand', 'hands-clear', 'lock', 'kick', 'kick-presenter', 'poll']);
+  const ROOM_COMMANDS = new Set(['hand', 'hands-clear', 'lock', 'kick', 'kick-presenter', 'poll', 'contest']);
 
   // Room commands; returns false if invalid.
   function roomCommand(s, client, msg) {
     if (msg.t === 'poll') return pollCommand(s, client, msg);
+    if (msg.t === 'contest') return contestCommand(s, client, msg);
     if (msg.t === 'hand') {
       const p = s.people.byId(msg.id);
       if (!p?.hand) return true; // already resolved by another presenter
@@ -595,6 +846,10 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
         // just changed (open ones follow the counts anyway).
         if (s.polls.shown?.revealed && !s.polls.shown.open) pollChanged(s);
         else pollsSoon(s);
+      }
+      if (s.contest.on) {
+        autoClose(s);
+        rankingSoon(s);
       }
       handsChanged(s);
       return true;
@@ -661,8 +916,10 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
       if (!roomCommand(s, client, msg)) send(client, { t: 'error', code: 'bad-message' });
       return undefined;
     }
+    const index = s.index;
     const changed = apply(s, msg);
     if (changed === null) return send(client, { t: 'error', code: 'bad-message' });
+    if (s.index !== index) rankingOff(s); // the slides moved on (D20 of 0009)
     if (changed) {
       s.rev++;
       broadcast(s);
@@ -702,11 +959,14 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
     s.locked = false;
     s.hands = ctx.rooms.settings(s.slug).hands;
     s.polls.clear();
+    clearContestTimers(s);
+    s.rankingShown = false;
     s.epoch++;
     s.rev++;
     broadcast(s);
     sendRoom(s);
     sendPolls(s);
+    sendRanking(s);
   }
 
   return {
@@ -732,6 +992,24 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
       s.rev++;
       broadcast(s);
     },
+    // The deck's contest settings changed (already saved): apply them live.
+    setContest(slug, contest) {
+      const s = decks.get(slug);
+      if (!s || JSON.stringify(s.contest) === JSON.stringify(contest)) return;
+      applyContest(s, contest);
+    },
+    // The ranking as a spreadsheet (D21 of 0009); null without a room.
+    contestCsv(slug, lang = 'en') {
+      const s = decks.get(slug);
+      if (!s) return null;
+      const { runs, rows } = rankingFor(s);
+      const head = CSV_HEADERS[lang] ?? CSV_HEADERS.en;
+      const lines = [[...head, ...runs.map((r) => r.question)]];
+      for (const r of rows) {
+        lines.push([r.pos, shownName(r), r.n, r.points, r.right, r.answered, ...runs.map((run) => r.per[run.id]?.points ?? 0)]);
+      }
+      return `\ufeff${lines.map((l) => l.map(csvCell).join(';')).join('\r\n')}\r\n`;
+    },
     // The admin changed a room's settings (already saved), `before` being the old ones.
     roomUpdated(slug, before) {
       const s = decks.get(slug);
@@ -741,7 +1019,7 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
       if (!before.open && now.open) unpark(s);
       if (before.hands !== now.hands) s.hands = now.hands;
       // Names off: everyone becomes anonymous, as if they had never given one (D16).
-      if (before.askNames && !now.askNames) {
+      if (before.askNames && !now.askNames && !s.contest.on) {
         for (const p of s.people.all()) {
           if (p.name === null) continue;
           p.name = null;
@@ -771,10 +1049,17 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
         s.people.clear();
         clearTimeout(s.roomTimer);
         clearTimeout(s.pollTimer);
+        clearContestTimers(s);
         decks.delete(slug);
       } else {
         s.rev++;
         broadcast(s);
+        // A new version may bring other contest settings (D22 of 0009).
+        ctx.decks.readMeta(slug).then((meta) => {
+          if (decks.get(slug) !== s) return;
+          const contest = contestOf(meta);
+          if (JSON.stringify(s.contest) !== JSON.stringify(contest)) applyContest(s, contest);
+        }).catch(() => {});
       }
     },
     async close() {
@@ -783,6 +1068,7 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
         s.people.clear();
         clearTimeout(s.roomTimer);
         clearTimeout(s.pollTimer);
+        clearContestTimers(s);
       }
       if (persistTimer) await persistNow();
     },

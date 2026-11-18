@@ -7,6 +7,7 @@ import { readJson, writeJsonAtomic, withLock } from './store.js';
 import { readZip } from './unzip.js';
 import { pruneSlides, summarize } from './notes.js';
 import { cleanPoll } from './polls.js';
+import { cleanContest, contestOf } from './contest.js';
 
 export const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
 export const RESERVED_SLUGS = new Set([
@@ -278,7 +279,7 @@ export function createDeckStore({
       checkNote(v, `step ${k}`);
       if (v !== '') cleanSteps[String(Number(k))] = v;
     }
-    const cleaned = poll === undefined ? null : cleanPoll(poll);
+    const cleaned = poll === undefined ? null : cleanPoll(poll, { strict: true });
     if (cleaned?.error) throw new DeckError('ERR_BAD_INPUT', cleaned.error);
     return modifyMeta(slug, (meta) => {
       const slide = { ...(meta.slides[slideId] ?? {}) };
@@ -290,12 +291,15 @@ export function createDeckStore({
         const old = slide.poll && typeof slide.poll === 'object' && !Array.isArray(slide.poll) ? slide.poll : {};
         slide.poll = { ...old, ...cleaned.poll };
         if (!cleaned.poll.correct) delete slide.poll.correct; // no right answers: an opinion poll (0007)
+        // Contest fields left out go back to the deck's defaults (D3 of 0009).
+        for (const key of ['points', 'time', 'contest']) if (!Object.hasOwn(cleaned.poll, key)) delete slide.poll[key];
       }
       meta.slides[slideId] = slide;
     });
   }
 
-  async function updateSettings(slug, { title: t, viewerNav, aspect } = {}) {
+  // `contest` (0009): the fields given replace those saved; the rest stay.
+  async function updateSettings(slug, { title: t, viewerNav, aspect, contest } = {}) {
     if (t !== undefined && t !== null && (typeof t !== 'string' || t.length > 200)) {
       throw new DeckError('ERR_BAD_INPUT', 'invalid title');
     }
@@ -305,7 +309,13 @@ export function createDeckStore({
     if (aspect !== undefined && (typeof aspect !== 'string' || !ASPECT_RE.test(aspect))) {
       throw new DeckError('ERR_BAD_INPUT', 'invalid aspect');
     }
+    if (contest !== undefined) {
+      const { error } = contest && typeof contest === 'object' && !Array.isArray(contest)
+        ? cleanContest(contest, { strict: true }) : { error: 'contest must be an object' };
+      if (error) throw new DeckError('ERR_BAD_INPUT', error);
+    }
     return modifyMeta(slug, (meta) => {
+      if (contest !== undefined) meta.contest = cleanContest({ ...contestOf(meta), ...contest }, { strict: true }).contest;
       if (t === null || t === '') delete meta.title;
       else if (t !== undefined) meta.title = t.trim();
       if (viewerNav !== undefined) meta.viewerNav = viewerNav;

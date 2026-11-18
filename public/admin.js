@@ -537,20 +537,56 @@ function openSettings(d) {
   const maxPresenters = el('input', { type: 'number', id: 'room-presenters', min: 1, max: 20, step: 1, value: d.room.maxPresenters });
   const maxViewers = el('input', { type: 'number', id: 'room-viewers', min: 1, max: 1000, step: 1, value: d.room.maxViewers });
   const askNames = el('input', { type: 'checkbox', id: 'room-names', checked: d.room.askNames });
+  // Contest mode (0009): saved in deck.json; it always asks for a name, so
+  // the name box shows ticked and locked while it is on (D28).
+  const c = d.contest ?? { on: false, points: 1000, time: 30, speed: 50 };
+  const contestOn = el('input', { type: 'checkbox', id: 'contest-on', checked: c.on });
+  const points = el('input', { type: 'number', id: 'contest-points', min: 1, max: 10000, step: 1, value: c.points });
+  const time = el('input', { type: 'number', id: 'contest-time', min: 5, max: 600, step: 1, value: c.time ?? 30 });
+  const noTime = el('input', { type: 'checkbox', id: 'contest-no-time', checked: c.time === null });
+  const speed = el('input', { type: 'number', id: 'contest-speed', min: 0, max: 100, step: 1, value: c.speed });
+  const contestHint = el('p.hint.muted', { id: 'contest-hint' });
+  const namesHint = el('p.hint.muted', { id: 'contest-names-hint', hidden: true }, t('contestNames'));
+  let askChoice = d.room.askNames; // the admin's own choice, kept while contest mode locks the box
+  askNames.addEventListener('change', () => { askChoice = askNames.checked; });
+  const num = (input, fallback) => (Number.isInteger(Number(input.value)) && input.value !== '' ? Number(input.value) : fallback);
+  const describeContest = () => {
+    const on = contestOn.checked;
+    for (const f of [points, time, noTime, speed]) f.disabled = !on;
+    time.disabled = !on || noTime.checked;
+    const full = num(points, 1000);
+    const late = Math.round(full * (1 - Math.min(100, Math.max(0, num(speed, 50))) / 100));
+    contestHint.textContent = t('contestHint', { full: full.toLocaleString(), late: late.toLocaleString() });
+    askNames.disabled = on;
+    askNames.checked = on || askChoice;
+    namesHint.hidden = !on;
+  };
+  for (const f of [contestOn, points, time, noTime, speed]) f.addEventListener('input', describeContest);
+  describeContest();
   const hands = el('input', { type: 'checkbox', id: 'room-hands', checked: d.room.hands });
   const msg = el('span.status');
   const save = el('button.primary', {
     type: 'button',
     onclick: async () => {
       const res = await api(`/api/admin/decks/${encodeURIComponent(d.slug)}`, {
-        method: 'PATCH', body: { title: title.value, viewerNav: mode.value },
+        method: 'PATCH',
+        body: {
+          title: title.value,
+          viewerNav: mode.value,
+          contest: {
+            on: contestOn.checked,
+            points: num(points, 1000),
+            time: noTime.checked ? null : num(time, 30),
+            speed: num(speed, 50),
+          },
+        },
       });
       const room = res.ok && await api(`/api/admin/rooms/${encodeURIComponent(d.slug)}`, {
         method: 'PATCH',
         body: {
           maxPresenters: Number(maxPresenters.value),
           maxViewers: Number(maxViewers.value),
-          askNames: askNames.checked,
+          askNames: askChoice,
           hands: hands.checked,
         },
       });
@@ -567,7 +603,16 @@ function openSettings(d) {
       el('div', {}, el('label', { htmlFor: 'room-presenters' }, t('maxPresenters')), maxPresenters),
       el('div', {}, el('label', { htmlFor: 'room-viewers' }, t('maxViewers')), maxViewers)),
     el('label.inline', { htmlFor: 'room-names' }, askNames, ` ${t('askNamesSetting')}`),
+    namesHint,
     el('label.inline', { htmlFor: 'room-hands' }, hands, ` ${t('handsSetting')}`),
+    el('h3.settings-sub', {}, t('contestHeading')),
+    el('label.inline', { htmlFor: 'contest-on' }, contestOn, ` ${t('contestOn')}`),
+    el('div.room-limits.contest-fields', {},
+      el('div', {}, el('label', { htmlFor: 'contest-points' }, t('contestPoints')), points),
+      el('div', {}, el('label', { htmlFor: 'contest-speed' }, t('contestSpeed')), speed),
+      el('div.contest-time', {}, el('label', { htmlFor: 'contest-time' }, t('contestTime')),
+        el('div.row', {}, time, el('label.inline', { htmlFor: 'contest-no-time' }, noTime, ` ${t('contestNoTime')}`)))),
+    contestHint,
     el('div.row', {}, save, msg),
     el('h3.settings-sub.settings-break', {}, t('passwordsHeading')),
     el('p.hint.muted', {}, t('passwordsHint')),

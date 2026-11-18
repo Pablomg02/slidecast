@@ -128,6 +128,18 @@ memory only, sent only to presenters of that deck, and never written to disk
 or logged. A participant whose page is gone is forgotten after two minutes;
 closing the room, or restarting the server, forgets everyone.
 
+**Contest mode** (0009). Names become required and unique in the room, and
+the top 10 (names and points) appears on the projector when a presenter
+shows it; each participant receives only its own points and place.
+Presenters see the whole ranking and can download it as a CSV
+(`/api/decks/<slug>/contest.csv`, presenter rights required); cells that a
+spreadsheet would run as a formula (`=`, `+`, `-`, `@`) are prefixed with
+`'`. Answer times are taken by the server on its monotonic clock when the
+answer arrives, never from the device. Named participants who answered are
+kept, offline, until the room closes, they are removed, or contest mode is
+turned off; like everything else about polls, the ranking lives in memory
+only.
+
 **Polls.** A poll's text is read from the deck's `deck.json` by the server
 when a presenter shows it, never taken from a message, and shown as text
 (never HTML). Participants receive a poll only while it is on the screens,

@@ -6,6 +6,21 @@ include breaking changes, always listed here.
 
 ## [Unreleased]
 
+- Contest mode: a deck's polls with right answers score points and make a
+  ranking. Set in the deck's **Settings** (points per question, an optional
+  countdown, a slowness penalty) and per poll in the notes editor (its own
+  points or countdown, or out of the contest). Everyone enters with a unique
+  name; one tap answers a one-answer question; answers close when the
+  countdown ends or everyone has answered; phones show their points, why, and
+  their place once the results are shown; the presenter's **Ranking** tab
+  shows everyone, puts the top 10 on the screens, downloads a CSV and
+  restarts the contest. Answer times are taken by the server. After closing a
+  poll without its results, **Show results** is now in sight (for every
+  deck). Decisions in plan 0009. Format: `contest` in `deck.json`, `points`,
+  `time` and `contest` in a poll. Protocol: `{t: 'contest', action}` with
+  `show-ranking`, `hide-ranking`, `restart`, `rename`; messages `ranking` and
+  `score`; poll runs carry `contest`, `left`, `timeUp` and `scored`; errors
+  `name-needed`, `name-taken`, `time-up`, `contest-off`.
 - The presenter view has buttons to jump to the first and the last step,
   beside previous and next (the same as `Home` and `End`). On a phone they
   appear only with **More** open, so a thumb never jumps by mistake. To make

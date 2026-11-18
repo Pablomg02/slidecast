@@ -25,13 +25,16 @@ function storedChoice() {
   }
 }
 
-export function createParticipant(app, { slug, askNames, hands }) {
+export function createParticipant(app, { slug, askNames, hands, contest = false }) {
   const tokenKey = `slidecast.token.${slug}`;
   let token = load(tokenKey);
   let choice = storedChoice();
   let me = null; // last `you` message
   let send = () => {};
-  let room = { askNames, hands };
+  let room = { askNames, hands, contest };
+  // Contest mode (0009): a name is needed and must be free; the dialog stays
+  // open until the server takes it (D13, D14).
+  const namesOn = () => room.askNames || room.contest;
   let slowUntil = 0;
   let pendingName = false; // chosen before the server answered the join
 
@@ -39,13 +42,21 @@ export function createParticipant(app, { slug, askNames, hands }) {
   const nameInput = el('input', {
     type: 'text', id: 'join-name', maxLength: MAX_NAME, autocomplete: 'nickname', placeholder: t('joinName'),
   });
+  const joinHint = el('p.muted', { id: 'join-hint' }, t('joinHint'));
+  const joinRules = el('p.join-rules', { id: 'join-rules', hidden: true }, t('joinRules'));
+  const joinNotice = el('p.join-notice', { id: 'join-notice', hidden: true });
+  const joinError = el('p.join-error', { id: 'join-error', role: 'alert', hidden: true });
+  const anonBtn = el('button', { type: 'button', id: 'join-anonymous', onclick: () => choose(null) }, t('joinAnonymous'));
   const joinForm = el('form.join-form', { method: 'dialog' },
     el('h2', {}, t('joinTitle')),
-    el('p.muted', {}, t('joinHint')),
+    joinNotice,
+    joinHint,
+    joinRules,
     el('label.visually-hidden', { htmlFor: 'join-name' }, t('joinName')), nameInput,
+    joinError,
     el('div.row.join-actions', {},
       el('button.primary', { type: 'submit', id: 'join-enter' }, t('joinEnter')),
-      el('button', { type: 'button', id: 'join-anonymous', onclick: () => choose(null) }, t('joinAnonymous'))));
+      anonBtn));
   const joinDialog = el('dialog.card.join-dialog', {}, joinForm);
   joinForm.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -55,21 +66,34 @@ export function createParticipant(app, { slug, askNames, hands }) {
   joinDialog.addEventListener('cancel', (e) => e.preventDefault());
 
   function choose(name) {
+    if (room.contest && name === null) return showJoinError(t('nameNeeded'));
     choice = { name };
     store('slidecast.name', JSON.stringify(choice));
-    joinDialog.close();
+    showJoinError(null);
+    // In contest mode the dialog waits for the server to take the name.
+    if (!room.contest || (me && me.name === name)) joinDialog.close();
     if (!me) pendingName = true;
     else if (me.name !== name) send({ t: 'name', name });
   }
 
-  function askName() {
+  function showJoinError(text) {
+    joinError.textContent = text ?? '';
+    joinError.hidden = !text;
+  }
+
+  function askName(notice = null) {
     nameInput.value = choice?.name ?? '';
+    anonBtn.hidden = room.contest;
+    joinHint.textContent = t(room.contest ? 'joinHintContest' : 'joinHint');
+    joinRules.hidden = !room.contest;
+    joinNotice.textContent = notice ?? '';
+    joinNotice.hidden = !notice;
     if (!joinDialog.open) joinDialog.showModal();
     nameInput.focus();
   }
 
   // ---- bar: who you are, your hand ----------------------------------------------
-  const who = el('button.p-who', { type: 'button', id: 'who', onclick: () => { if (room.askNames) askName(); } },
+  const who = el('button.p-who', { type: 'button', id: 'who', onclick: () => { if (namesOn()) askName(); } },
     icon('user'), el('span.label'));
   const handBtn = el('button.hand-btn', { type: 'button', id: 'hand', onclick: () => onHand() },
     icon('hand'), el('span.label', {}, t('raiseHand')));
@@ -87,7 +111,9 @@ export function createParticipant(app, { slug, askNames, hands }) {
     if (Date.now() < slowUntil) return;
     send({ t: 'hand', up: true, note: note.value });
   });
-  const barRow = el('div.row', {}, who, handBtn, handStatus);
+  // Contest mode: own points and place (D25 of 0009).
+  const scoreBadge = el('span.p-score', { id: 'score', hidden: true });
+  const barRow = el('div.row', {}, who, scoreBadge, handBtn, handStatus);
   const bar = el('div.participant-bar', { hidden: true }, panel, barRow);
   // The row wraps on a narrow phone: whatever sits above the bar ("Back to live")
   // needs its real height.
@@ -141,7 +167,7 @@ export function createParticipant(app, { slug, askNames, hands }) {
   function render() {
     if (!me) return;
     who.querySelector('.label').textContent = t('youAre', { name: participantLabel(me) });
-    who.disabled = !room.askNames;
+    who.disabled = !namesOn();
     const hand = me.hand;
     handBtn.hidden = !room.hands && !hand;
     handBtn.querySelector('.label').textContent = hand ? t('lowerHand') : t('raiseHand');
@@ -171,12 +197,18 @@ export function createParticipant(app, { slug, askNames, hands }) {
     hello: () => ({ t: 'join', token }),
     attach(sender) { send = sender; },
     // Room-wide flags from the state message.
-    state({ askNames: a, hands: h }) {
-      room = { askNames: a, hands: h };
+    state({ askNames: a, hands: h, contest: c = false }) {
+      const was = room.contest;
+      room = { askNames: a, hands: h, contest: c };
       hideNotice();
       bar.hidden = false;
+      if (!c) scoreBadge.hidden = true;
+      // Contest mode began while this participant had no name.
+      if (c && !was && me && me.name === null) askName();
       render();
     },
+    // An answer refused for want of a name (contest mode).
+    needName() { askName(t('nameNeeded')); },
     onMessage(msg) {
       if (msg.t === 'you') {
         const before = me?.hand ?? null;
@@ -186,9 +218,19 @@ export function createParticipant(app, { slug, askNames, hands }) {
           store(tokenKey, token);
         }
         me = msg;
-        if (room.askNames) {
-          if (!choice) askName();
-          else if ((fresh || pendingName) && choice.name !== me.name) send({ t: 'name', name: choice.name });
+        if (msg.renameAsked) {
+          // The presenter wants another name: the old one is not offered again.
+          choice = null;
+          store('slidecast.name', null);
+          askName(t('renameAsked'));
+        } else if (namesOn()) {
+          // Contest mode: a stored "anonymous" choice is no choice, and a
+          // participant left without a name (a reload after a taken name)
+          // sends its stored one again or is asked (D13 of 0009).
+          const needs = room.contest && me.name === null && !joinDialog.open;
+          if (!choice || (room.contest && choice.name === null)) askName();
+          else if ((fresh || pendingName || needs) && choice.name !== me.name) send({ t: 'name', name: choice.name });
+          else if (room.contest && joinDialog.open && me.name !== null && me.name === choice.name) joinDialog.close();
         }
         pendingName = false;
         if (me.hand?.state === 'attending' && before?.state !== 'attending') {
@@ -202,6 +244,14 @@ export function createParticipant(app, { slug, askNames, hands }) {
         showNotice(msg.reason === 'locked' ? 'locked' : 'closed');
       } else if (msg.t === 'error' && msg.code === 'slow-down' && Number.isFinite(msg.wait)) {
         slowDown(msg.wait);
+      } else if (msg.t === 'error' && (msg.code === 'name-taken' || msg.code === 'name-needed')) {
+        askName();
+        showJoinError(t(msg.code === 'name-needed' ? 'nameNeeded' : msg.offline ? 'nameTakenOffline' : 'nameTaken'));
+      } else if (msg.t === 'score') {
+        scoreBadge.hidden = !msg.on;
+        const points = Number(msg.points).toLocaleString();
+        scoreBadge.textContent = msg.pos === null ? t('scoreUnranked', { points })
+          : t('scoreBar', { points, pos: msg.pos, of: msg.of });
       }
     },
     // Connection status from connectLive; true if the page should stop here.

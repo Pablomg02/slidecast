@@ -34,6 +34,10 @@ moves with you: the projector, your phone, your audience's laptops.
   mark the right ones if it has a solution; launch it from the presenter view
   and everyone answers from their own device while the results, anonymous,
   fill in live on your screen, secret to everyone else until you show them.
+- **Contest mode**: turn a quiz into a game. Right answers score points,
+  faster ones more if you want, with an optional countdown; each phone shows
+  its own points and place, the projector the top 10 when you choose, and you
+  download the ranking as a spreadsheet.
 - **Rooms you open and close**: open the deck you are about to present with
   one click; the main address takes everyone to it.
 - **Notes and polls in the browser**: write them slide by slide in the admin
@@ -295,6 +299,34 @@ solution; leave them all unticked for an opinion poll.
   again, or to another group). Launching another slide's poll puts
   it in place of the one on the screens, so a quiz with a poll per slide
   takes one click per question.
+
+### Contest mode
+
+Turn it on in the deck's **Settings** (**Contest mode**): the polls with right
+answers then score points and make a ranking. There you set the points per
+question (1000), the countdown (30 s, or none) and the slowness penalty (50 %:
+a right answer at the last second earns half). In the notes editor each poll
+can give other points, another countdown or none, or stay out of the contest.
+The scoring, with examples, is in the [deck format](docs/deck-format.md#contest-mode).
+
+- **Everyone enters with a name**, a nickname if they like, and two people
+  cannot use the same one. **Ask for another name** (in the **Ranking** tab)
+  makes someone pick another one, keeping their points.
+- **The countdown** shows on the projector, the phones and your poll card.
+  Answers close by themselves when it ends, or as soon as everyone has
+  answered. With one answer to choose, a tap sends it.
+- **Points count once you show the results.** After closing, **Show results**
+  is in sight; each phone then says whether it was right, how many points it
+  earned and why, and its place. A question closed without showing its
+  results does not count yet: the **Ranking** tab lists it, and launching
+  another poll asks first.
+- **The ranking.** The **Ranking** tab (on a phone, under **More**) shows
+  everyone live. **Show ranking** puts the top 10 on the screens until you
+  take it off or move on; **Download CSV** saves it as a spreadsheet;
+  **Restart contest** erases every point. A participant whose phone locks or
+  whose tab closes keeps their place and comes back with the same browser.
+  It all lives in memory: closing the room or restarting the server starts
+  from zero, so download the CSV first.
 
 In each deck's **Settings** you can set how many presenters (devices, 1–20,
 20 by default) and viewers (1–1000, 200 by default) a room takes at once, and

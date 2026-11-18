@@ -49,6 +49,7 @@ simplest deck: upload it as a `.html` file from the admin panel.
 | `aspect` | Shape of the slide in the presenter and editor views, `"W:H"`. | `"16:9"` |
 | `viewerNav` | What viewers may do: `follow` (locked to the presenter), `back` (may look back, never past the live step), `free` (anywhere). The presenter can change it live. | `"back"` |
 | `cover` | Path of the deck's thumbnail image inside the folder (png, jpg, webp, avif, gif or svg). | `cover.webp`, `cover.png`, `cover.jpg`, `cover.jpeg`, `cover.avif` or `cover.svg` if present; otherwise a live miniature of the first slide |
+| `contest` | Contest mode: polls with right answers score points and make a ranking. See [Contest mode](#contest-mode). | off |
 | `slides` | Per slide id: `notes` for the whole slide, `steps` for individual steps (keys are step numbers), and an optional `poll`. | `{}` |
 
 A slide's `poll` is launched from the presenter view on any step of that
@@ -62,6 +63,67 @@ counts as right; with several, choosing exactly them is right, only some of
 them is partly right, and any other answer makes it wrong. Without `correct`
 it is an opinion poll. A poll without a question or with fewer than two
 answers is kept but cannot be launched. The notes editor writes polls too.
+
+### Contest mode
+
+`contest` turns the deck's polls with right answers into a contest with a
+ranking (the admin panel's deck **Settings** writes it):
+
+```json
+{
+  "contest": { "on": true, "points": 1000, "time": 30, "speed": 50 },
+  "slides": {
+    "quiz": {
+      "poll": {
+        "question": "Which keys move the slides?",
+        "options": ["Left", "Right", "Q", "Space"],
+        "multiple": true,
+        "correct": [0, 1, 3],
+        "points": 2000,
+        "time": 60
+      }
+    },
+    "warmup": { "poll": { "question": "…", "options": ["…", "…"], "correct": [0], "contest": false } }
+  }
+}
+```
+
+| Field | Meaning | Default |
+| --- | --- | --- |
+| `contest.on` | Contest mode. Every viewer must enter with a name (a nickname is fine), unique in the room. | `false` |
+| `contest.points` | Points a question gives, 1–10000. | `1000` |
+| `contest.time` | Countdown in seconds, 5–600, or `null` for none. When it ends, answers close by themselves. | `30` |
+| `contest.speed` | Slowness penalty, 0–100 %: how much of the points answering at the last moment loses. `0`: time does not matter. | `50` |
+| poll `points` | This question's points, instead of the deck's. | the deck's |
+| poll `time` | This question's countdown in seconds, or `null` for none. | the deck's |
+| poll `contest` | `false`: this question does not count (a warm-up). | counts |
+
+Only polls with right answers count; opinion polls never do. A question
+scores once the presenter closes answers and shows the results; reopening
+answers puts its points on hold until it is closed again. A field with a
+wrong value is ignored (the default applies), so a hand-written deck keeps
+its contest.
+
+How a question scores. P is its points, C its right answers, W its wrong
+ones:
+
+- **Correctness `c`.** One answer to choose: 1 if it is a right one, else 0.
+  Several: right ones chosen over C, minus wrong ones chosen over W, never
+  below 0. Ticking everything gives 0, so guessing does not pay.
+- **Points.** `P · c · (1 − speed · t / T)`, rounded. `t` is when the server
+  received the answer (the last one, if it was changed), counting only the
+  time answers were open; `T` is the countdown, or, without one, how long
+  answers were open. A wrong answer, however fast, gets 0.
+
+With P = 1000, speed 50 % and a 20 s countdown, on a question with 5 options
+of which `[0, 2]` are right: `[0, 2]` at 10 s gives **750**; `[0, 1]` at once
+gives 1000 · (1/2 − 1/3) = **167**; `[1, 3]` gives **0**. Closing answers
+early, when everyone has answered, does not change anyone's points.
+Reopening answers resumes the clock where it stopped; a question whose
+countdown is used up cannot be reopened. Changing a question's points, its
+right answers or the deck's settings scores the questions already shown
+again. The ranking adds up every question that counted; equal points share a
+place.
 
 Notes are Markdown. Raw HTML in notes is shown as text, not rendered. Any other
 field, at the top level or inside a slide, is kept untouched when slidecast

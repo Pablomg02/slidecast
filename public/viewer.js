@@ -80,6 +80,28 @@ const [aw, ah] = String(info.data.aspect || '16:9').split(':').map(Number);
 app.style.setProperty('--ar', String(aw / ah || 16 / 9));
 
 const poll = createViewerPoll(app, { display: info.data.canPresent, badges });
+
+// The contest's top 10 on the projector, when the presenter shows it (D27 of 0009).
+const rankingList = el('ol.ranking-list', { id: 'ranking-list' });
+const rankingSub = el('span.ranking-sub');
+const ranking = el('div.ranking-overlay', { id: 'ranking', hidden: true },
+  el('div.ranking-card', {}, el('h2.ranking-title', {}, t('rankingTitle'), ' ', rankingSub), rankingList));
+app.append(ranking);
+let rankingMsg = null;
+const cut = (s, n) => ([...s].length > n ? `${[...s].slice(0, n - 1).join('')}…` : s);
+function renderRanking() {
+  const m = rankingMsg;
+  ranking.hidden = !m?.shown || live.blank;
+  if (ranking.hidden) return;
+  // A projector tab that controls the slides gets the presenters' full list.
+  const rows = m.rows.slice(0, 10);
+  const total = m.total ?? m.rows.length;
+  rankingSub.textContent = `· ${t('rankingTop', { n: rows.length, total })}`;
+  rankingList.replaceChildren(...rows.map((r) => el(`li.ranking-row${r.pos <= 3 ? `.ranking-top.ranking-pos-${r.pos}` : ''}`, {},
+    el('span.ranking-pos', {}, String(r.pos)),
+    el('span.ranking-name', {}, cut(r.name ?? `#${r.n}`, 20)),
+    el('span.ranking-points', {}, t('rankingPts', { points: Number(r.points).toLocaleString() })))));
+}
 const participant = info.data.canPresent ? null : createParticipant(app, info.data);
 // A closed room gives its audience no deck: wait for it to open (D4 of 0003).
 const frame = info.data.deckUrl ? createDeckFrame(stage, info.data.deckUrl, { mode: 'live', swipe: false }) : null;
@@ -172,6 +194,12 @@ const conn = connectLive(slug, controlling ? 'presenter' : 'viewer', (msg) => {
   }
   if (msg.t === 'error' && msg.about === 'poll') {
     poll.onError(msg);
+    if (msg.code === 'name-needed') participant?.needName();
+    return;
+  }
+  if (msg.t === 'ranking') {
+    rankingMsg = msg;
+    renderRanking();
     return;
   }
   if (msg.t !== 'state') {
@@ -185,6 +213,7 @@ const conn = connectLive(slug, controlling ? 'presenter' : 'viewer', (msg) => {
   document.body.dataset.nav = live.viewerNav; // lets the tests wait for a mode change
   blank.hidden = !live.blank;
   poll.setBlank(live.blank);
+  renderRanking();
   presence(live.presenting);
   if (live.viewerNav === 'follow' && navChanged) attached = true;
   if (!attached && live.viewerNav === 'back' && local > live.index) attached = true;

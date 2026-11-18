@@ -229,10 +229,11 @@ test('the presenter shows a poll; participants answer; presenters and displays s
   const shown = await p.next(isPolls((m) => m.shown === 'quiz'));
   assert.deepEqual(runOf(shown, 'quiz'), {
     slide: 'quiz', id: runOf(shown, 'quiz').id, question: QUIZ.question, options: QUIZ.options, multiple: false, correct: [], open: true, revealed: false, counts: [0, 0, 0], voters: 0, grades: null,
+    contest: null, left: null, timeUp: false, scored: false,
   });
   await proj.next(isPolls((m) => m.shown === 'quiz'));
   const { poll } = await v1.next(isPoll((m) => m.poll));
-  assert.deepEqual(poll, { id: poll.id, question: QUIZ.question, options: QUIZ.options, multiple: false, open: true, revealed: false, results: null });
+  assert.deepEqual(poll, { id: poll.id, question: QUIZ.question, options: QUIZ.options, multiple: false, open: true, revealed: false, contest: null, left: null, results: null });
 
   v1.send({ t: 'vote', id: poll.id, choice: [1] });
   assert.deepEqual((await v1.next(isPoll((m) => m.mine))).mine, [1]);
@@ -244,7 +245,7 @@ test('the presenter shows a poll; participants answer; presenters and displays s
   assert.deepEqual(runOf(counted, 'quiz').counts, [0, 1, 1]);
   // Anonymous: nothing in the presenters' message says who answered what.
   assert.equal(JSON.stringify(counted).includes('"mine"'), false);
-  assert.deepEqual(Object.keys(runOf(counted, 'quiz')).sort(), ['correct', 'counts', 'grades', 'id', 'multiple', 'open', 'options', 'question', 'revealed', 'slide', 'voters']);
+  assert.deepEqual(Object.keys(runOf(counted, 'quiz')).sort(), ['contest', 'correct', 'counts', 'grades', 'id', 'left', 'multiple', 'open', 'options', 'question', 'revealed', 'scored', 'slide', 'timeUp', 'voters']);
   // The projector learns how many answered, never what, until the results go public.
   const onScreen = await proj.next(isPolls((m) => runOf(m, 'quiz')?.voters === 2));
   assert.deepEqual(onScreen.runs.map((r) => [r.slide, r.counts, r.correct, r.grades]), [['quiz', null, [], null]]);

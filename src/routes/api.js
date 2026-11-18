@@ -1,4 +1,5 @@
 import { issueDeckToken } from '../tokens.js';
+import { contestOf } from '../contest.js';
 
 export function registerApi(app, ctx) {
   const { auth, decks, config, rooms } = ctx;
@@ -31,6 +32,21 @@ export function registerApi(app, ctx) {
     return { decks: open.map((d) => ({ slug: d.slug, title: d.title, ...thumb(req, d) })) };
   });
 
+  // The contest ranking as a spreadsheet, for presenters (D21 of 0009).
+  app.get('/api/decks/:slug/contest.csv', async (req, reply) => {
+    const { slug } = req.params;
+    if (!(await decks.exists(slug))) return reply.code(404).send({ error: 'not-found' });
+    if (!auth.canPresent(req, slug)) return reply.code(403).send({ error: 'forbidden' });
+    const lang = req.query?.lang === 'es' ? 'es' : 'en';
+    const csv = ctx.live.contestCsv(slug, lang);
+    if (csv === null) return reply.code(404).send({ error: 'not-found' });
+    const day = new Date().toISOString().slice(0, 10);
+    return reply
+      .header('Content-Type', 'text/csv; charset=utf-8')
+      .header('Content-Disposition', `attachment; filename="${slug}-ranking-${day}.csv"`)
+      .send(csv);
+  });
+
   app.get('/api/decks/:slug', async (req, reply) => {
     const { slug } = req.params;
     const deck = await decks.get(slug);
@@ -46,6 +62,7 @@ export function registerApi(app, ctx) {
       open: room.open,
       askNames: room.askNames,
       hands: room.hands,
+      contest: contestOf(deck.meta).on,
       canPresent,
       canAdmin: auth.canAdmin(req),
     };
@@ -53,7 +70,10 @@ export function registerApi(app, ctx) {
     if (!room.open && !canPresent) return { ...out, deckUrl: null, cover: null };
     out.deckUrl = deckUrl(slug);
     out.cover = deck.cover ? out.deckUrl + encodePath(deck.cover) : null;
-    if (canPresent) out.notes = deck.meta.slides;
+    if (canPresent) {
+      out.notes = deck.meta.slides;
+      out.contestConfig = contestOf(deck.meta);
+    }
     return out;
   });
 }

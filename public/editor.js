@@ -32,14 +32,32 @@ function editablePoll(raw) {
   const question = typeof raw.question === 'string' ? clip(raw.question, POLL_LIMITS.question) : '';
   // Right answers (0007): positions of answers the form holds.
   const correct = validCorrect(raw.correct) ? [...new Set(raw.correct ?? [])].filter((i) => i < options.length) : [];
-  return { question, options, multiple: raw.multiple === true, correct };
+  return { question, options, multiple: raw.multiple === true, correct, ...contestFields(raw) };
 }
+
+// A poll's own contest fields (D3 of 0009), when valid: always carried, so
+// editing a poll with contest mode off never loses them.
+const validPoints = (v) => Number.isInteger(v) && v >= 1 && v <= 10000;
+const validTime = (v) => v === null || (Number.isInteger(v) && v >= 5 && v <= 600);
+function contestFields(raw) {
+  const out = {};
+  if (validPoints(raw.points)) out.points = raw.points;
+  if (Object.hasOwn(raw, 'time') && validTime(raw.time)) out.time = raw.time;
+  if (raw.contest === false) out.contest = false;
+  return out;
+}
+const contestOf = (raw) => {
+  const out = {};
+  for (const k of ['points', 'time']) if (Object.hasOwn(raw, k)) out[k] = raw[k];
+  if (Object.hasOwn(raw, 'contest') && raw.contest !== true) out.contest = raw.contest;
+  return out;
+};
 for (const [id, entry] of Object.entries(notes)) {
   if (!entry || typeof entry !== 'object' || !('poll' in entry)) continue;
   const raw = entry.poll;
   const poll = editablePoll(raw);
   const same = poll && JSON.stringify(poll) === JSON.stringify({
-    question: raw.question, options: raw.options, multiple: raw.multiple ?? false, correct: raw.correct ?? [],
+    question: raw.question, options: raw.options, multiple: raw.multiple ?? false, correct: raw.correct ?? [], ...contestOf(raw),
   });
   if (!same) {
     pollFixed.add(id);
@@ -81,6 +99,81 @@ const pollIncomplete = el('p.hint.e-poll-incomplete', { id: 'poll-incomplete' },
 const pollCorrectHint = el('p.hint.e-poll-correct-hint', { id: 'poll-correct-hint' }, t('pollCorrectHint'));
 const pollCorrectAny = el('p.hint.e-poll-correct-hint', { id: 'poll-correct-any', hidden: true }, t('pollCorrectAny'));
 const pollFixedHint = el('p.hint.e-poll-incomplete', { id: 'poll-fixed', hidden: true }, t('pollFixedHint'));
+
+// Contest fields of a poll with right answers (D28 of 0009).
+const contest = deck.contestConfig ?? { on: false, points: 1000, time: 30, speed: 50 };
+const pollPoints = el('input', {
+  type: 'number', id: 'poll-points', min: 1, max: 10000, step: 1, placeholder: t('pollPointsDefault', { n: contest.points }),
+});
+const pollTimeMode = el('select', { id: 'poll-time-mode' },
+  el('option', { value: 'default' }, contest.time === null ? t('pollTimeDefaultNone') : t('pollTimeDefault', { s: contest.time })),
+  el('option', { value: 'none' }, t('pollTimeNone')),
+  el('option', { value: 'custom' }, t('pollTimeCustom')));
+const pollTime = el('input', { type: 'number', id: 'poll-time', min: 5, max: 600, step: 1, 'aria-label': t('pollTimeSeconds') });
+const pollCounts = el('input', { type: 'checkbox', id: 'poll-counts' });
+const pollWrongCost = el('p.hint', { id: 'poll-wrong-cost', hidden: true });
+const pollRangeHint = el('p.hint.e-poll-incomplete', { id: 'poll-range', role: 'alert', hidden: true });
+const pollContestOff = el('p.hint', { id: 'poll-contest-off', hidden: contest.on }, t('pollContestOff'));
+const pollContestSet = el('fieldset.e-poll-contest', { id: 'poll-contest', disabled: !contest.on },
+  el('div.row.e-poll-contest-row', {},
+    el('label.inline', { htmlFor: 'poll-counts' }, pollCounts, ` ${t('pollCounts')}`)),
+  el('div.row.e-poll-contest-row', {},
+    el('div', {}, el('label', { htmlFor: 'poll-points' }, t('pollPoints')), pollPoints),
+    el('div', {}, el('label', { htmlFor: 'poll-time-mode' }, t('pollTimeLabel')), el('div.row', {}, pollTimeMode, pollTime))),
+  pollRangeHint,
+  pollWrongCost);
+const pollContestBox = el('div.e-poll-contest-box', {},
+  el('p.e-poll-label', {}, t('pollContestLegend')), pollContestOff, pollContestSet);
+const pollContestOpinion = el('p.hint', { id: 'poll-contest-opinion', hidden: true }, t('pollContestOpinion'));
+
+// A value out of range is marked and not saved: the last valid one stays.
+function markRange(input, ok, hint) {
+  input.setAttribute('aria-invalid', String(!ok));
+  input.setCustomValidity(ok ? '' : hint);
+  pollRangeHint.hidden = !pollPoints.validationMessage && !pollTime.validationMessage;
+  pollRangeHint.textContent = pollPoints.validationMessage || pollTime.validationMessage;
+}
+
+function contestEdited() {
+  const poll = notes[pollFor]?.poll;
+  if (!poll) return;
+  const n = Number(pollPoints.value);
+  const pointsOk = pollPoints.value === '' || validPoints(n);
+  markRange(pollPoints, pointsOk, t('pollPointsRange'));
+  if (pollPoints.value === '') delete poll.points;
+  else if (pointsOk) poll.points = n;
+  const mode = pollTimeMode.value;
+  pollTime.hidden = mode !== 'custom';
+  const s = Number(pollTime.value);
+  const timeOk = mode !== 'custom' || (pollTime.value !== '' && validTime(s));
+  markRange(pollTime, timeOk, t('pollTimeRange'));
+  if (mode === 'none') poll.time = null;
+  else if (mode === 'default') delete poll.time;
+  else if (timeOk) poll.time = s;
+  if (pollCounts.checked) delete poll.contest;
+  else poll.contest = false;
+  pollEdited();
+}
+pollPoints.addEventListener('input', contestEdited);
+pollTimeMode.addEventListener('change', () => {
+  if (pollTimeMode.value === 'custom' && pollTime.value === '') pollTime.value = String(contest.time ?? 30);
+  contestEdited();
+});
+pollTime.addEventListener('input', contestEdited);
+pollCounts.addEventListener('change', contestEdited);
+
+function renderContest(poll) {
+  pollPoints.value = poll.points ?? '';
+  pollTimeMode.value = !Object.hasOwn(poll, 'time') ? 'default' : poll.time === null ? 'none' : 'custom';
+  pollTime.value = poll.time ?? '';
+  pollTime.hidden = pollTimeMode.value !== 'custom';
+  pollCounts.checked = poll.contest !== false;
+  for (const input of [pollPoints, pollTime]) {
+    input.setCustomValidity('');
+    input.removeAttribute('aria-invalid');
+  }
+  pollRangeHint.hidden = true;
+}
 const pollArmed = { key: null, until: 0 };
 const pollFoot = el('div.row.e-poll-foot');
 const pollFields = el('div.e-poll-fields', { hidden: true },
@@ -93,6 +186,8 @@ const pollFields = el('div.e-poll-fields', { hidden: true },
     el('label.inline', { htmlFor: 'poll-kind-single' }, kindSingle, t('pollKindSingle')),
     el('label.inline', { htmlFor: 'poll-kind-multiple' }, kindMultiple, t('pollKindMultiple'))),
   pollCorrectAny,
+  pollContestBox,
+  pollContestOpinion,
   pollIncomplete,
   pollFoot);
 const pollBox = el('section.e-poll', { id: 'poll-editor' },
@@ -184,6 +279,7 @@ function renderPoll() {
   kindSingle.checked = !poll.multiple;
   kindMultiple.checked = poll.multiple;
   buildOptions();
+  renderContest(poll);
   pollFoot.replaceChildren(el('span.grow'),
     confirmButton(t('pollRemove'), t('pollConfirmRemove'), `remove:${s.slide}`, () => removePoll(), pollArmed));
   pollHints();
@@ -195,6 +291,13 @@ function pollHints() {
   pollIncomplete.hidden = Boolean(pollOf({ poll }));
   pollAddOption.disabled = poll.options.length >= POLL_LIMITS.options;
   pollCorrectAny.hidden = poll.multiple || poll.correct.length < 2;
+  // The contest fields belong to polls with right answers.
+  const graded = poll.correct.length > 0;
+  pollContestBox.hidden = !graded;
+  pollContestOpinion.hidden = graded || !contest.on;
+  const wrong = poll.options.length - poll.correct.length;
+  pollWrongCost.hidden = !poll.multiple || !graded || wrong < 1;
+  pollWrongCost.textContent = t('pollWrongCost', { w: wrong });
 }
 
 function buildOptions(focus = null) {

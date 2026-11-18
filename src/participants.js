@@ -9,7 +9,9 @@ export const VOTE_LIMITS = [{ max: 10, ms: 10_000 }];
 
 // The participants of one room, in memory only (D5–D7, D13). A participant is
 // found by the hash of its token; presenters only ever see its public id.
-export function createPeople({ graceMs, onExpire = () => {} }) {
+// `keep(p)` (contest mode, D15 of 0009): a participant it holds for is kept
+// while offline instead of expiring.
+export function createPeople({ graceMs, onExpire = () => {}, keep = () => false }) {
   const byId = new Map();
   const byHash = new Map();
   let nextN = 1;
@@ -19,6 +21,22 @@ export function createPeople({ graceMs, onExpire = () => {} }) {
     clearTimeout(p.timer);
     byId.delete(p.id);
     byHash.delete(p.hash);
+  }
+
+  function arm(p) {
+    clearTimeout(p.timer);
+    p.timer = null;
+    if (keep(p)) return;
+    p.timer = setTimeout(() => {
+      p.timer = null;
+      if (keep(p)) return;
+      remove(p);
+      // The room emptied by itself: numbering starts again. A kick never
+      // resets it, so a newcomer is not mistaken for who was removed.
+      if (!byId.size) nextN = 1;
+      onExpire(p);
+    }, graceMs);
+    p.timer.unref?.();
   }
 
   // Queued hands in queue order.
@@ -58,14 +76,20 @@ export function createPeople({ graceMs, onExpire = () => {} }) {
     detach(p, client) {
       p.sockets.delete(client);
       if (p.sockets.size || !byId.has(p.id)) return;
-      p.timer = setTimeout(() => {
-        remove(p);
-        // The room emptied by itself: numbering starts again. A kick never
-        // resets it, so a newcomer is not mistaken for who was removed.
-        if (!byId.size) nextN = 1;
-        onExpire(p);
-      }, graceMs);
-      p.timer.unref?.();
+      arm(p);
+    },
+    // Contest mode began: offline participants it keeps stop expiring.
+    keepNow() {
+      for (const p of byId.values()) {
+        if (p.timer && keep(p)) {
+          clearTimeout(p.timer);
+          p.timer = null;
+        }
+      }
+    },
+    // Contest mode ended: offline participants expire as usual.
+    expireOffline() {
+      for (const p of byId.values()) if (!p.sockets.size && !p.timer) arm(p);
     },
     remove,
     clear() {
