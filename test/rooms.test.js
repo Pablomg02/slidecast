@@ -443,13 +443,15 @@ test('queue positions move up when someone ahead is forgotten; a kick never reus
   const { viewer, ws } = await setup(t, { opts: { graceMs: 200 } });
   const a = viewer();
   const b = viewer();
-  await a.next(isYou());
+  // Both join at once, so either may be number 1: find each by its own number.
+  const { n: na } = await a.next(isYou());
   await b.next(isYou());
   const p = ws('presenter');
   a.send({ t: 'hand', up: true });
   b.send({ t: 'hand', up: true });
   const room = await p.next(isRoom((m) => m.people.filter((x) => x.hand).length === 2));
-  const [first, second] = room.people.sort((x, y) => x.n - y.n);
+  const first = room.people.find((x) => x.n === na);
+  const second = room.people.find((x) => x.n !== na);
   p.send({ t: 'hand', id: first.id, action: 'queue' });
   await a.next(isYou((m) => m.hand?.pos === 1));
   p.send({ t: 'hand', id: second.id, action: 'queue' });
