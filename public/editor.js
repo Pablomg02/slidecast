@@ -3,6 +3,7 @@
 // live hub only hears of it to update presenters.
 import {
   t, el, api, setTitle, createDeckFrame, keyActionFromEvent, isOwnKey, icon, confirmButton,
+  parseAspect, parseLayout,
 } from './shell.js';
 import { renderMarkdown } from './markdown.js';
 import { POLL_LIMITS, letter, pollOf, validCorrect } from './poll.js';
@@ -77,7 +78,7 @@ let saving = false;
 // ---- layout ----------------------------------------------------------------
 
 const frameBox = el('div.e-frame');
-const [aw, ah] = deck.aspect.split(':').map(Number);
+const [aw, ah] = parseAspect(deck.aspect);
 frameBox.style.aspectRatio = `${aw} / ${ah}`;
 const counter = el('span.p-counter', { id: 'counter' });
 const stepList = el('nav.e-steps', { 'aria-label': t('steps') });
@@ -213,7 +214,7 @@ app.append(
       el('h3.e-preview-title', {}, t('preview')), preview)),
 );
 
-const frame = createDeckFrame(frameBox, deck.deckUrl, { mode: 'live' });
+const frame = createDeckFrame(frameBox, deck.deckUrl, { mode: 'live', virtual: parseLayout(deck.layout) });
 
 // ---- navigation ------------------------------------------------------------
 

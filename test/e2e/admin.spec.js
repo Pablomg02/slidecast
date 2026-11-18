@@ -102,6 +102,69 @@ test('deck settings dialog sets a viewer password', async ({ page }) => {
   expect(res.headers.get('location')).toBe('/legacy-pres/login?as=viewer');
 });
 
+test('deck settings: slide shape, same layout on every screen and the shared pointer (0010)', async ({ page }) => {
+  await page.goto(`${srv.url}/admin`);
+  await page.fill('#password', 'admin-password');
+  await page.click('button[type=submit]');
+  const openDialog = async () => {
+    await page.click('tr[data-slug=demo] button:has-text("Settings")');
+    await expect(page.locator('.deck-settings')).toBeVisible();
+  };
+  const save = async () => {
+    await page.click('.deck-settings button.primary');
+    await expect(page.locator('.deck-settings .status.ok')).toHaveText('Saved');
+    await page.click('.deck-settings button:has-text("Close")');
+    await expect(page.locator('.deck-settings')).toHaveCount(0);
+  };
+  const deck = async () => (await fetch(`${srv.url}/api/decks/demo`)).json();
+  await openDialog();
+  await expect(page.locator('.deck-settings h3', { hasText: 'Screens' })).toBeVisible();
+  await expect(page.locator('#deck-aspect')).toHaveValue('16:9');
+  expect(await page.locator('#deck-aspect option').allTextContents()).toEqual(['16:9', '16:10', '4:3', '3:2', '1:1', '9:16']);
+  await expect(page.locator('#deck-frozen')).not.toBeChecked();
+  await expect(page.locator('#deck-pointer')).toBeDisabled();
+  await page.check('#deck-frozen');
+  await expect(page.locator('#deck-pointer')).toBeEnabled();
+  await page.check('#deck-pointer');
+  await page.selectOption('#deck-aspect', '4:3');
+  await save();
+  let info = await deck();
+  expect([info.aspect, info.frozen, info.pointer, info.layout]).toEqual(['4:3', true, true, '1920x1440']);
+
+  await openDialog();
+  await expect(page.locator('#deck-aspect')).toHaveValue('4:3');
+  await expect(page.locator('#deck-frozen')).toBeChecked();
+  await expect(page.locator('#deck-pointer')).toBeChecked();
+  await page.uncheck('#deck-frozen');
+  await expect(page.locator('#deck-pointer')).toBeDisabled();
+  await expect(page.locator('#deck-pointer')).not.toBeChecked();
+  const sent = page.waitForRequest((r) => r.method() === 'PATCH' && r.url().endsWith('/api/admin/decks/demo'));
+  await page.selectOption('#deck-aspect', '16:9');
+  await page.click('.deck-settings button.primary');
+  expect((await sent).postDataJSON()).toMatchObject({ aspect: '16:9', frozen: false, pointer: false });
+  await expect(page.locator('.deck-settings .status.ok')).toHaveText('Saved');
+  info = await deck();
+  expect([info.aspect, info.frozen, info.pointer, info.layout]).toEqual(['16:9', false, false, null]);
+  const meta = JSON.parse(await readFile(join(srv.dataDir, 'demo', 'deck.json'), 'utf8'));
+  expect(Object.hasOwn(meta, 'frozen') || Object.hasOwn(meta, 'pointer')).toBe(false);
+});
+
+test('deck settings: an aspect outside the list is offered first', async ({ page }) => {
+  const file = join(srv.dataDir, 'demo', 'deck.json');
+  const meta = JSON.parse(await readFile(file, 'utf8'));
+  await writeFile(file, JSON.stringify({ ...meta, aspect: '21:9' }));
+  try {
+    await page.goto(`${srv.url}/admin`);
+    await page.fill('#password', 'admin-password');
+    await page.click('button[type=submit]');
+    await page.click('tr[data-slug=demo] button:has-text("Settings")');
+    await expect(page.locator('#deck-aspect')).toHaveValue('21:9');
+    expect((await page.locator('#deck-aspect option').allTextContents())[0]).toBe('21:9');
+  } finally {
+    await writeFile(file, JSON.stringify(meta));
+  }
+});
+
 test('multi-deck panel: listing hint, admin password removal hint, sign out', async ({ page }) => {
   await page.goto(`${srv.url}/admin`);
   await expect(page.locator('h1')).toHaveText('Admin sign-in');

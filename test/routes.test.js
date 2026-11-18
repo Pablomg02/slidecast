@@ -80,6 +80,10 @@ test('deck API hides notes from viewers and shows them to presenters', async (t)
   assert.equal(body.canAdmin, false);
   assert.match(body.deckUrl, /^\/_deck\/talk\/\d+\.[A-Za-z0-9_-]{43}\/$/);
   assert.equal(body.viewerNav, 'back');
+  assert.deepEqual([body.frozen, body.pointer, body.layout], [false, false, null]);
+  await ctx.decks.updateSettings('talk', { frozen: true });
+  const frozen = (await app.inject({ url: '/api/decks/talk', headers: REMOTE })).json();
+  assert.deepEqual([frozen.frozen, frozen.pointer, frozen.layout], [true, false, '1920x1080']);
   const login = await app.inject({
     method: 'POST', url: '/api/login', headers: { ...REMOTE, origin: ORIGIN },
     payload: { scope: 'presenter', password: 'presenter-pass' },
@@ -130,7 +134,8 @@ test('deck pages, login page, 404 and headers', async (t) => {
   assert.equal((await app.inject({ url: '/api/decks', headers: REMOTE })).statusCode, 403);
   ctx.config.publicListing = true;
   const [listed] = (await app.inject({ url: '/api/decks', headers: REMOTE })).json().decks;
-  assert.deepEqual(Object.keys(listed).sort(), ['aspect', 'cover', 'deckUrl', 'slug', 'title']);
+  assert.deepEqual(Object.keys(listed).sort(), ['aspect', 'cover', 'deckUrl', 'layout', 'slug', 'title']);
+  assert.equal(listed.layout, null);
   assert.equal(listed.cover, null);
   assert.match(listed.deckUrl, /^\/_deck\/talk\/\d+\.[\w-]+\/$/);
   const md = await app.inject('/_slidecast/vendor/markdown-it.min.js');

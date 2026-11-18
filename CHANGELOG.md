@@ -6,6 +6,26 @@ include breaking changes, always listed here.
 
 ## [Unreleased]
 
+- Same layout on every screen and a shared laser pointer. A deck's
+  **Settings** get a **Screens** section: the slide shape, **Same layout on
+  every screen** (every view draws the deck at 1920 pixels on the long side
+  and scales it to fit, letterboxed, so phones, laptops and the projector
+  show exactly the same slide) and **Shared pointer** (needs the first): the
+  presenter turns a laser on with a button or `P`, and the mouse over the
+  current slide shows as a dot in that presenter's colour on every screen on
+  the live step, also while held still. Open screens reload by themselves,
+  on the live step, when the layout changes, and so does one that was asleep
+  at that moment; the presenter's talk timer survives the reload. A frozen
+  deck cannot take itself full screen (`F` still works). The AI instructions
+  ask for frozen-friendly decks (embedded fonts, no layout from the window,
+  fixed canvases, `aspect` written). Decisions in plan 0010. Format: `frozen`
+  and `pointer` in `deck.json`. Protocol: `{t: 'ptr'}` with `on`, `x`/`y`
+  (0–10000) or `off` from presenters, relayed as `{t: 'ptr', id, …}` and
+  `{t: 'ptr', clear: true}`; error `pointer-off`; `state` carries `layout`
+  and `pointer`; presenters' `room` rows carry `ptr`; the shell's `mode`
+  message to the bridge carries `scale` for frozen decks. API:
+  `/api/decks/:slug` and the deck list return `frozen`, `pointer` and
+  `layout`; the admin deck PATCH accepts `frozen` and `pointer`.
 - Contest mode: a deck's polls with right answers score points and make a
   ranking. Set in the deck's **Settings** (points per question, an optional
   countdown, a slowness penalty) and per poll in the notes editor (its own

@@ -4,12 +4,13 @@
 // prev/next buttons instead.
 import {
   t, el, api, slugFromPath, setTitle, connectLive, createDeckFrame, keyActionFromEvent,
-  toggleFullscreen, isOwnKey, icon, acceptKey,
+  toggleFullscreen, isOwnKey, icon, acceptKey, parseAspect, parseLayout, layoutGuard,
 } from './shell.js';
 import { renderMarkdown } from './markdown.js';
 import { createRoomPanels } from './presenter-room.js';
 import { createPresenterPoll } from './presenter-poll.js';
 import { createPresenterRanking } from './presenter-ranking.js';
+import { PTR_COLORS, createPointerLayer, createPointerSender } from './pointer.js';
 
 const slug = slugFromPath();
 const app = document.getElementById('app');
@@ -18,7 +19,7 @@ if (!info.ok || !info.data.canPresent) location.replace(`/${slug}/login?as=prese
 const deck = info.data;
 setTitle(deck.title);
 
-const [aw, ah] = deck.aspect.split(':').map(Number);
+const [aw, ah] = parseAspect(deck.aspect);
 const desktop = window.matchMedia('(min-width: 900px)');
 const live = { index: 0, total: 0, blank: false, viewerNav: deck.viewerNav, contest: deck.contest };
 let notes = deck.notes ?? {};
@@ -45,6 +46,11 @@ const btnNext = el('button.p-next-btn', { id: 'next', title: t('next'), onclick:
 // appear beside prev/next only with "more" open, away from the thumb.
 const btnFirst = el('button.p-jump', { id: 'first', title: t('first'), 'aria-label': t('first'), onclick: () => act('first') }, icon('first'));
 const btnLast = el('button.p-jump', { id: 'last', title: t('last'), 'aria-label': t('last'), onclick: () => act('last') }, icon('last'));
+// The shared laser pointer (0010): only on frozen decks with the pointer on.
+const laserBtn = el('button.p-laser', {
+  type: 'button', id: 'laser', title: t('laserPointer'), 'aria-label': t('laserPointer'), 'aria-pressed': 'false', hidden: true,
+  onclick: () => setLaser(!laserOn),
+}, icon('laser'));
 const modeSelect = el('select', { id: 'viewer-mode', title: t('viewerMode'), onchange: () => conn.send({ t: 'nav', mode: modeSelect.value }) },
   el('option', { value: 'follow' }, t('modeFollow')),
   el('option', { value: 'back' }, t('modeBack')),
@@ -142,7 +148,7 @@ const moreToggle = el('button.p-more-toggle', {
 }, icon('more', 'icon icon-fill'));
 
 const toolbar = el('div.p-toolbar', {},
-  el('div.p-group.p-nav', {}, btnFirst, btnPrev, counter, btnNext, btnLast),
+  el('div.p-group.p-nav', {}, btnFirst, btnPrev, counter, btnNext, btnLast, laserBtn),
   el('div.p-group.p-timer', {}, timerText, timerToggle, timerReset, moreToggle),
   el('div.p-group.p-secondary', {}, clock),
   el('div.p-group.p-secondary', {}, modeSelect, viewers),
@@ -291,12 +297,13 @@ desktop.addEventListener('change', describeSizes);
 
 // ---- frames ----------------------------------------------------------------
 
-const current = createDeckFrame(currentBox, deck.deckUrl, { mode: 'preview' });
+const layout = parseLayout(deck.layout); // frozen deck (0010)
+const current = createDeckFrame(currentBox, deck.deckUrl, { mode: 'preview', virtual: layout });
 let next = null;
 
 function ensureNextFrame() {
   if (next || !desktop.matches) return;
-  next = createDeckFrame(nextBox, deck.deckUrl, { mode: 'preview', query: 'index.html?static' });
+  next = createDeckFrame(nextBox, deck.deckUrl, { mode: 'preview', query: 'index.html?static', virtual: layout });
   next.onReady(() => renderNext());
 }
 desktop.addEventListener('change', ensureNextFrame);
@@ -311,8 +318,62 @@ function renderNext() {
   const n = live.index + 1;
   const atEnd = total() > 0 && n >= total();
   endCard.hidden = !atEnd;
-  next.element.hidden = atEnd;
+  (next.box ?? next.element).hidden = atEnd;
   if (!atEnd && next.readyState) next.go(n);
+}
+
+// ---- shared pointer (0010) -------------------------------------------------
+
+// The other presenters' dots, and this page's own one under the key 'self'.
+const dots = current.layer ? createPointerLayer(current.layer) : null;
+const sender = createPointerSender((msg) => conn.send(msg));
+let laserOn = false;
+let myPtr = null; // this device's colour slot, from the room message
+
+const laserAllowed = () => Boolean(dots && live.pointer);
+function renderLaser() {
+  laserBtn.hidden = !laserAllowed();
+  laserBtn.setAttribute('aria-pressed', String(laserOn));
+  if (myPtr !== null) laserBtn.style.setProperty('--laser', PTR_COLORS[myPtr % PTR_COLORS.length]);
+  currentBox.classList.toggle('p-laser-on', laserOn);
+}
+function hideOwnDot() {
+  sender.off();
+  dots?.hide('self');
+}
+function setLaser(on) {
+  const next = on && laserAllowed();
+  if (next !== laserOn) {
+    laserOn = next;
+    if (laserOn) conn.send({ t: 'ptr', on: true });
+    else hideOwnDot();
+  }
+  renderLaser();
+}
+// Mouse only: the current slide never takes the pointer (preview mode), so
+// its moves reach this box. Positions are fractions of the drawn deck.
+currentBox.addEventListener('pointermove', (e) => {
+  if (!laserOn || e.pointerType !== 'mouse' || live.blank) return;
+  const r = current.element.getBoundingClientRect();
+  const fx = (e.clientX - r.left) / r.width;
+  const fy = (e.clientY - r.top) / r.height;
+  if (!(fx >= 0 && fx <= 1 && fy >= 0 && fy <= 1)) {
+    hideOwnDot();
+    return;
+  }
+  const x = Math.round(fx * 10_000);
+  const y = Math.round(fy * 10_000);
+  dots.show('self', myPtr ?? 0, x, y);
+  sender.move(x, y);
+});
+currentBox.addEventListener('pointerleave', hideOwnDot);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') hideOwnDot(); });
+
+function onPointer(msg) {
+  if (!dots) return;
+  if (msg.clear) dots.clear();
+  else if (msg.off) dots.hide(msg.id);
+  else if (!live.blank) dots.show(msg.id, msg.id, msg.x, msg.y);
 }
 
 current.onReady(({ steps }) => {
@@ -481,6 +542,11 @@ function renderHandsTab() {
 setTab(tab);
 
 function renderRoom(room) {
+  const mine = room.presenters?.find((d) => d.you)?.ptr;
+  if (Number.isInteger(mine) && mine !== myPtr) {
+    myPtr = mine;
+    renderLaser();
+  }
   viewers.textContent = t('viewersCount', { n: room.viewers });
   roomClosed.hidden = room.open;
   if (Date.now() >= Math.max(closeArmed, roomErrorUntil)) roomBtn.textContent = room.open ? t('closeRoom') : t('openRoom');
@@ -516,9 +582,21 @@ function presentersFull() {
     el('a.button.primary', { href: `/${slug}/view?control=off` }, t('watchAsViewer'))));
 }
 
+const layoutOk = layoutGuard(slug, deck.layout);
 const conn = connectLive(slug, 'presenter', (msg) => {
-  if (msg.t === 'state') {
+  // The deck is drawn another way now (frozen, 0010): reload to follow it.
+  if (msg.t === 'state' && !layoutOk(msg.layout)) return;
+  if (msg.t === 'ptr') {
+    onPointer(msg);
+  } else if (msg.t === 'state') {
+    // Dots point at one step's content: a new step or a blank screen hides them.
+    if (msg.index !== live.index || (msg.blank && !live.blank)) {
+      dots?.clear();
+      sender.off();
+    }
     Object.assign(live, msg);
+    if (laserOn && !live.pointer) setLaser(false);
+    renderLaser();
     render();
     renderRankingTab();
   } else if (msg.t === 'notes') {
@@ -540,11 +618,14 @@ const conn = connectLive(slug, 'presenter', (msg) => {
     poll.setRanking(msg);
   } else if (msg.t === 'error' && (msg.code === 'no-poll' || msg.code === 'time-up' || msg.code === 'contest-off')) {
     poll.onError(msg.code);
+  } else if (msg.t === 'error' && msg.code === 'pointer-off') {
+    setLaser(false);
   }
 }, (status) => {
   reconnecting.hidden = status !== 'reconnecting';
   if (status === 'denied') location.replace(`/${slug}/login?as=presenter`);
   if (status === 'presenters-full') presentersFull();
+  if (status === 'again') location.reload(); // e.g. the deck's layout changed (0010)
 });
 
 function act(action) {
@@ -558,6 +639,13 @@ function act(action) {
 
 window.addEventListener('keydown', (e) => {
   if (isOwnKey(e)) return;
+  // P turns the laser on and off (0010), outside text fields.
+  if ((e.key === 'p' || e.key === 'P') && !e.ctrlKey && !e.metaKey && !e.altKey && !laserBtn.hidden
+    && !e.target.closest?.('input, textarea, select, [contenteditable]')) {
+    e.preventDefault();
+    if (!e.repeat) setLaser(!laserOn);
+    return;
+  }
   const action = keyActionFromEvent(e);
   if (!action || action === 'live') return;
   e.preventDefault();
@@ -581,8 +669,25 @@ notesBox.addEventListener('touchcancel', () => { touch = null; });
 
 // ---- timer and clock -------------------------------------------------------
 
+// Kept across a reload of this tab (D28 of 0010): a layout change reloads the
+// page in the middle of a talk. Opening the page anew starts from zero.
+const TIMER_KEY = `sd-timer:${slug}`;
 let timerStart = null;
 let timerElapsed = 0;
+try {
+  if (performance.getEntriesByType('navigation')[0]?.type === 'reload') {
+    const saved = JSON.parse(sessionStorage.getItem(TIMER_KEY) ?? 'null');
+    if (Number.isFinite(saved?.elapsed) && saved.elapsed >= 0) timerElapsed = saved.elapsed;
+    if (Number.isFinite(saved?.start) && saved.start <= Date.now()) timerStart = saved.start;
+  } else {
+    sessionStorage.removeItem(TIMER_KEY); // an earlier talk's timer never comes back
+  }
+} catch { /* nothing saved, or no storage */ }
+function saveTimer() {
+  try {
+    sessionStorage.setItem(TIMER_KEY, JSON.stringify({ start: timerStart, elapsed: timerElapsed }));
+  } catch { /* private mode: the timer still works, it is just not kept */ }
+}
 function fmt(ms) {
   const s = Math.floor(ms / 1000);
   const mm = String(Math.floor(s / 60)).padStart(2, '0');
@@ -600,13 +705,16 @@ function toggleTimer() {
     timerStart = Date.now();
   }
   timerToggle.textContent = timerStart ? t('pause') : t('start');
+  saveTimer();
   tick();
 }
 function resetTimer() {
   timerElapsed = 0;
   timerStart = timerStart ? Date.now() : null;
+  saveTimer();
   tick();
 }
+timerToggle.textContent = timerStart ? t('pause') : t('start');
 function tick() {
   timerText.textContent = fmt(elapsed());
   clock.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });

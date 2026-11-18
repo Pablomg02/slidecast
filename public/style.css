@@ -205,8 +205,7 @@ label { display: block; font-weight: 600; font-size: .92rem; margin: 1rem 0 .4re
 .thumb.loaded::before, .thumb-locked::before { opacity: 0; animation: none; }
 @keyframes shimmer { from { background-position: 150% 0; } to { background-position: -100% 0; } }
 .thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.thumb-live { position: absolute; top: 0; left: 0; transform-origin: 0 0; background: #000; }
-.thumb-live .deck-frame { pointer-events: none; }
+.thumb .deck-virtual { pointer-events: none; }
 .thumb-locked {
   display: grid; place-items: center; color: var(--muted);
   background: repeating-linear-gradient(135deg, var(--surface-2) 0 12px, var(--surface) 12px 24px);
@@ -305,6 +304,26 @@ label { display: block; font-weight: 600; font-size: .92rem; margin: 1rem 0 .4re
 /* deck frames */
 .deck-frame { display: block; width: 100%; height: 100%; border: 0; background: #000; }
 .deck-frame.preview { pointer-events: none; }
+/* Frozen decks (0010): drawn at a fixed virtual size, scaled to fit by the
+   shell; no background (the presenter's end card shows through) and no
+   will-change (it would freeze the raster scale and blur the text). */
+.deck-virtual { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+.deck-virtual .deck-frame { width: 100%; height: 100%; }
+.deck-layer { position: absolute; pointer-events: none; overflow: hidden; }
+/* Shared pointer (0010): laser dots over the deck, below the page's overlays. */
+.ptr-dot {
+  position: absolute; width: var(--ptr-size, 14px); height: var(--ptr-size, 14px);
+  margin: calc(var(--ptr-size, 14px) / -2) 0 0 calc(var(--ptr-size, 14px) / -2);
+  border: 2px solid #fff; border-radius: 50%; box-sizing: border-box;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / .45), 0 0 10px currentColor;
+  transition: left 80ms linear, top 80ms linear;
+}
+.ptr-c0 { background: #ff2d55; color: #ff2d55; }
+.ptr-c1 { background: #ffcc00; color: #ffcc00; }
+.ptr-c2 { background: #34c759; color: #34c759; }
+.ptr-c3 { background: #0a84ff; color: #0a84ff; }
+.ptr-c4 { background: #ff9500; color: #ff9500; }
+.ptr-c5 { background: #bf5af2; color: #bf5af2; }
 
 /* viewer */
 .page-viewer { background: #000; overflow: hidden; }
@@ -830,6 +849,13 @@ dialog.card.p-poll-dialog { padding: 0; }
 /* First/last: square icon buttons, quieter than prev/next. */
 .p-toolbar .p-jump { width: 2.5rem; padding: 0; color: var(--muted); }
 .p-toolbar .p-jump:hover:not(:disabled) { color: var(--ink); }
+/* The laser button (0010): in the presenter's own colour once known, filled while on. */
+.p-toolbar .p-laser { width: 2.5rem; padding: 0; color: var(--laser, var(--muted)); }
+.p-toolbar .p-laser[aria-pressed=true] { background: var(--laser, var(--accent)); border-color: transparent; color: #fff; }
+.p-current.p-laser-on { cursor: none; }
+@media (hover: none), (pointer: coarse) {
+  .p-toolbar .p-laser { display: none; }
+}
 .p-toolbar .badge { position: static; }
 .p-toolbar > .p-blanked { display: none; }
 
@@ -1062,7 +1088,7 @@ dialog .password-control { margin-top: 1.25rem; }
 .page-editor #app { max-width: 96rem; }
 .e-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 24px; margin-top: 20px; }
 @media (max-width: 899px) { .e-layout { grid-template-columns: 1fr; } }
-.e-frame { width: 100%; background: #000; border-radius: 14px; overflow: hidden; box-shadow: 0 0 0 1px var(--line), var(--shadow-lg); }
+.e-frame { position: relative; width: 100%; background: #000; border-radius: 14px; overflow: hidden; box-shadow: 0 0 0 1px var(--line), var(--shadow-lg); }
 .e-nav { justify-content: center; margin: 14px 0; }
 .e-steps { display: flex; flex-wrap: wrap; gap: 8px; }
 .e-group {

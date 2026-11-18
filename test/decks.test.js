@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { readdir, readFile, writeFile, mkdir, stat, symlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { zipSync, strToU8 } from 'fflate';
-import { createDeckStore, isValidSlug } from '../src/decks.js';
+import {
+  createDeckStore, isValidSlug, frozenOf, pointerOf, virtualSize, layoutOf,
+} from '../src/decks.js';
 import { tempDirs } from './helpers.js';
 
 const html = (title) => strToU8(`<!doctype html><html><head><title>${title}</title></head><body></body></html>`);
@@ -124,6 +126,70 @@ test('updateSettings validates values', async (t) => {
   const meta = await store.updateSettings('talk', { title: 'T', viewerNav: 'free', aspect: '4:3' });
   assert.equal(meta.title, 'T');
   assert.equal((await store.get('talk')).title, 'T');
+});
+
+// ---- frozen layout and pointer (0010) --------------------------------------
+
+test('virtualSize: 1920 on the long side, 16:9 when the aspect is unusable', () => {
+  assert.deepEqual(virtualSize('16:9'), { w: 1920, h: 1080 });
+  assert.deepEqual(virtualSize('4:3'), { w: 1920, h: 1440 });
+  assert.deepEqual(virtualSize('9:16'), { w: 1080, h: 1920 });
+  assert.deepEqual(virtualSize('16:10'), { w: 1920, h: 1200 });
+  assert.deepEqual(virtualSize('1:1'), { w: 1920, h: 1920 });
+  for (const bad of ['16:0', '0:9', 'wide', '', undefined, null, 3, '16:9:1', '10000:1', '1:5000']) {
+    assert.deepEqual(virtualSize(bad), { w: 1920, h: 1080 }, String(bad));
+  }
+});
+
+test('frozenOf, pointerOf and layoutOf read optional booleans', () => {
+  assert.equal(frozenOf({}), false);
+  assert.equal(frozenOf(undefined), false);
+  assert.equal(frozenOf({ frozen: 'yes' }), false);
+  assert.equal(frozenOf({ frozen: true }), true);
+  assert.equal(pointerOf({ pointer: true }), false, 'pointer needs frozen');
+  assert.equal(pointerOf({ frozen: true, pointer: true }), true);
+  assert.equal(layoutOf({ aspect: '16:9' }), null);
+  assert.equal(layoutOf({ frozen: true, aspect: '16:9' }), '1920x1080');
+  assert.equal(layoutOf({ frozen: true, aspect: '4:3' }), '1920x1440');
+});
+
+test('updateSettings: frozen and pointer round trip, pointer needs frozen', async (t) => {
+  const { store, dataDir } = await setup(t);
+  await store.upload('talk', Buffer.from(html('x')), 'html');
+  const read = async () => JSON.parse(await readFile(join(dataDir, 'talk', 'deck.json'), 'utf8'));
+  await store.updateSettings('talk', { title: 'T' });
+  let meta = await read();
+  assert.equal(Object.hasOwn(meta, 'frozen'), false);
+  assert.equal(Object.hasOwn(meta, 'pointer'), false);
+  await assert.rejects(store.updateSettings('talk', { frozen: 'yes' }), { code: 'ERR_BAD_INPUT', message: 'invalid frozen' });
+  await assert.rejects(store.updateSettings('talk', { pointer: 1 }), { code: 'ERR_BAD_INPUT', message: 'invalid pointer' });
+  await assert.rejects(store.updateSettings('talk', { pointer: true }), { code: 'ERR_BAD_INPUT', message: 'invalid pointer' });
+  await assert.rejects(store.updateSettings('talk', { frozen: false, pointer: true }), { code: 'ERR_BAD_INPUT', message: 'invalid pointer' });
+  assert.equal(Object.hasOwn(await read(), 'pointer'), false, 'a refused PATCH writes nothing');
+  await store.updateSettings('talk', { frozen: true, pointer: true });
+  meta = await read();
+  assert.equal(meta.frozen, true);
+  assert.equal(meta.pointer, true);
+  const rows = await store.list();
+  assert.equal(rows[0].frozen, true);
+  assert.equal(rows[0].pointer, true);
+  assert.equal(rows[0].layout, '1920x1080');
+  await store.updateSettings('talk', { pointer: false });
+  meta = await read();
+  assert.equal(meta.frozen, true);
+  assert.equal(Object.hasOwn(meta, 'pointer'), false);
+  await store.updateSettings('talk', { pointer: true });
+  await store.updateSettings('talk', { frozen: false });
+  meta = await read();
+  assert.equal(Object.hasOwn(meta, 'frozen'), false);
+  assert.equal(Object.hasOwn(meta, 'pointer'), false, 'frozen off removes pointer');
+  const [row] = await store.list();
+  assert.deepEqual([row.frozen, row.pointer, row.layout], [false, false, null]);
+  // A pointer stored without frozen (a hand-written deck.json) never comes back by itself.
+  await writeFile(join(dataDir, 'talk', 'deck.json'), JSON.stringify({ slidecast: 1, pointer: true }));
+  const thawedMeta = await store.updateSettings('talk', { frozen: true });
+  assert.equal(pointerOf(thawedMeta), false);
+  assert.equal(Object.hasOwn(await read(), 'pointer'), false);
 });
 
 test('list ignores invalid folders and folders without index.html', async (t) => {

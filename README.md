@@ -200,6 +200,7 @@ so clickers work out of the box.
 | `B` or `.` | Black out every viewer's screen (press again to come back) |
 | `F` or `F5` | Full screen (a clicker's "start" button sends `F5`; it does not reload the page) |
 | `L` | In a viewer: back to the presenter's slide |
+| `P` | In the presenter view, on a deck with the shared pointer: laser on / off |
 
 Hold a next or previous key down to move through the slides quickly. The
 media keys for next and previous track work too.
@@ -328,6 +329,24 @@ The scoring, with examples, is in the [deck format](docs/deck-format.md#contest-
   It all lives in memory: closing the room or restarting the server starts
   from zero, so download the CSV first.
 
+### Same layout on every screen and the shared pointer
+
+Every phone, laptop and projector normally draws the deck for its own
+window. In the deck's **Settings**, under **Screens**, **Same layout on every
+screen** (`frozen` in `deck.json`) makes them all draw it at 1920 pixels on
+the long side, with the **Slide shape** you choose there, and scale it to
+fit, so everyone sees exactly the same slide. Decks with a fixed stage look
+as before; responsive decks lose their phone layout, and the deck's own
+full-screen button stops working (`F` still works). Open screens reload by
+themselves when you change this setting or the slide shape.
+
+With it on, **Shared pointer** gives the presenter view a laser button (and
+the `P` key): while it is on, your mouse over the current slide shows as a
+dot on every screen showing the live step, in a colour of its own for each
+presenter's device (six colours, repeated beyond six). Only from a computer
+with a mouse, never from a phone. Details in the
+[deck format](docs/deck-format.md#frozen-decks).
+
 In each deck's **Settings** you can set how many presenters (devices, 1–20,
 20 by default) and viewers (1–1000, 200 by default) a room takes at once, and
 turn off names or hands. The admin is never turned away by the presenter
@@ -337,7 +356,8 @@ limit.
 
 At `/admin` you can upload decks, delete them (they go to a trash folder,
 never erased), edit notes, set passwords, rename decks, open and close rooms,
-and set each deck's viewer mode and room limits.
+and set each deck's viewer mode, slide shape, screen layout, shared pointer
+and room limits.
 
 **Download** gives you a deck as one `.zip` with its files and its notes
 (`deck.json`); uploading that zip again gives back the same deck. **Update**

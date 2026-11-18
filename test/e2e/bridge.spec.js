@@ -158,6 +158,32 @@ test('legacy: a horizontal swipe is forwarded, not applied', async ({ page }) =>
   expect(await frame.evaluate(() => window.PRES.actual())).toBe(0);
 });
 
+test('legacy: the swipe threshold follows the scale of a frozen frame (0010)', async ({ page }) => {
+  const frame = await openHarness(page, 'legacy-pres');
+  const swipe = (dx) => frame.evaluate((d) => {
+    const stage = document.getElementById('stage');
+    const touch = (x) => new Touch({ identifier: 1, target: stage, clientX: x, clientY: 200 });
+    stage.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, cancelable: true, touches: [touch(400)], changedTouches: [touch(400)] }));
+    stage.dispatchEvent(new TouchEvent('touchend', { bubbles: true, cancelable: true, touches: [], changedTouches: [touch(400 - d)] }));
+  }, dx);
+  const inputs = async () => (await msgs(page)).filter((m) => m.t === 'input').map((m) => m.action);
+  // Drawn at a quarter of its size: 60 screen px are 240 iframe px.
+  await page.evaluate(() => window.send({ t: 'mode', mode: 'live', scale: 0.25 }));
+  await clearMsgs(page);
+  await swipe(100);
+  await page.waitForTimeout(150);
+  expect(await inputs()).toEqual([]);
+  await swipe(300);
+  await expect.poll(inputs).toEqual(['next']);
+  // An invalid scale goes back to 1.
+  for (const bad of [-1, 'x']) {
+    await page.evaluate((s) => window.send({ t: 'mode', mode: 'live', scale: s }), bad);
+    await clearMsgs(page);
+    await swipe(100);
+    await expect.poll(inputs).toEqual(['next']);
+  }
+});
+
 test('legacy: with swipes turned off, a swipe neither moves the deck nor is forwarded', async ({ page }) => {
   const frame = await openHarness(page, 'legacy-pres');
   await page.evaluate(() => window.send({ t: 'mode', mode: 'live', swipe: false }));

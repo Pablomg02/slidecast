@@ -1,4 +1,6 @@
-import { DeckError, isValidSlug, normalizeMeta } from '../decks.js';
+import {
+  DeckError, isValidSlug, normalizeMeta, frozenOf, pointerOf, layoutOf,
+} from '../decks.js';
 import { zipStream } from '../zipwrite.js';
 import { parseSteps } from '../notes.js';
 import { issueDeckToken } from '../tokens.js';
@@ -185,12 +187,26 @@ export function registerAdmin(app, ctx) {
     });
 
     scope.patch('/api/admin/decks/:slug', async (req, reply) => {
-      const { title, viewerNav, aspect, contest } = req.body ?? {};
+      const {
+        title, viewerNav, aspect, contest, frozen, pointer,
+      } = req.body ?? {};
       try {
-        const meta = await decks.updateSettings(req.params.slug, { title, viewerNav, aspect, contest });
+        const meta = await decks.updateSettings(req.params.slug, {
+          title, viewerNav, aspect, contest, frozen, pointer,
+        });
         if (viewerNav !== undefined) live.setViewerNav(req.params.slug, meta.viewerNav);
         if (contest !== undefined) live.setContest(req.params.slug, contestOf(meta));
-        return { title: meta.title ?? null, viewerNav: meta.viewerNav, aspect: meta.aspect, contest: contestOf(meta) };
+        if (frozen !== undefined || aspect !== undefined) live.setLayout(req.params.slug, layoutOf(meta));
+        if (frozen !== undefined || pointer !== undefined) live.setPointer(req.params.slug, pointerOf(meta));
+        return {
+          title: meta.title ?? null,
+          viewerNav: meta.viewerNav,
+          aspect: meta.aspect,
+          contest: contestOf(meta),
+          frozen: frozenOf(meta),
+          pointer: pointerOf(meta),
+          layout: layoutOf(meta),
+        };
       } catch (err) {
         return sendError(reply, err);
       }

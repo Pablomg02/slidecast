@@ -333,8 +333,19 @@ addEventListener('click', (e) => {
             </ul>
             <div class="prompt-text" id="prompt-text">
             <pre id="ai-prompt">Write a presentation as ONE self-contained index.html file for slidecast.
-- A fixed 1600×900 stage scaled to the window (transform: scale), one
+- A fixed 1600×900 stage (or another W×H with the same shape as "aspect" in
+  deck.json) scaled to the window with s = min(innerWidth/W, innerHeight/H),
+  centred both ways and recomputed on resize; one
   &lt;section class="slide" id="…"&gt; per slide with a short, unique, stable id.
+- The layout never depends on the window: size everything in stage pixels,
+  no vw/vh/dvh units, no width, height or orientation media queries, no
+  matchMedia, no screen.*.
+- Embed the fonts (@font-face with data: URLs or font files next to
+  index.html), never system-only or Google fonts, so text breaks the same on
+  every device.
+- Canvases have a fixed bitmap size (their width and height attributes, for
+  example twice their size on the stage), never innerWidth × devicePixelRatio.
+- Never call requestFullscreen, and do not bind mouse-wheel navigation.
 - Reveal content in steps inside a slide with data-step="1", data-step="2"…;
   a slide's step count is its highest data-step + 1 (set data-steps="N" on the
   section).
@@ -350,8 +361,9 @@ addEventListener('click', (e) => {
   Inline images as data: URLs or reference files next to index.html.
 - Interactive widgets (buttons, sliders, canvases) go inside an element with
   the data-interactive attribute.
-- Also write deck.json with {"slidecast": 1, "title": "…", "slides": {"&lt;slide id&gt;":
-  {"notes": "speaker notes in Markdown", "steps": {"1": "note for step 1"}}}}.
+- Also write deck.json with {"slidecast": 1, "title": "…", "aspect": "16:9",
+  "slides": {"&lt;slide id&gt;": {"notes": "speaker notes in Markdown",
+  "steps": {"1": "note for step 1"}}}}, with "aspect" matching the stage.
 - For a question to the audience, give that slide a poll in deck.json:
   "poll": {"question": "…", "options": ["…", "…"], "multiple": false, "correct": [0]}
   (2 to 10 short plain-text answers; "multiple": true allows several;

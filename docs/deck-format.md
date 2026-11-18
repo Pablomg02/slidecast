@@ -46,10 +46,12 @@ simplest deck: upload it as a `.html` file from the admin panel.
 | --- | --- | --- |
 | `slidecast` | Format version, always `1`. | `1` |
 | `title` | Shown in lists and the browser tab. | the `<title>` of `index.html`, else the folder name |
-| `aspect` | Shape of the slide in the presenter and editor views, `"W:H"`. | `"16:9"` |
+| `aspect` | Shape of the slide in the presenter and editor views and, when `frozen`, on every screen, `"W:H"`. | `"16:9"` |
 | `viewerNav` | What viewers may do: `follow` (locked to the presenter), `back` (may look back, never past the live step), `free` (anywhere). The presenter can change it live. | `"back"` |
 | `cover` | Path of the deck's thumbnail image inside the folder (png, jpg, webp, avif, gif or svg). | `cover.webp`, `cover.png`, `cover.jpg`, `cover.jpeg`, `cover.avif` or `cover.svg` if present; otherwise a live miniature of the first slide |
 | `contest` | Contest mode: polls with right answers score points and make a ranking. See [Contest mode](#contest-mode). | off |
+| `frozen` | `true`: every screen lays the deck out at one fixed size, 1920 pixels on the long side with the shape of `aspect`, and scales it to fit. Responsive decks lose their phone layout; the deck's own full screen is disabled (`F` still works); open screens reload when it or the aspect changes through **Settings** or a deck update. See [Frozen decks](#frozen-decks). | off |
+| `pointer` | `true`: presenters can show a laser dot on every screen that shows the live step (button or `P` in the presenter view). Needs `frozen`. | off |
 | `slides` | Per slide id: `notes` for the whole slide, `steps` for individual steps (keys are step numbers), and an optional `poll`. | `{}` |
 
 A slide's `poll` is launched from the presenter view on any step of that
@@ -124,6 +126,32 @@ countdown is used up cannot be reopened. Changing a question's points, its
 right answers or the deck's settings scores the questions already shown
 again. The ranking adds up every question that counted; equal points share a
 place.
+
+### Frozen decks
+
+A deck normally lays itself out for each window: a phone held upright gets a
+narrow window, the projector a wide one. With `frozen: true` (the admin
+panel's deck **Settings**, *Same layout on every screen*), slidecast gives
+the deck the same window everywhere: 1920×1080 for `16:9`, 1920×1440 for
+`4:3`, 1080×1920 for `9:16` (1920 on the long side), and scales the result
+to each screen with black bars, like a picture. Inside a frozen deck
+`innerWidth` and `innerHeight` are always that size, so the presenter
+view, the projector and every phone show exactly the same slide, and the
+shared `pointer` lands on the same word everywhere.
+
+A deck with a fixed stage scaled to its window (the
+[AI instructions](#instructions-for-your-ai-assistant) below) looks the same
+frozen or not. What can still differ from one device to another:
+
+- fonts that are not embedded: a device without the font uses another one,
+  and lines break elsewhere;
+- `matchMedia` on `pointer`, `hover` or `resolution`, and
+  `devicePixelRatio`, which ignores the scaling (a canvas sized
+  `innerWidth × devicePixelRatio` gets very large on phones);
+- the state of widgets each person plays with on their own device.
+
+Presenter, projector and audience pages reload by themselves when the layout
+changes; an open notes editor keeps the old one until it is reloaded.
 
 Notes are Markdown. Raw HTML in notes is shown as text, not rendered. Any other
 field, at the top level or inside a slide, is kept untouched when slidecast
@@ -237,7 +265,8 @@ admin. Consequences:
 - no `fetch`/XHR to the slidecast server (relative `<img>`, `<link>`,
   `<script>` and `<video>` URLs do work: they are served with the deck);
 - links that open new tabs work; the deck cannot navigate the presenter's page;
-- full screen is handled by slidecast (`F`), not by the deck.
+- full screen is handled by slidecast (`F`), not by the deck (in a frozen
+  deck, the deck's own `requestFullscreen()` is refused).
 
 Clicks anywhere on a slide mean "next", and horizontal swipes move forward or
 back (except on the viewer page, which has on-screen arrows on touch screens
@@ -255,8 +284,19 @@ Paste this when asking an AI to write a deck:
 
 ```text
 Write a presentation as ONE self-contained index.html file for slidecast.
-- A fixed 1600×900 stage scaled to the window (transform: scale), one
+- A fixed 1600×900 stage (or another W×H with the same shape as "aspect" in
+  deck.json) scaled to the window with s = min(innerWidth/W, innerHeight/H),
+  centred both ways and recomputed on resize; one
   <section class="slide" id="…"> per slide with a short, unique, stable id.
+- The layout never depends on the window: size everything in stage pixels,
+  no vw/vh/dvh units, no width, height or orientation media queries, no
+  matchMedia, no screen.*.
+- Embed the fonts (@font-face with data: URLs or font files next to
+  index.html), never system-only or Google fonts, so text breaks the same on
+  every device.
+- Canvases have a fixed bitmap size (their width and height attributes, for
+  example twice their size on the stage), never innerWidth × devicePixelRatio.
+- Never call requestFullscreen, and do not bind mouse-wheel navigation.
 - Reveal content in steps inside a slide with data-step="1", data-step="2"…;
   a slide's step count is its highest data-step + 1 (set data-steps="N" on the
   section).
@@ -272,8 +312,9 @@ Write a presentation as ONE self-contained index.html file for slidecast.
   Inline images as data: URLs or reference files next to index.html.
 - Interactive widgets (buttons, sliders, canvases) go inside an element with
   the data-interactive attribute.
-- Also write deck.json with {"slidecast": 1, "title": "…", "slides": {"<slide id>":
-  {"notes": "speaker notes in Markdown", "steps": {"1": "note for step 1"}}}}.
+- Also write deck.json with {"slidecast": 1, "title": "…", "aspect": "16:9",
+  "slides": {"<slide id>": {"notes": "speaker notes in Markdown",
+  "steps": {"1": "note for step 1"}}}}, with "aspect" matching the stage.
 - For a question to the audience, give that slide a poll in deck.json:
   "poll": {"question": "…", "options": ["…", "…"], "multiple": false, "correct": [0]}
   (2 to 10 short plain-text answers; "multiple": true allows several;

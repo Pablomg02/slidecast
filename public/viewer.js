@@ -6,10 +6,11 @@
 // shows them (0008).
 import {
   t, el, api, slugFromPath, setTitle, connectLive, createDeckFrame, keyActionFromEvent,
-  toggleFullscreen, acceptKey, isOwnKey, icon,
+  toggleFullscreen, acceptKey, isOwnKey, icon, parseAspect, parseLayout, layoutGuard,
 } from './shell.js';
 import { createParticipant } from './participant.js';
 import { createViewerPoll } from './viewer-poll.js';
+import { createPointerLayer } from './pointer.js';
 
 const slug = slugFromPath();
 const app = document.getElementById('app');
@@ -76,8 +77,8 @@ setRemote((() => { try { return localStorage.getItem(REMOTE_KEY) === '1'; } catc
 
 app.append(stage, blank, idleCover, liveBtn, badges, message, navHint, noPresenter, remote);
 // The slide's shape, so a phone held upright puts the poll under it.
-const [aw, ah] = String(info.data.aspect || '16:9').split(':').map(Number);
-app.style.setProperty('--ar', String(aw / ah || 16 / 9));
+const [aw, ah] = parseAspect(info.data.aspect);
+app.style.setProperty('--ar', String(aw / ah));
 
 const poll = createViewerPoll(app, { display: info.data.canPresent, badges });
 
@@ -92,6 +93,7 @@ const cut = (s, n) => ([...s].length > n ? `${[...s].slice(0, n - 1).join('')}â€
 function renderRanking() {
   const m = rankingMsg;
   ranking.hidden = !m?.shown || live.blank;
+  if (!ranking.hidden) dots?.clear();
   if (ranking.hidden) return;
   // A projector tab that controls the slides gets the presenters' full list.
   const rows = m.rows.slice(0, 10);
@@ -104,8 +106,13 @@ function renderRanking() {
 }
 const participant = info.data.canPresent ? null : createParticipant(app, info.data);
 // A closed room gives its audience no deck: wait for it to open (D4 of 0003).
-const frame = info.data.deckUrl ? createDeckFrame(stage, info.data.deckUrl, { mode: 'live', swipe: false }) : null;
+const layout = parseLayout(info.data.layout); // frozen deck (0010)
+const frame = info.data.deckUrl
+  ? createDeckFrame(stage, info.data.deckUrl, { mode: 'live', swipe: false, virtual: layout })
+  : null;
 if (!frame) participant.showNotice('closed');
+// The presenters' laser dots (0010), only over a frozen deck.
+const dots = layout && frame?.layer ? createPointerLayer(frame.layer) : null;
 const live = { index: 0, total: 0, blank: false, viewerNav: info.data.viewerNav, rev: -1 };
 let local = 0; // step shown here
 let attached = true;
@@ -117,6 +124,7 @@ function total() {
 
 function show(index) {
   local = Math.max(0, Math.min(total() - 1, index));
+  if (local !== live.index) dots?.clear(); // they point at the live step's content (D26 of 0010)
   if (ready && frame.index !== local) frame.go(local);
   liveBtn.hidden = attached || controlling;
   updateRemote();
@@ -180,7 +188,17 @@ function localMove(target) {
   show(target);
 }
 
+const layoutOk = layoutGuard(slug, info.data.layout);
 const conn = connectLive(slug, controlling ? 'presenter' : 'viewer', (msg) => {
+  // The deck is drawn another way now (frozen, 0010): reload to follow it.
+  if (msg.t === 'state' && !layoutOk(msg.layout)) return;
+  if (msg.t === 'ptr') {
+    if (!dots) return;
+    if (msg.clear) dots.clear();
+    else if (msg.off) dots.hide(msg.id);
+    else if (local === live.index && !live.blank && ranking.hidden) dots.show(msg.id, msg.id, msg.x, msg.y);
+    return;
+  }
   // Loaded while the room was closed, then admitted without the "again" signal
   // (its socket dropped while waiting): reload to get the deck.
   if (!frame) {
@@ -208,6 +226,7 @@ const conn = connectLive(slug, controlling ? 'presenter' : 'viewer', (msg) => {
     return;
   }
   participant?.state(msg);
+  if (msg.index !== live.index || (msg.blank && !live.blank)) dots?.clear();
   const navChanged = msg.viewerNav !== live.viewerNav;
   Object.assign(live, msg);
   document.body.dataset.nav = live.viewerNav; // lets the tests wait for a mode change
@@ -263,6 +282,7 @@ frame?.onChanged((index, own) => {
   if (allowed(index)) {
     attached = index === live.index;
     local = index;
+    if (!attached) dots?.clear(); // the deck moved itself off the live step (D26 of 0010)
     liveBtn.hidden = attached;
     updateRemote();
   } else {
@@ -290,6 +310,8 @@ function onAction(action) {
 }
 
 frame?.onInput(onAction);
+// A frozen deck leaves black bars: a click there counts as a click on the slide.
+if (frame && layout) stage.addEventListener('click', (e) => { if (e.target === stage) onAction('next'); });
 window.addEventListener('keydown', (e) => {
   if (isOwnKey(e)) return; // Enter or Space on a button: the button's own
   const action = keyActionFromEvent(e);

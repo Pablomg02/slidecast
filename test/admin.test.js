@@ -134,8 +134,31 @@ test('settings, PATCH and DELETE', async (t) => {
     appearance: { siteName: null, landingText: null, accent: null, showLogo: true, showCredit: true },
   });
   const patch = await as({ method: 'PATCH', url: '/api/admin/decks/talk', payload: { title: 'New title', viewerNav: 'follow' } });
-  assert.deepEqual(patch.json(), { title: 'New title', viewerNav: 'follow', aspect: '16:9', contest: { on: false, points: 1000, time: 30, speed: 50 } });
+  assert.deepEqual(patch.json(), {
+    title: 'New title',
+    viewerNav: 'follow',
+    aspect: '16:9',
+    contest: { on: false, points: 1000, time: 30, speed: 50 },
+    frozen: false,
+    pointer: false,
+    layout: null,
+  });
   assert.equal((await as({ method: 'PATCH', url: '/api/admin/decks/talk', payload: { viewerNav: 'x' } })).statusCode, 400);
+  const metaPath = join(dirs.dataDir, 'talk', 'deck.json');
+  const stored = JSON.parse(await readFile(metaPath, 'utf8'));
+  assert.equal(Object.hasOwn(stored, 'frozen'), false, 'a title PATCH adds no frozen key');
+  assert.equal(Object.hasOwn(stored, 'pointer'), false);
+  // Frozen and pointer (0010).
+  const noFrozen = await as({ method: 'PATCH', url: '/api/admin/decks/talk', payload: { pointer: true } });
+  assert.equal(noFrozen.statusCode, 400);
+  const frozen = await as({ method: 'PATCH', url: '/api/admin/decks/talk', payload: { frozen: true, pointer: true, aspect: '4:3' } });
+  assert.equal(frozen.statusCode, 200);
+  assert.deepEqual([frozen.json().frozen, frozen.json().pointer, frozen.json().layout], [true, true, '1920x1440']);
+  const thawed = await as({ method: 'PATCH', url: '/api/admin/decks/talk', payload: { frozen: false } });
+  assert.deepEqual([thawed.json().frozen, thawed.json().pointer, thawed.json().layout], [false, false, null]);
+  const after = JSON.parse(await readFile(metaPath, 'utf8'));
+  assert.equal(Object.hasOwn(after, 'frozen'), false);
+  assert.equal(Object.hasOwn(after, 'pointer'), false);
   const del = await as({ method: 'DELETE', url: '/api/admin/decks/talk' });
   assert.equal(del.statusCode, 204);
   assert.deepEqual(await readdir(dirs.dataDir), []);

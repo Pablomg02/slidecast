@@ -10,7 +10,7 @@ presents and administers. This page lists what it protects, from whom, and how.
 | --- | --- | --- |
 | Anyone with the URL | watch open rooms of decks that have no viewer password, give a name, raise a hand, answer the poll on the screens | present, administer, read speaker notes or polls not yet shown, see other viewers' names, notes or answers, answer twice as the same participant, watch a closed room |
 | Viewer with a deck's viewer password | the same, for that deck | anything else |
-| Presenter | drive the decks their password covers, read their notes, see the room's names and hands, show polls and their results, remove viewers | administer, open, hide or close rooms, remove other presenters, see who answered what |
+| Presenter | drive the decks their password covers, read their notes, see the room's names and hands, show polls and their results, show a pointer on everyone's screen, remove viewers | administer, open, hide or close rooms, remove other presenters, see who answered what |
 | Admin | everything | — |
 | A deck's own code (written by an AI, downloaded…) | run inside its slide | read sessions, call the API, act as the person viewing it |
 | Another website the admin visits | — | make the admin's browser change anything in slidecast |
@@ -139,6 +139,20 @@ answer arrives, never from the device. Named participants who answered are
 kept, offline, until the room closes, they are removed, or contest mode is
 turned off; like everything else about polls, the ranking lives in memory
 only.
+
+**Shared pointer** (0010). Off by default, and only on decks that are also
+`frozen`. Only presenter windows may send it (`{t:'ptr'}`, role and rights
+re-checked on every message; participants and plain projector pages get
+`forbidden`; a projector tab that controls the slides is a presenter window).
+Everyone else in the room receives a small integer per presenter device
+(its colour) and coordinates from 0 to 10 000, never a device id, session or
+name. Positions are relayed and forgotten: never written to disk, logged or
+put in the room's state. Limits: the presenter page sends at most about 15
+positions a second, plus one every 1.5 s while the mouse is held still; the
+server relays at most 30 a second per device and drops the rest, and skips
+moves for sockets with more than 16 KiB queued. A deck's own code cannot send
+it: the message goes over the page's WebSocket, which the sandboxed iframe
+has no access to.
 
 **Polls.** A poll's text is read from the deck's `deck.json` by the server
 when a presenter shows it, never taken from a message, and shown as text

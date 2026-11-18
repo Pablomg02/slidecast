@@ -3,7 +3,7 @@ import { performance } from 'node:perf_hooks';
 import { randomBytes, createHash } from 'node:crypto';
 import { readJson, writeJsonAtomic } from './store.js';
 import { originMatches } from './security.js';
-import { VIEWER_NAV } from './decks.js';
+import { VIEWER_NAV, layoutOf, pointerOf } from './decks.js';
 import { clientIp, createFailureLimit } from './auth.js';
 import { cleanName, cleanNote, slidingLimit } from './rooms.js';
 import { createPeople } from './participants.js';
@@ -19,6 +19,10 @@ const WS_LIMITS = { perIp: 500, total: 1200, presenterReserve: 100 };
 // New participants per address and minute, and per-socket flood guard (D9, D14).
 const JOIN_LIMIT = { max: 200, windowMs: 60_000 };
 const FLOOD = [{ max: 30, ms: 10_000 }];
+// Shared pointer (D17 of 0010): moves per presenter device (more are dropped),
+// and how much a socket may have queued before moves skip it.
+const POINTER_LIMIT = [{ max: 30, ms: 1000 }];
+const PTR_BUFFER = 16_384;
 const GRACE_MS = 120_000;
 const JOIN_TIMEOUT_MS = 10_000;
 
@@ -69,12 +73,22 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
     if (!persistTimer) persistTimer = setTimeout(() => persistNow().catch(() => {}), 1000);
   }
 
+  // Layout and pointer changes saved per deck (0010): a deck.json read that
+  // started before one may hold the old values, so it must not apply them.
+  const screenWrites = new Map();
+  const screenGen = (slug) => screenWrites.get(slug) ?? 0;
+
   async function stateOf(slug) {
     let s = decks.get(slug);
     if (s) return s;
-    const meta = await ctx.decks.readMeta(slug);
-    s = decks.get(slug); // another connection may have created it meanwhile
-    if (s) return s;
+    let meta;
+    for (;;) {
+      const gen = screenGen(slug);
+      meta = await ctx.decks.readMeta(slug);
+      s = decks.get(slug); // another connection may have created it meanwhile
+      if (s) return s;
+      if (screenGen(slug) === gen) break; // else read again: the screens settings changed meanwhile
+    }
     const saved = persisted[slug] ?? {};
     s = {
       slug,
@@ -83,6 +97,9 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
       blank: saved.blank === true,
       viewerNav: meta.viewerNav,
       contest: contestOf(meta), // contest mode settings (0009)
+      layout: layoutOf(meta), // "1920x1080" when frozen, else null (0010)
+      pointer: pointerOf(meta), // shared pointer on (0010)
+      pointers: new Map(), // presenter device → its colour slot { id, socket, shown, limit }
       hands: ctx.rooms.settings(slug).hands,
       rev: 0,
       clients: new Set(), // admitted: presenters, displays, participants and pending joins
@@ -122,9 +139,21 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
       hands: s.hands,
       askNames: ctx.rooms.settings(s.slug).askNames,
       contest: s.contest.on,
+      layout: s.layout,
+      pointer: s.pointer,
       presenting: presenting(s),
       rev: s.rev,
     };
+  }
+
+  // The deck's layout changed (frozen or its aspect, 0010): every screen
+  // reloads to draw it the new way; one asleep now sees the snapshot's
+  // `layout` when it comes back (D7).
+  function applyLayout(s, layout) {
+    if (s.layout === layout) return;
+    s.layout = layout;
+    s.rev++;
+    for (const c of [...s.clients, ...s.parked]) c.socket.close(CLOSE.again, 'again');
   }
 
   function send(client, msg) {
@@ -148,7 +177,13 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
     for (const c of s.clients) {
       if (c.kind !== 'presenter') continue;
       // The server's own computer can never be removed (D12), owner or not.
-      const d = devices.get(c.device) ?? { id: deviceId(c.device), owner: false, local: c.device === 'local', windows: 0 };
+      const d = devices.get(c.device) ?? {
+        id: deviceId(c.device),
+        owner: false,
+        local: c.device === 'local',
+        windows: 0,
+        ptr: s.pointers.get(c.device)?.id ?? null, // its pointer colour (0010)
+      };
       d.owner ||= ctx.auth.canAdmin(c.req);
       d.windows++;
       devices.set(c.device, d);
@@ -595,6 +630,7 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
       s.parked.delete(client);
       if (client.person) s.people.detach(client.person, client);
       if (last) presenceChanged(s);
+      if (client.kind === 'presenter') pointerLeft(s, client);
       roomChanged(s);
       if (client.person && s.contest.on) {
         autoClose(s); // the one still to answer left
@@ -787,10 +823,103 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
   }
 
   const DECK_COMMANDS = new Set(['meta', 'step', 'goto', 'blank', 'nav', 'hands']);
-  const ROOM_COMMANDS = new Set(['hand', 'hands-clear', 'lock', 'kick', 'kick-presenter', 'poll', 'contest']);
+  const ROOM_COMMANDS = new Set(['hand', 'hands-clear', 'lock', 'kick', 'kick-presenter', 'poll', 'contest', 'ptr']);
+
+  // ---- shared pointer (0010) ---------------------------------------------------
+
+  // To every screen of the deck but the sender's socket, never stored. Moves
+  // skip sockets that are behind; hiding a dot always goes out (D17, D18).
+  function relayPointer(s, from, msg, isMove = false) {
+    const data = JSON.stringify(msg);
+    for (const c of s.clients) {
+      if (c === from || c.kind === 'pending') continue;
+      if (isMove && c.socket.bufferedAmount > PTR_BUFFER) continue;
+      send(c, data);
+    }
+  }
+
+  // The lowest colour slot no device holds.
+  function freeSlot(s) {
+    const used = new Set([...s.pointers.values()].map((p) => p.id));
+    let id = 0;
+    while (used.has(id)) id++;
+    return id;
+  }
+
+  const ptrCoord = (v) => Number.isInteger(v) && v >= 0 && v <= 10_000;
+
+  // {t:'ptr', on} / {x, y} / {off}; returns false if invalid.
+  function pointerCommand(s, client, msg) {
+    const move = ptrCoord(msg.x) && ptrCoord(msg.y);
+    if (msg.on !== true && msg.off !== true && !move) return false;
+    if (!s.pointer) {
+      send(client, { t: 'error', code: 'pointer-off' });
+      return true;
+    }
+    if (!s.clients.has(client)) return true; // queued before admission, gone since
+    let slot = s.pointers.get(client.device);
+    if (msg.off === true) {
+      if (slot?.socket === client && slot.shown) {
+        slot.shown = false;
+        relayPointer(s, client, { t: 'ptr', id: slot.id, off: true });
+      }
+      return true;
+    }
+    if (!slot) {
+      slot = { id: freeSlot(s), socket: client, shown: false, limit: slidingLimit(POINTER_LIMIT) };
+      s.pointers.set(client.device, slot);
+      roomChanged(s); // presenters learn their colour
+    }
+    if (!move || s.blank) return true;
+    const now = Date.now();
+    if (slot.limit.wait(now)) return true; // too many: dropped, the next one goes
+    slot.limit.hit(now);
+    slot.socket = client; // the device's window that moves the dot now
+    slot.shown = true;
+    relayPointer(s, client, { t: 'ptr', id: slot.id, x: msg.x, y: msg.y }, true);
+    return true;
+  }
+
+  // A presenter window left: its dot goes, and the slot once the device has no window.
+  function pointerLeft(s, client) {
+    const slot = s.pointers.get(client.device);
+    if (!slot) return;
+    if (slot.socket === client && slot.shown) {
+      slot.shown = false;
+      relayPointer(s, client, { t: 'ptr', id: slot.id, off: true });
+    }
+    const more = [...s.clients].some((c) => c.kind === 'presenter' && c.device === client.device);
+    if (!more) s.pointers.delete(client.device);
+  }
+
+  function applyPointer(s, on) {
+    if (s.pointer === on) return;
+    s.pointer = on;
+    s.rev++;
+    broadcast(s);
+    if (!on) clearPointers(s);
+  }
+
+  // Every dot hidden, colours kept (a deck update, D16 of 0010).
+  function hidePointers(s) {
+    let shown = false;
+    for (const slot of s.pointers.values()) {
+      shown ||= slot.shown;
+      slot.shown = false;
+    }
+    if (shown) relayPointer(s, null, { t: 'ptr', clear: true });
+  }
+
+  function clearPointers(s) {
+    const had = s.pointers.size > 0;
+    s.pointers.clear();
+    relayPointer(s, null, { t: 'ptr', clear: true });
+    if (had) roomChanged(s);
+  }
 
   // Room commands; returns false if invalid.
   function roomCommand(s, client, msg) {
+    if (msg.t === 'ptr') return pointerCommand(s, client, msg);
     if (msg.t === 'poll') return pollCommand(s, client, msg);
     if (msg.t === 'contest') return contestCommand(s, client, msg);
     if (msg.t === 'hand') {
@@ -917,9 +1046,12 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
       return undefined;
     }
     const index = s.index;
+    const wasBlank = s.blank;
     const changed = apply(s, msg);
     if (changed === null) return send(client, { t: 'error', code: 'bad-message' });
     if (s.index !== index) rankingOff(s); // the slides moved on (D20 of 0009)
+    // Dots hide on a new step or a blank screen; the pages do it on `state` (D19 of 0010).
+    if (s.index !== index || (s.blank && !wasBlank)) for (const slot of s.pointers.values()) slot.shown = false;
     if (changed) {
       s.rev++;
       broadcast(s);
@@ -998,6 +1130,22 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
       if (!s || JSON.stringify(s.contest) === JSON.stringify(contest)) return;
       applyContest(s, contest);
     },
+    // The live layout key (0010); undefined when the deck has no live state.
+    layoutOf(slug) {
+      return decks.get(slug)?.layout;
+    },
+    // The deck's layout changed (already saved): open screens reload.
+    setLayout(slug, layout) {
+      screenWrites.set(slug, screenGen(slug) + 1);
+      const s = decks.get(slug);
+      if (s) applyLayout(s, layout);
+    },
+    // The shared pointer was turned on or off (already saved, 0010).
+    setPointer(slug, on) {
+      screenWrites.set(slug, screenGen(slug) + 1);
+      const s = decks.get(slug);
+      if (s) applyPointer(s, on);
+    },
     // The ranking as a spreadsheet (D21 of 0009); null without a room.
     contestCsv(slug, lang = 'en') {
       const s = decks.get(slug);
@@ -1054,11 +1202,17 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
       } else {
         s.rev++;
         broadcast(s);
+        hidePointers(s); // the dots pointed at the old version (0010)
         // A new version may bring other contest settings (D22 of 0009).
+        const gen = screenGen(slug);
         ctx.decks.readMeta(slug).then((meta) => {
           if (decks.get(slug) !== s) return;
           const contest = contestOf(meta);
           if (JSON.stringify(s.contest) !== JSON.stringify(contest)) applyContest(s, contest);
+          // Another layout or pointer too (0010), unless the admin saved one since.
+          if (screenGen(slug) !== gen) return;
+          applyLayout(s, layoutOf(meta));
+          applyPointer(s, pointerOf(meta));
         }).catch(() => {});
       }
     },

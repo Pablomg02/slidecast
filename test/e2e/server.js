@@ -27,12 +27,14 @@ export async function startServer({ extraDecks = {}, config = {}, single = false
     await writeFile(join(stateDir, 'config.json'), JSON.stringify({ secret: 'e2e-secret-e2e-secret-e2e-secret-e2e-secr', ...config }));
   }
   const harness = await readFile(join(here, 'harness.html'), 'utf8');
+  const frameHarness = await readFile(join(here, 'frame-harness.html'), 'utf8');
   const app = await buildServer({
     dataDir,
     stateDir,
     singleDeck: single ? join(dataDir, 'demo') : null,
     extraRoutes: async (a) => {
       a.get('/__test/harness.html', (req, reply) => reply.type('text/html; charset=utf-8').send(harness));
+      a.get('/__test/frame.html', (req, reply) => reply.type('text/html; charset=utf-8').send(frameHarness));
     },
   });
   if (!closed) {

@@ -114,6 +114,7 @@ const ICONS = {
   check: '<path d="M5 12.5l4.5 4.5L19 7"/>',
   cross: '<path d="M7 7l10 10M17 7L7 17"/>',
   partial: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/>',
+  laser: '<circle cx="12" cy="12" r="3.5" fill="currentColor"/><path d="M12 2.5v3.5M12 18v3.5M2.5 12H6M18 12h3.5"/>',
 };
 
 export function icon(name, cls = 'icon') {
@@ -142,10 +143,63 @@ export function logo(cls) {
   return el(`img.${cls}`, { src: '/_slidecast/logo.svg', alt: '' });
 }
 
+// "W:H" → [W, H], positive integers; 16:9 for anything else.
+export function parseAspect(aspect) {
+  const m = /^(\d+):(\d+)$/.exec(String(aspect ?? ''));
+  const w = m ? Number(m[1]) : 0;
+  const h = m ? Number(m[2]) : 0;
+  return w > 0 && h > 0 ? [w, h] : [16, 9];
+}
+
+// The layout key of a frozen deck ("1920x1080", 0010) → {w, h}; null when the
+// deck is not frozen or the key is unusable.
+export function parseLayout(layout) {
+  const m = /^(\d+)x(\d+)$/.exec(typeof layout === 'string' ? layout : '');
+  const w = m ? Number(m[1]) : 0;
+  const h = m ? Number(m[2]) : 0;
+  return w > 0 && h > 0 ? { w, h } : null;
+}
+
+// Keeps a page on its deck's current layout (D7, D27 of 0010). `check(layout)`
+// with the layout of each state snapshot: false when it differs from the one
+// this page loaded with, and the page is reloading. A second reload for the
+// same layout in this tab is refused (a warning instead), so a deck.json
+// edited on disk can never make a page reload in a loop. Without
+// sessionStorage the guard cannot remember, so it only warns: a real layout
+// change still reloads the page through the close code `again`.
+export function layoutGuard(slug, loaded) {
+  const key = `sd-layout-reload:${slug}`;
+  const mine = loaded ?? null;
+  let reloading = false;
+  let settled = false;
+  const store = {
+    get: () => { try { return sessionStorage.getItem(key); } catch { return null; } },
+    set: (v) => { try { sessionStorage.setItem(key, v); return true; } catch { return false; } },
+    clear: () => { try { sessionStorage.removeItem(key); } catch { /* private mode */ } },
+  };
+  return function check(layout) {
+    const now = layout ?? null;
+    if (now === mine) {
+      if (!settled) store.clear();
+      settled = true;
+      return true;
+    }
+    if (reloading) return false;
+    if (store.get() === String(now) || !store.set(String(now))) {
+      console.warn(`slidecast: the deck's layout is ${now}, this page has ${mine}; not reloading again`);
+      return true;
+    }
+    reloading = true;
+    location.reload();
+    return false;
+  };
+}
+
 // A deck's thumbnail: its cover image when it has one, otherwise the deck
-// itself rendered at desktop size and scaled down (created once visible).
-export function deckThumb({ cover, deckUrl, aspect = '16:9', locked }) {
-  const [aw, ah] = String(aspect).split(':').map(Number);
+// itself rendered at desktop size (its virtual size when frozen) and scaled
+// down (created once visible).
+export function deckThumb({ cover, deckUrl, aspect = '16:9', locked, layout = null }) {
+  const [aw, ah] = parseAspect(aspect);
   const box = el('div.thumb', { 'aria-hidden': 'true' });
   box.style.aspectRatio = `${aw} / ${ah}`;
   if (locked || !deckUrl) {
@@ -163,16 +217,11 @@ export function deckThumb({ cover, deckUrl, aspect = '16:9', locked }) {
     box.append(img);
     return box;
   }
-  const W = 1280;
-  const inner = el('div.thumb-live');
-  inner.style.width = `${W}px`;
-  inner.style.height = `${Math.round((W * ah) / aw)}px`;
-  box.append(inner);
-  new ResizeObserver(() => { inner.style.transform = `scale(${box.clientWidth / W})`; }).observe(box);
+  const virtual = parseLayout(layout) ?? { w: 1280, h: Math.round((1280 * ah) / aw) };
   const seen = new IntersectionObserver((entries) => {
     if (!entries.some((e) => e.isIntersecting)) return;
     seen.disconnect();
-    const frame = createDeckFrame(inner, deckUrl, { mode: 'preview' });
+    const frame = createDeckFrame(box, deckUrl, { mode: 'preview', virtual });
     frame.element.addEventListener('load', () => box.classList.add('loaded'));
   }, { rootMargin: '200px' });
   seen.observe(box);
@@ -338,16 +387,30 @@ export function connectLive(slug, role, onMessage, onStatus = () => {}, { hello 
 // The deck runs in <iframe sandbox="allow-scripts"> (opaque origin, D4) and
 // talks to us through the bridge's postMessage protocol. `swipe: false` stops
 // horizontal swipes from moving the slides.
-export function createDeckFrame(container, deckUrl, { mode = 'live', query = '', swipe = true } = {}) {
+//
+// `virtual: {w, h}` (frozen decks, 0010) draws the deck at that fixed CSS size
+// in div.deck-virtual, scaled to fit the container and centred, so it lays
+// itself out the same on every screen. div.deck-layer sits exactly over the
+// displayed deck, for overlays such as pointer dots. Without it, nothing changes.
+export function createDeckFrame(container, deckUrl, {
+  mode = 'live', query = '', swipe = true, virtual = null,
+} = {}) {
   const iframe = el('iframe.deck-frame', {
     sandbox: 'allow-scripts',
-    allow: 'fullscreen; autoplay',
+    // A deck's own fullscreen would show the bare iframe unscaled (D6 of 0010).
+    allow: virtual ? 'autoplay' : 'fullscreen; autoplay',
     title: 'deck',
   });
   iframe.setAttribute('sandbox', 'allow-scripts');
   const handlers = { changed: [], input: [], error: [], ready: [] };
+  const box = virtual ? el('div.deck-virtual') : null;
+  const layer = virtual ? el('div.deck-layer') : null;
+  let observer = null;
   const frame = {
     element: iframe,
+    box,
+    layer,
+    scale: 1,
     steps: [],
     index: 0,
     adapter: null,
@@ -360,7 +423,7 @@ export function createDeckFrame(container, deckUrl, { mode = 'live', query = '',
     setMode(m) {
       frame.mode = m;
       applyMode();
-      post({ t: 'mode', mode: m, swipe });
+      postMode();
     },
     onChanged: (cb) => handlers.changed.push(cb),
     onInput: (cb) => handlers.input.push(cb),
@@ -368,7 +431,10 @@ export function createDeckFrame(container, deckUrl, { mode = 'live', query = '',
     onReady: (cb) => handlers.ready.push(cb),
     destroy() {
       window.removeEventListener('message', onMessage);
+      observer?.disconnect();
       iframe.remove();
+      box?.remove();
+      layer?.remove();
     },
   };
   // Indices we asked for recently: a `changed` for one of them is our own
@@ -379,6 +445,35 @@ export function createDeckFrame(container, deckUrl, { mode = 'live', query = '',
 
   function post(msg) {
     iframe.contentWindow?.postMessage({ sd: 1, ...msg }, '*');
+  }
+
+  // Non-frozen frames send exactly the message they always did.
+  function postMode() {
+    post(virtual ? { t: 'mode', mode: frame.mode, swipe, scale: frame.scale } : { t: 'mode', mode: frame.mode, swipe });
+  }
+
+  // Contain-fit of the virtual size in the container, centred; offsets
+  // rounded to device pixels so text stays crisp.
+  function fit() {
+    const cw = container.clientWidth;
+    const ch = container.clientHeight;
+    if (!cw || !ch) return;
+    const s = Math.min(cw / virtual.w, ch / virtual.h);
+    const dpr = window.devicePixelRatio || 1;
+    const px = (v) => Math.round(v * dpr) / dpr;
+    const dw = virtual.w * s;
+    const dh = virtual.h * s;
+    const x = px((cw - dw) / 2);
+    const y = px((ch - dh) / 2);
+    box.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
+    layer.style.left = `${x}px`;
+    layer.style.top = `${y}px`;
+    layer.style.width = `${dw}px`;
+    layer.style.height = `${dh}px`;
+    layer.style.setProperty('--ptr-size', `${Math.min(26, Math.max(8, 0.014 * dw))}px`);
+    const changed = s !== frame.scale;
+    frame.scale = s;
+    if (changed && frame.readyState) postMode();
   }
 
   // A preview ignores all input, so it must never take the focus: keys
@@ -399,7 +494,7 @@ export function createDeckFrame(container, deckUrl, { mode = 'live', query = '',
       frame.index = m.index;
       frame.adapter = m.adapter;
       frame.readyState = true;
-      post({ t: 'mode', mode: frame.mode, swipe });
+      postMode();
       resolveReady(m);
       handlers.ready.forEach((cb) => cb(m));
     } else if (m.t === 'changed') {
@@ -417,9 +512,19 @@ export function createDeckFrame(container, deckUrl, { mode = 'live', query = '',
     }
   }
   window.addEventListener('message', onMessage);
-  iframe.addEventListener('load', () => post({ t: 'mode', mode: frame.mode, swipe }));
+  iframe.addEventListener('load', postMode);
   iframe.src = deckUrl + query;
-  container.append(iframe);
+  if (virtual) {
+    box.style.width = `${virtual.w}px`;
+    box.style.height = `${virtual.h}px`;
+    box.append(iframe);
+    container.append(box, layer);
+    fit();
+    observer = new ResizeObserver(fit);
+    observer.observe(container);
+  } else {
+    container.append(iframe);
+  }
   return frame;
 }
 

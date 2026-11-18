@@ -525,6 +525,9 @@ function openUpdate(d, initialFile = null) {
 const MODE_LABELS = { follow: 'modeFollow', back: 'modeBack', free: 'modeFree' };
 const MODE_HINTS = { follow: 'modeFollowHint', back: 'modeBackHint', free: 'modeFreeHint' };
 
+// The slide shapes offered in the deck settings (D12 of 0010).
+const ASPECTS = ['16:9', '16:10', '4:3', '3:2', '1:1', '9:16'];
+
 function openSettings(d) {
   const title = el('input', { type: 'text', id: 'deck-title', value: d.title, maxLength: 200 });
   const mode = el('select', { id: 'deck-mode' },
@@ -564,6 +567,19 @@ function openSettings(d) {
   for (const f of [contestOn, points, time, noTime, speed]) f.addEventListener('input', describeContest);
   describeContest();
   const hands = el('input', { type: 'checkbox', id: 'room-hands', checked: d.room.hands });
+  // Screens (0010): the slide shape, one layout for every screen, and the
+  // shared pointer, which needs that layout.
+  const aspects = ASPECTS.includes(d.aspect) ? ASPECTS : [d.aspect, ...ASPECTS];
+  const aspect = el('select', { id: 'deck-aspect' },
+    aspects.map((a) => el('option', { value: a, selected: d.aspect === a }, a)));
+  const frozen = el('input', { type: 'checkbox', id: 'deck-frozen', checked: d.frozen === true });
+  const pointer = el('input', { type: 'checkbox', id: 'deck-pointer', checked: d.pointer === true });
+  const describeScreens = () => {
+    pointer.disabled = !frozen.checked;
+    if (!frozen.checked) pointer.checked = false;
+  };
+  frozen.addEventListener('input', describeScreens);
+  describeScreens();
   const msg = el('span.status');
   const save = el('button.primary', {
     type: 'button',
@@ -573,6 +589,9 @@ function openSettings(d) {
         body: {
           title: title.value,
           viewerNav: mode.value,
+          aspect: aspect.value,
+          frozen: frozen.checked,
+          pointer: frozen.checked && pointer.checked,
           contest: {
             on: contestOn.checked,
             points: num(points, 1000),
@@ -598,6 +617,12 @@ function openSettings(d) {
     el('h2', {}, `${t('settings')} · ${d.slug}`),
     el('label', { htmlFor: 'deck-title' }, t('title')), title,
     el('label', { htmlFor: 'deck-mode' }, t('defaultViewerMode')), mode, modeHint,
+    el('h3.settings-sub', {}, t('screensHeading')),
+    el('label', { htmlFor: 'deck-aspect' }, t('aspectSetting')), aspect,
+    el('label.inline', { htmlFor: 'deck-frozen' }, frozen, ` ${t('frozenSetting')}`),
+    el('p.hint.muted', { id: 'frozen-hint' }, t('frozenHint')),
+    el('label.inline', { htmlFor: 'deck-pointer' }, pointer, ` ${t('pointerSetting')}`),
+    el('p.hint.muted', { id: 'pointer-hint' }, t('pointerHint')),
     el('h3.settings-sub', {}, t('roomSettings')),
     el('div.room-limits', {},
       el('div', {}, el('label', { htmlFor: 'room-presenters' }, t('maxPresenters')), maxPresenters),

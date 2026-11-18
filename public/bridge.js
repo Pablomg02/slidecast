@@ -2,6 +2,8 @@
  * Runs inside the sandboxed iframe. Finds the deck's navigation API, reports
  * steps and changes to the shell, obeys "go", and captures navigation input so
  * the deck never moves on its own. Protocol: every message carries sd: 1.
+ * The shell's {t:'mode'} may carry `scale` (frozen decks, 0010): how much the
+ * shell shrinks or enlarges the iframe, so a swipe stays 60 screen pixels.
  */
 (function () {
   'use strict';
@@ -12,6 +14,7 @@
 
   var mode = 'live';
   var swipe = true; // horizontal swipes move the slides (the viewer page turns it off)
+  var scale = 1; // screen px per iframe px (frozen decks are drawn scaled)
   var adapter = null;
   var lastIndex = -1;
   var pendingGo = null;
@@ -113,6 +116,7 @@
     } else if (m.t === 'mode') {
       mode = m.mode === 'preview' ? 'preview' : 'live';
       swipe = m.swipe !== false;
+      scale = typeof m.scale === 'number' && isFinite(m.scale) && m.scale > 0 ? m.scale : 1;
       if (mode === 'preview') silenceMedia();
     }
   });
@@ -216,7 +220,7 @@
     var dx = t.clientX - touchStart.x;
     var dy = t.clientY - touchStart.y;
     touchStart = null;
-    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) {
+    if (Math.abs(dx) > 60 / scale && Math.abs(dx) > Math.abs(dy)) {
       swallow(e);
       if (swipe) post({ t: 'input', action: dx < 0 ? 'next' : 'prev' });
     }

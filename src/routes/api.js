@@ -1,5 +1,6 @@
 import { issueDeckToken } from '../tokens.js';
 import { contestOf } from '../contest.js';
+import { frozenOf, pointerOf, layoutOf } from '../decks.js';
 
 export function registerApi(app, ctx) {
   const { auth, decks, config, rooms } = ctx;
@@ -17,10 +18,10 @@ export function registerApi(app, ctx) {
 
   // What a list card needs to draw its thumbnail: the cover image, or else the
   // deck itself (shown as a small preview). Locked decks get neither.
-  function thumb(req, { slug, aspect, cover }) {
+  function thumb(req, { slug, aspect, layout, cover }) {
     if (!auth.canView(req, slug) || (!rooms.isOpen(slug) && !auth.canPresent(req, slug))) return { locked: true };
     const url = deckUrl(slug);
-    return { aspect, deckUrl: url, cover: cover ? url + encodePath(cover) : null };
+    return { aspect, layout, deckUrl: url, cover: cover ? url + encodePath(cover) : null };
   }
 
   app.get('/api/decks', async (req, reply) => {
@@ -47,6 +48,14 @@ export function registerApi(app, ctx) {
       .send(csv);
   });
 
+  // The live state's layout while there is one, so a page and the snapshots
+  // it receives agree even if deck.json changed on disk (D27 of 0010). Not
+  // `??`: null (not frozen) is a valid live value.
+  function liveLayout(slug, meta) {
+    const live = ctx.live.layoutOf(slug);
+    return live === undefined ? layoutOf(meta) : live;
+  }
+
   app.get('/api/decks/:slug', async (req, reply) => {
     const { slug } = req.params;
     const deck = await decks.get(slug);
@@ -63,6 +72,9 @@ export function registerApi(app, ctx) {
       askNames: room.askNames,
       hands: room.hands,
       contest: contestOf(deck.meta).on,
+      frozen: frozenOf(deck.meta),
+      pointer: pointerOf(deck.meta),
+      layout: liveLayout(slug, deck.meta),
       canPresent,
       canAdmin: auth.canAdmin(req),
     };

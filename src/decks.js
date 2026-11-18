@@ -89,6 +89,30 @@ export function normalizeMeta(raw) {
   return m;
 }
 
+// Frozen layout and shared pointer (0010): optional booleans read through
+// accessors, never added by normalizeMeta, so decks that do not use them keep
+// a byte-identical deck.json.
+export const frozenOf = (meta) => meta?.frozen === true;
+export const pointerOf = (meta) => frozenOf(meta) && meta?.pointer === true;
+
+// The virtual resolution of a frozen deck (D5 of 0010): 1920 CSS px on the
+// long side, the other side from the aspect; 16:9 when the aspect is unusable.
+export function virtualSize(aspect) {
+  const m = typeof aspect === 'string' ? /^(\d+):(\d+)$/.exec(aspect) : null;
+  const a = m ? Number(m[1]) : 0;
+  const b = m ? Number(m[2]) : 0;
+  const size = a >= b ? { w: 1920, h: Math.round((1920 * b) / a) } : { w: Math.round((1920 * a) / b), h: 1920 };
+  return size.w >= 1 && size.h >= 1 ? size : { w: 1920, h: 1080 }; // also absurd shapes such as 10000:1
+}
+
+// "<w>x<h>" for a frozen deck, null otherwise: what every page compares to
+// know whether it lays the deck out like the others.
+export function layoutOf(meta) {
+  if (!frozenOf(meta)) return null;
+  const { w, h } = virtualSize(meta.aspect);
+  return `${w}x${h}`;
+}
+
 function timestamp() {
   return new Date().toISOString().replace(/[:.]/g, '-');
 }
@@ -236,6 +260,9 @@ export function createDeckStore({
         slug,
         title: await title(slug, meta),
         aspect: meta.aspect,
+        frozen: frozenOf(meta),
+        pointer: pointerOf(meta),
+        layout: layoutOf(meta),
         cover: await cover(slug, meta),
         size: await dirSize(dir),
         mtime: st.mtime.toISOString(),
@@ -299,7 +326,11 @@ export function createDeckStore({
   }
 
   // `contest` (0009): the fields given replace those saved; the rest stay.
-  async function updateSettings(slug, { title: t, viewerNav, aspect, contest } = {}) {
+  // `frozen`/`pointer` (0010): false deletes the key; frozen off also deletes
+  // pointer, and pointer on needs the deck to end up frozen.
+  async function updateSettings(slug, {
+    title: t, viewerNav, aspect, contest, frozen, pointer,
+  } = {}) {
     if (t !== undefined && t !== null && (typeof t !== 'string' || t.length > 200)) {
       throw new DeckError('ERR_BAD_INPUT', 'invalid title');
     }
@@ -314,12 +345,26 @@ export function createDeckStore({
         ? cleanContest(contest, { strict: true }) : { error: 'contest must be an object' };
       if (error) throw new DeckError('ERR_BAD_INPUT', error);
     }
+    if (frozen !== undefined && typeof frozen !== 'boolean') throw new DeckError('ERR_BAD_INPUT', 'invalid frozen');
+    if (pointer !== undefined && typeof pointer !== 'boolean') throw new DeckError('ERR_BAD_INPUT', 'invalid pointer');
     return modifyMeta(slug, (meta) => {
+      const wasFrozen = frozenOf(meta);
+      const willFreeze = frozen ?? wasFrozen;
+      if (pointer === true && !willFreeze) throw new DeckError('ERR_BAD_INPUT', 'invalid pointer');
+      // A pointer stored without frozen never comes back by itself (D11).
+      if (!wasFrozen) delete meta.pointer;
       if (contest !== undefined) meta.contest = cleanContest({ ...contestOf(meta), ...contest }, { strict: true }).contest;
       if (t === null || t === '') delete meta.title;
       else if (t !== undefined) meta.title = t.trim();
       if (viewerNav !== undefined) meta.viewerNav = viewerNav;
       if (aspect !== undefined) meta.aspect = aspect;
+      if (frozen === true) meta.frozen = true;
+      else if (frozen === false) {
+        delete meta.frozen;
+        delete meta.pointer;
+      }
+      if (pointer === true) meta.pointer = true;
+      else if (pointer === false) delete meta.pointer;
     });
   }
 
