@@ -51,6 +51,23 @@ test('the last step shows the End placeholder', async ({ page }) => {
   await expect(page.locator('#next')).toBeDisabled();
 });
 
+test('first and last jump to either end and turn off there', async ({ page }) => {
+  await openPresenter(page);
+  const viewer = srv.socket('demo', { role: 'viewer' });
+  await expect(page.locator('#first')).toBeDisabled();
+  await page.click('#next');
+  await viewer.state((s) => s.index === 1);
+  await page.click('#last');
+  await viewer.state((s) => s.index === 6);
+  await expect(page.locator('#counter')).toHaveText('7 / 7');
+  await expect(page.locator('#last')).toBeDisabled();
+  await page.click('#first');
+  await viewer.state((s) => s.index === 0);
+  await expect(page.locator('#first')).toBeDisabled();
+  await expect(page.locator('#last')).toBeEnabled();
+  viewer.close();
+});
+
 test('notes for the slide and the step, updated by a notes message', async ({ page }) => {
   await openPresenter(page);
   await expect(page.locator('#notes')).toContainText('served by slidecast');
@@ -80,13 +97,18 @@ test('the viewer-mode select changes viewerNav on a connected viewer', async ({ 
   viewer.close();
 });
 
-test('blank toggles every viewer', async ({ page }) => {
+test('B blanks every viewer and shows them again; there is no button for it', async ({ page }) => {
   await openPresenter(page);
+  await expect(page.locator('#blank')).toHaveCount(0);
   const viewer = srv.socket('demo', { role: 'viewer' });
+  await expect(page.locator('#blanked')).toBeHidden();
   await page.keyboard.press('b');
   await viewer.state((s) => s.blank === true);
-  await page.click('#blank');
+  await expect(page.locator('#blanked')).toBeVisible();
+  await expect(page.locator('#blanked-bar')).toBeHidden();
+  await page.keyboard.press('b');
   await viewer.state((s) => s.blank === false);
+  await expect(page.locator('#blanked')).toBeHidden();
   viewer.close();
 });
 
@@ -115,6 +137,15 @@ test('phone layout: big prev/next bar, no next preview', async ({ browser }) => 
   await next.tap();
   await viewer.state((s) => s.index === 1);
   viewer.close();
+  // Blank screens: the badge is a toolbar row here, the tabs have no room.
+  const ctl = srv.socket('demo');
+  await ctl.send({ t: 'blank', on: true });
+  await expect(page.locator('#blanked-bar')).toBeVisible();
+  await expect(page.locator('#blanked')).toBeHidden();
+  await expect(page.locator('#slide-toggle')).toBeInViewport();
+  await ctl.send({ t: 'blank', on: false });
+  await expect(page.locator('#blanked-bar')).toBeHidden();
+  ctl.close();
   await context.close();
 });
 
@@ -125,12 +156,18 @@ test('phone layout: fits one screen, slide folds, extras open on demand', async 
   expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(844);
   await expect(page.locator('#timer')).toBeVisible();
   await expect(page.locator('#clock')).toBeHidden();
-  await expect(page.locator('#blank')).toBeHidden();
+  await expect(page.locator('#first')).toBeHidden();
+  await expect(page.locator('#last')).toBeHidden();
   await expect(page.locator('#viewer-mode')).toBeHidden();
   await page.locator('#more').tap();
   await expect(page.locator('#clock')).toBeVisible();
-  await expect(page.locator('#blank')).toBeVisible();
+  await expect(page.locator('#first')).toBeVisible();
+  await expect(page.locator('#last')).toBeVisible();
   await expect(page.locator('#viewer-mode')).toBeVisible();
+  // The nav row still fits the screen with both extra buttons.
+  const last = await page.locator('#last').boundingBox();
+  expect(last.x + last.width).toBeLessThanOrEqual(390);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   const notesBefore = (await page.locator('.p-notes').boundingBox()).height;
   await page.locator('#slide-toggle').tap();
   await expect(page.locator('.p-current')).toBeHidden();

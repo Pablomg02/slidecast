@@ -125,8 +125,8 @@ export default {
     // Features
     ['<h2>Endless possibilities for live presentations</h2>', '<h2>Infinitas posibilidades para presentar en directo</h2>'],
     ['<h3>Presenter view</h3>', '<h3>Vista de presentador</h3>'],
-    ['<p>Current and next slide, speaker notes, timer, clock and a button to black out every screen.</p>',
-      '<p>Diapositiva actual y siguiente, notas, cronómetro, reloj y un botón para poner en negro todas las pantallas.</p>'],
+    ['<p>Current and next slide, speaker notes, timer, clock, a jump to the first or last slide and one key to black out every screen.</p>',
+      '<p>Diapositiva actual y siguiente, notas, cronómetro, reloj, salto a la primera o la última diapositiva y una tecla para poner en negro todas las pantallas.</p>'],
     ['<h3>Any remote</h3>', '<h3>Cualquier mando</h3>'],
     ['<p>Keyboard, a presentation clicker, or your phone. Clickers work out of the box.</p>',
       '<p>El teclado, un mando de presentaciones o tu móvil. Los mandos funcionan sin configurar nada.</p>'],

@@ -6,6 +6,11 @@ include breaking changes, always listed here.
 
 ## [Unreleased]
 
+- The presenter view has buttons to jump to the first and the last step,
+  beside previous and next (the same as `Home` and `End`). On a phone they
+  appear only with **More** open, so a thumb never jumps by mistake. To make
+  room, the **Blank** button is gone: `B` (or `.`) still blanks every screen,
+  and a **Screens blanked** badge says so while they are.
 - Poll results stay secret until the presenter shows them. Before, closing
   answers always showed them to viewers, and the projector showed the counts
   live from the start, telling the room what people were answering. Now the

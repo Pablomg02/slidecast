@@ -107,6 +107,8 @@ const ICONS = {
   minimize: '<path d="M9 6l6 6-6 6"/>',
   prev: '<path d="M15 5l-7 7 7 7"/>',
   next: '<path d="M9 5l7 7-7 7"/>',
+  first: '<path d="M6 5v14"/><path d="M19 6v12l-9.5-6z" fill="currentColor"/>',
+  last: '<path d="M18 5v14"/><path d="M5 6v12l9.5-6z" fill="currentColor"/>',
   remote: '<path d="M9 7l-5 5 5 5M15 7l5 5-5 5"/>',
   close: '<path d="M6 6l12 12M18 6L6 18"/>',
   check: '<path d="M5 12.5l4.5 4.5L19 7"/>',

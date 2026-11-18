@@ -670,7 +670,7 @@ body.room-waiting .remote { visibility: hidden; }
 .person.offline .dot { background: var(--line-strong); }
 .person-hand { color: var(--accent); }
 .p-empty { padding: .5rem 0; }
-.p-notes-head .p-room-closed { flex: none; }
+.p-notes-head .p-room-closed, .p-notes-head .p-blanked { flex: none; }
 .p-full { max-width: 30rem; margin: auto; text-align: center; grid-column: 1 / -1; grid-row: 1 / -1; }
 .p-full h1 { font-size: 1.4rem; }
 .p-notes-body { flex: 1; min-height: 0; overflow: auto; padding: 16px 20px 44px; font-size: 20px; line-height: 1.5; }
@@ -772,12 +772,17 @@ dialog.card.p-poll-dialog { padding: 0; }
 .p-timer-text, .p-clock { font-variant-numeric: tabular-nums; font-size: 1.3rem; font-weight: 650; letter-spacing: -.01em; }
 .p-viewers { color: var(--muted); font-size: .92rem; font-variant-numeric: tabular-nums; }
 .p-prev .label, .p-next-btn .label { display: none; }
+/* First/last: square icon buttons, quieter than prev/next. */
+.p-toolbar .p-jump { width: 2.5rem; padding: 0; color: var(--muted); }
+.p-toolbar .p-jump:hover:not(:disabled) { color: var(--ink); }
 .p-toolbar .badge { position: static; }
+.p-toolbar > .p-blanked { display: none; }
 
 .p-slide-toggle, .p-more-toggle { display: none; }
 
 /* Phone: one screen, no page scroll. Top to bottom: slide (foldable), notes,
-   timer, prev/next. Clock, viewer settings and blank open behind "more". */
+   timer, prev/next. Clock, viewer settings, the room button and first/last
+   open behind "more". */
 @media (max-width: 899px) {
   .page-presenter #app {
     display: flex; flex-direction: column; gap: 8px; overflow: hidden;
@@ -809,7 +814,9 @@ dialog.card.p-poll-dialog { padding: 0; }
   .p-group { padding: 5px 6px; border-radius: 12px; }
   .p-toolbar button { padding: .4rem .75rem; }
   .p-toolbar > .badge { order: 0; flex: 1 1 100%; text-align: center; }
-  /* Folded panel: clock and blank on one row, viewer settings below. */
+  .p-toolbar > .p-blanked { display: block; }
+  .p-notes-head .p-blanked { display: none; }
+  /* Folded panel: clock and the room button on one row, viewer settings below. */
   .p-secondary { display: none; order: 1; flex: 1 1 0; justify-content: center; }
   .p-more-open .p-secondary { display: flex; }
   .p-secondary button { flex: 1; }
@@ -826,6 +833,11 @@ dialog.card.p-poll-dialog { padding: 0; }
   .p-next-btn { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
   .p-next-btn:hover { background: var(--accent-hover); color: var(--accent-ink); }
   .p-prev .label, .p-next-btn .label { display: inline; }
+  /* First/last only with "more" open, so a thumb never jumps by mistake;
+     prev/next drop their labels to make room. */
+  .p-toolbar .p-jump { display: none; flex: none; width: 2.75rem; min-height: 64px; border-radius: 14px; }
+  .p-more-open .p-jump { display: inline-flex; }
+  .p-more-open .p-prev .label, .p-more-open .p-next-btn .label { display: none; }
 }
 @media (max-width: 380px) {
   .p-toolbar .p-prev, .p-toolbar .p-next-btn { padding: 0 .5rem; font-size: 1.02rem; gap: .3em; }
@@ -849,7 +861,7 @@ dialog.card.p-poll-dialog { padding: 0; }
   .p-nav { order: 3; }
   .p-timer { flex: none; }
   .p-nav { flex: 1 1 0; }
-  .p-toolbar .p-prev, .p-toolbar .p-next-btn { min-height: 48px; font-size: 1.05rem; }
+  .p-toolbar .p-prev, .p-toolbar .p-next-btn, .p-toolbar .p-jump { min-height: 48px; font-size: 1.05rem; }
 }
 
 /* admin */

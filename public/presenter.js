@@ -40,7 +40,10 @@ const reconnecting = el('span.badge.badge-warn', { hidden: true }, t('reconnecti
 
 const btnPrev = el('button.p-prev', { id: 'prev', title: t('prev'), onclick: () => act('prev') }, '◀', el('span.label', {}, t('prev')));
 const btnNext = el('button.p-next-btn', { id: 'next', title: t('next'), onclick: () => act('next') }, el('span.label', {}, t('next')), '▶');
-const btnBlank = el('button', { id: 'blank', onclick: () => act('blank') }, t('blank'));
+// Jump to the first and last step (Home and End do the same). On a phone they
+// appear beside prev/next only with "more" open, away from the thumb.
+const btnFirst = el('button.p-jump', { id: 'first', title: t('first'), 'aria-label': t('first'), onclick: () => act('first') }, icon('first'));
+const btnLast = el('button.p-jump', { id: 'last', title: t('last'), 'aria-label': t('last'), onclick: () => act('last') }, icon('last'));
 const modeSelect = el('select', { id: 'viewer-mode', title: t('viewerMode'), onchange: () => conn.send({ t: 'nav', mode: modeSelect.value }) },
   el('option', { value: 'follow' }, t('modeFollow')),
   el('option', { value: 'back' }, t('modeBack')),
@@ -51,6 +54,11 @@ const describeMode = () => { modeSelect.title = `${t('viewerMode')}: ${t(MODE_HI
 modeSelect.addEventListener('change', describeMode);
 const viewers = el('span.p-viewers', { id: 'viewers' }, t('viewersCount', { n: 0 }));
 const roomClosed = el('span.badge.badge-warn.p-room-closed', { id: 'room-closed', hidden: true }, t('roomClosedBadge'));
+// B blanks the screens; with no button for it, a badge says they are blank:
+// above the notes on a computer, as a row of the toolbar on a phone, where
+// the tabs leave no room for it.
+const blanked = el('span.badge.badge-warn.p-blanked', { id: 'blanked', hidden: true }, t('blankedBadge'));
+const blankedBar = el('span.badge.badge-warn.p-blanked', { id: 'blanked-bar', hidden: true }, t('blankedBadge'));
 // Only the admin opens and closes rooms (D3 of 0003); closing asks once more.
 let closeArmed = 0;
 let roomErrorUntil = 0;
@@ -100,7 +108,7 @@ const fontBox = el('div.p-font', {}, fontSteps, fontToggle);
 // The slide id lives above the notes, not in the toolbar, so its changing
 // width never shifts the toolbar.
 const notesBox = el('section.p-notes', {},
-  el('div.p-notes-head', {}, el('div.p-tabs', { role: 'tablist' }, Object.values(tabs)), roomClosed, slideId, slideToggle),
+  el('div.p-notes-head', {}, el('div.p-tabs', { role: 'tablist' }, Object.values(tabs)), blanked, roomClosed, slideId, slideToggle),
   poll.strip,
   notesBody,
   poll.panel,
@@ -108,7 +116,8 @@ const notesBox = el('section.p-notes', {},
   panels.peoplePanel,
   fontBox);
 
-// Phone only: clock, viewer settings and blank stay folded behind this button.
+// Phone only: clock, viewer settings, the room button and first/last stay
+// folded behind this button.
 const moreToggle = el('button.p-more-toggle', {
   id: 'more', title: t('more'), 'aria-expanded': 'false',
   onclick: () => {
@@ -118,12 +127,13 @@ const moreToggle = el('button.p-more-toggle', {
 }, icon('more', 'icon icon-fill'));
 
 const toolbar = el('div.p-toolbar', {},
-  el('div.p-group.p-nav', {}, btnPrev, counter, btnNext),
+  el('div.p-group.p-nav', {}, btnFirst, btnPrev, counter, btnNext, btnLast),
   el('div.p-group.p-timer', {}, timerText, timerToggle, timerReset, moreToggle),
   el('div.p-group.p-secondary', {}, clock),
   el('div.p-group.p-secondary', {}, modeSelect, viewers),
-  el('div.p-group.p-secondary', {}, btnBlank, roomBtn),
+  el('div.p-group.p-secondary', { hidden: !deck.canAdmin }, roomBtn),
   el('div.p-group.p-extra', {}, openViewer, editNotes),
+  blankedBar,
   reconnecting);
 
 const colSplit = el('div.p-split.p-split-cols', {
@@ -347,12 +357,11 @@ function render() {
   slideId.textContent = step ? (step.step ? `${step.slide} · ${step.step}` : step.slide) : '';
   const at = step ? `?${new URLSearchParams({ slide: step.slide, step: String(step.step ?? '') })}` : '';
   editNotes.href = `/admin/edit/${encodeURIComponent(slug)}${at}`;
-  btnBlank.textContent = live.blank ? t('unblank') : t('blank');
-  btnBlank.classList.toggle('active', live.blank);
+  blanked.hidden = blankedBar.hidden = !live.blank;
   modeSelect.value = live.viewerNav;
   describeMode();
-  btnPrev.disabled = live.index <= 0;
-  btnNext.disabled = n > 0 && live.index >= n - 1;
+  btnPrev.disabled = btnFirst.disabled = live.index <= 0;
+  btnNext.disabled = btnLast.disabled = n > 0 && live.index >= n - 1;
   if (current.readyState && current.index !== live.index) current.go(live.index);
   renderNext();
   renderNotes();
