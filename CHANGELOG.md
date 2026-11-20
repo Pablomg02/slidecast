@@ -6,6 +6,13 @@ include breaking changes, always listed here.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-20
+
+First stable version: from now on, a change that breaks existing decks,
+settings or commands bumps the major version.
+
+- Removed: the **Open only this one** button, and the `only` field of
+  `PATCH /api/admin/rooms/:slug`.
 - Same layout on every screen and a shared laser pointer. A deck's
   **Settings** get a **Screens** section: the slide shape, **Same layout on
   every screen** (every view draws the deck at 1920 pixels on the long side
@@ -134,8 +141,6 @@ include breaking changes, always listed here.
   reached only through its link: it is not listed and the main address never
   goes to it. With a single deck, the room can be hidden too, and the main
   address then shows the page asking for the link.
-- Removed: the **Open only this one** button, and the `only` field of
-  `PATCH /api/admin/rooms/:slug`.
 - Admin panel: a wider deck table, with each deck's links on one line and
   its buttons on the next, instead of a cramped Actions column.
 
@@ -228,7 +233,8 @@ First public release.
   Compose.
 - English and Spanish interface.
 
-[Unreleased]: https://github.com/Pablomg02/slidecast/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/Pablomg02/slidecast/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/Pablomg02/slidecast/compare/v0.2.2...v1.0.0
 [0.2.2]: https://github.com/Pablomg02/slidecast/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/Pablomg02/slidecast/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Pablomg02/slidecast/compare/v0.1.1...v0.2.0
