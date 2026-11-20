@@ -247,14 +247,14 @@ h1, h2, h3 { margin: 0; letter-spacing: -.03em; line-height: 1.08; }
 .pv-side { display: flex; flex-direction: column; gap: 1.2cqw; min-height: 0; }
 .pv-next small, .pv-notes small { display: block; font-size: 1.4cqw; font-weight: 700; color: #646b7a; text-transform: uppercase; letter-spacing: .1cqw; margin-bottom: .5cqw; }
 .pv-next .screen { border-radius: .6cqw; }
-.pv-notes { flex: 1; min-height: 0; padding: 1.2cqw 1.4cqw; background: #fff; border-radius: .8cqw; border: 1px solid rgba(15, 20, 32, .08); }
+.pv-notes { position: relative; flex: 1; min-height: 0; padding: 1.2cqw 1.4cqw; background: #fff; border-radius: .8cqw; border: 1px solid rgba(15, 20, 32, .08); }
 .pv-notes p { margin: 0; font-size: 1.75cqw; line-height: 1.4; }
 .notes-text b { color: #4338ca; }
 .pv-bar { grid-column: 1 / -1; display: flex; gap: 1cqw; }
 .chip { padding: .7cqw 1.4cqw; border-radius: .8cqw; background: #fff; border: 1px solid rgba(15, 20, 32, .1); font-size: 1.6cqw; font-weight: 600; white-space: nowrap; }
 .chip.timer { font-variant-numeric: tabular-nums; }
-.chip.blank { margin-left: auto; transition: background .3s, color .3s; }
-.stage.black .chip.blank { background: #d23b30; color: #fff; }
+.chip.hands { margin-left: auto; transition: background .3s, color .3s; }
+.stage.hand-in .chip.hands { background: #fbbf24; border-color: #f59e0b; }
 .chip.viewers { color: #646b7a; font-weight: 500; }
 .base { height: 2.2cqw; margin: 0 -6%; background: linear-gradient(#cfd4df, #8e95a7); border-radius: 0 0 3cqw 3cqw; }
 .keycap {
@@ -263,6 +263,92 @@ h1, h2, h3 { margin: 0; letter-spacing: -.03em; line-height: 1.08; }
   opacity: 0; transform: translateY(1cqw) scale(.9); transition: opacity .15s, transform .15s;
 }
 .keycap.on { opacity: 1; transform: none; }
+
+/* A raised hand in the presenter view, and on Ana's phone */
+.pv-hand {
+  position: absolute; left: 1cqw; right: 1cqw; bottom: 1cqw; padding: .9cqw 1.2cqw; border-radius: .8cqw;
+  background: #fff7e0; border: 1px solid #f5c451; font-size: 1.6cqw; line-height: 1.3;
+  opacity: 0; transform: translateY(1cqw); transition: opacity .4s, transform .4s var(--ease);
+}
+.pv-hand b { display: block; }
+.stage.hand-in .pv-hand { opacity: 1; transform: none; }
+.hand-btn { display: none; align-self: center; padding: 2.6cqw 6cqw; border-radius: 99px; font-size: 7cqw; font-weight: 700; color: var(--ink); background: #1d2233; white-space: nowrap; transition: background .3s, color .3s; }
+.stage[data-scene="hands"] .hand-btn { display: block; }
+.hand-btn span + span, .hand-up .hand-btn span:first-child { display: none; }
+.hand-up .hand-btn span + span { display: inline; }
+.hand-up .hand-btn { color: #0b0d18; background: #fbbf24; animation: tap .5s var(--ease); }
+
+/* Polls and contests. The presenter view: launch, live results, ranking. */
+.pv-poll {
+  display: none; flex: 1; min-height: 0; flex-direction: column; gap: .7cqw; padding: 1.2cqw 1.4cqw;
+  background: #fff; border-radius: .8cqw; border: 1px solid rgba(15, 20, 32, .08);
+}
+.stage.polling .pv-notes { display: none; }
+.stage.polling .pv-poll { display: flex; }
+.pv-poll small { display: flex; justify-content: space-between; font-size: 1.4cqw; font-weight: 700; color: #646b7a; text-transform: uppercase; letter-spacing: .1cqw; }
+.pp-meta { color: #4338ca; text-transform: none; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.pp-rows, .pp-rank, .pjp-rows, .pjp-rank { display: flex; flex-direction: column; gap: .6cqw; }
+.pp-rows span, .pp-rank span {
+  position: relative; display: flex; gap: 1cqw; padding: .55cqw 1cqw; border-radius: .6cqw; overflow: hidden;
+  font-size: 1.6cqw; font-weight: 600; background: #f1f2f6;
+}
+.pp-rows i, .pjp-rows i { position: absolute; inset: 0 auto 0 0; width: calc(var(--f, 0) * 100%); background: rgba(129, 140, 248, .35); transition: width .6s var(--ease); }
+.pp-rows em, .pp-rows b, .pjp-rows em, .pjp-rows b { position: relative; font-style: normal; }
+.pp-rows em, .pjp-rows em, .pp-rank em, .pjp-rank em { flex: 1; font-style: normal; }
+.pp-rows .right { box-shadow: inset 0 0 0 .2cqw #10b981; }
+.pp-rows .right em::after { content: " ✓"; color: #059669; }
+.pp-rank i, .pjp-rank i { font-style: normal; font-variant-numeric: tabular-nums; }
+.pp-launch { align-self: flex-start; padding: .6cqw 1.6cqw; border-radius: .8cqw; font-size: 1.6cqw; font-weight: 700; color: #fff; background: #4f46e5; animation: tap 1.4s var(--ease) infinite; }
+.pv-poll:not([data-st="ready"]) .pp-launch, .pp-rank, .pv-poll[data-st="ranking"] .pp-rows { display: none; }
+.pv-poll[data-st="ready"] .pp-rows { opacity: .45; }
+.pv-poll[data-st="ranking"] .pp-rank { display: flex; }
+.pp-rank span:first-child { background: #fff3cc; }
+
+/* The projector: how many answered, then the results, then the ranking. */
+/* As in the viewer, the slide shrinks to the left and the poll takes the right. */
+.pj { position: relative; }
+.pj .screen { z-index: 1; transform-origin: 0 50%; transition: transform .5s var(--ease), --v .9s var(--ease); }
+.pj:has(.pj-poll.on) .screen { transform: translateX(2cqw) scale(.54); }
+.pj-poll {
+  position: absolute; inset: 1.3cqw; display: flex; flex-direction: column; justify-content: center; gap: 1.6cqw;
+  padding: 3cqw 3cqw 3cqw 60%; border-radius: 3px; color: #f4f1ea; background: #070a1c;
+  opacity: 0; transition: opacity .45s;
+}
+.pj-poll.on { opacity: 1; }
+.pjp-head { font-size: 4.4cqw; line-height: 1.1; }
+.pj-poll[data-st="count"] .pjp-head { font-size: 6cqw; }
+.pjp-time { font-size: 4.4cqw; font-weight: 800; color: var(--sun); font-variant-numeric: tabular-nums; }
+.pjp-time:empty { display: none; }
+.pjp-rows span, .pjp-rank span { position: relative; display: flex; gap: 1.6cqw; padding: 1cqw 1.6cqw; border-radius: 1cqw; overflow: hidden; font-size: 3cqw; background: rgba(255, 255, 255, .07); }
+.pjp-rows .right { box-shadow: inset 0 0 0 .35cqw #34d399; }
+.pjp-rank span:first-child { background: rgba(255, 179, 71, .25); }
+.pj-poll:not([data-st="results"]) .pjp-rows, .pj-poll:not([data-st="ranking"]) .pjp-rank { display: none; }
+
+/* The phones: the poll under the slide, the countdown, the outcome. */
+.vp { display: none; flex-direction: column; gap: 2.4cqw; }
+.vp.on { display: flex; }
+.vp [data-o] {
+  padding: 2.4cqw 4cqw; border-radius: 3.4cqw; font-size: 7cqw; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: #c3c7d6; background: #1d2233; border: .8cqw solid transparent; transition: background .35s, color .35s, border-color .35s, opacity .35s;
+}
+.vp .mine { color: #0b0d18; background: var(--grad); animation: tap .5s var(--ease); }
+.vp.shown [data-o]:not(.right):not(.mine) { opacity: .4; }
+.vp.shown .right { border-color: #34d399; }
+.vp.shown .mine:not(.right) { color: #fecaca; background: #7f1d1d; }
+.vp-time { display: block; height: 2cqw; border-radius: 2cqw; overflow: hidden; background: #1d2233; visibility: hidden; }
+.vp-time u { display: block; height: 100%; width: calc(var(--t, 0) * 100%); background: var(--sun); transition: width .5s linear; }
+.vp.timed .vp-time { visibility: visible; }
+.vp-res { min-height: 9cqw; font-size: 7cqw; text-align: center; color: var(--muted); white-space: nowrap; }
+.vp-res.ok { color: #6ee7b7; }
+/* On the tablet the slide makes room and the answers go two by two. */
+.tablet .ph-view:has(.vp.on) .screen { width: 48%; align-self: center; }
+.tablet .ph-view:has(.vp.on) { gap: 1.4cqw; }
+.tablet .vp.on { display: grid; grid-template-columns: 1fr 1fr; gap: 1.4cqw; }
+.tablet .vp [data-o] { padding: 1cqw 2cqw; border-radius: 1.4cqw; border-width: .4cqw; font-size: 3.2cqw; }
+.tablet .vp-time, .tablet .vp-res { grid-column: 1 / -1; }
+.tablet .vp-time { height: 1cqw; }
+.tablet .vp-res { min-height: 4cqw; font-size: 3.2cqw; }
+.vp-res.no { color: #fca5a5; }
 
 /* The admin page */
 .admin .body { background: #121624; border: 1px solid var(--line-strong); border-radius: 2cqw; overflow: hidden; box-shadow: 0 30px 80px -30px #000; }

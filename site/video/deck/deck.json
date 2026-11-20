@@ -3,6 +3,7 @@
   "title": "The shape of sound",
   "aspect": "16:9",
   "viewerNav": "back",
+  "contest": { "on": true, "points": 1000, "time": 15, "speed": 50 },
   "slides": {
     "intro": {
       "notes": "Play a violin and a flute on the **same note**. Ask: why do they still sound different?"
@@ -17,7 +18,23 @@
       "notes": "Everyone moves the slider **on their own phone**. Who can find the A at 440 Hz first?"
     },
     "quiz": {
-      "notes": "Ten seconds, then reveal: the **piccolo**, around 600 Hz at its lowest."
+      "notes": "A warm-up, it does not count. The **piccolo**, around 600 Hz at its lowest.",
+      "poll": {
+        "question": "Which one vibrates fastest?",
+        "options": ["Tuba", "Cello", "Your voice", "Piccolo"],
+        "multiple": false,
+        "correct": [3],
+        "contest": false
+      }
+    },
+    "octave": {
+      "notes": "Half the length, twice the frequency: **one octave up**.",
+      "poll": {
+        "question": "Halve a guitar string. Its note…",
+        "options": ["Goes down an octave", "Stays the same", "Goes up an octave"],
+        "multiple": false,
+        "correct": [2]
+      }
     },
     "end": {
       "notes": "Homework: hum along with the fridge, a glass and a spoon, and find each note."

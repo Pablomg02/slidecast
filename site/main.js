@@ -39,15 +39,25 @@
 
   // ------------------------------------------------------------ The deck
   // Steps of the mini deck, as in a real slidecast deck: [slide, step].
-  const STEPS = [[0, 0], [1, 0], [1, 1], [1, 2], [2, 0], [3, 0], [3, 1], [4, 0]];
-  const SLIDE_IDS = ['intro', 'why', 'try', 'quiz', 'end'];
+  const STEPS = [[0, 0], [1, 0], [1, 1], [1, 2], [2, 0], [3, 0], [3, 1], [4, 0], [4, 1], [5, 0]];
+  const SLIDE_IDS = ['intro', 'why', 'try', 'quiz', 'contest', 'end'];
   const NOTES = [
     'Ask first: <b>how long is a year on Neptune?</b> Let them guess.',
     'Two reasons stack up: a weaker pull and a longer path.',
     'Everyone moves the slider <b>on their own phone</b>. Find Neptune!',
-    'Give them ten seconds, then reveal: <b>Neptune</b>, 165 years.',
+    'Launch the poll, then reveal: <b>Neptune</b>, the furthest out.',
+    'Contest question: <b>30 seconds</b>, the faster the more points.',
     'Homework: find the year of three planets.',
   ];
+  // The polls of the quiz slides (3 and 4): answers and the right one.
+  const POLLS = [
+    { options: ['Mercury', 'Earth', 'Jupiter', 'Neptune'], right: 3 },
+    { options: ['29 years', '84 years', '165 years', '248 years'], right: 2 },
+  ];
+  // The contest question: what each phone scores, its place, and the ranking.
+  const POINTS = { aud1: 930, aud4: 780, aud3: 0 };
+  const PLACE = { aud1: 1, aud4: 2, aud3: 3 };
+  const RANKING = [['Ana', 2790], ['Eva', 2410], ['Sam', 1650]];
 
   const ADMIN_NOTE = 'Ask first: how long is a year on Neptune? Let them guess.';
   const ACCENTS = ['#818cf8', '#f472b6', '#34d399', '#fbbf24'];
@@ -57,25 +67,35 @@
   // { layout: { device: [x, y, width, 'dim'?] }, wires: [device], source,
   // viewers, labels: { device: text } }, in stage units (the stage is 100 × 100).
   // set(name, target) moves to a scene and shows target = { live, black,
-  // behind: { device: step }, slider: { device: 0..1 }, mode, hint, chat }.
+  // behind: { device: step }, slider: { device: 0..1 }, mode, hint, chat,
+  // hand, poll: { q, open, votes: { device: answer }, shown, contest, timer,
+  // ranking } }.
   function createStage(root, scenes) {
     root.append(document.getElementById('stage-tpl').content.cloneNode(true));
     const deckTpl = document.getElementById('deck-tpl');
     for (const screen of root.querySelectorAll('.screen')) screen.append(deckTpl.content.cloneNode(true));
+    // The poll under the slide on the audience's phones.
+    for (const view of root.querySelectorAll('.aud .ph-view')) {
+      const vp = document.createElement('div');
+      vp.className = 'vp';
+      vp.innerHTML = `<i class="vp-time"><u></u></i>${'<span data-o></span>'.repeat(4)}<b class="vp-res"></b>`;
+      view.append(vp);
+    }
     const dev = {};
     for (const el of root.querySelectorAll('.dev')) {
       dev[el.dataset.dev] = el;
       el.dataset.labelDefault = el.dataset.label;
     }
     const q = (sel) => root.querySelector(sel);
-    const state = { live: 0, black: false, behind: {}, slider: {} };
+    // arrived: the answers that have reached the presenter; handIn: the hand has.
+    const state = { live: 0, black: false, behind: {}, slider: {}, poll: null, arrived: {}, hand: false, handIn: false };
 
     function showStep(screen, index) {
       const [slide, sub] = STEPS[clamp(index, 0, STEPS.length - 1)];
       const deck = screen.firstElementChild;
       for (const sl of deck.children) sl.classList.toggle('on', Number(sl.dataset.slide) === slide);
       for (const el of deck.querySelectorAll('[data-sub]')) el.classList.toggle('shown', Number(el.dataset.sub) <= sub);
-      deck.classList.toggle('answered', slide === 3 && sub >= 1);
+      deck.classList.toggle('answered', (slide === 3 || slide === 4) && sub >= 1);
     }
 
     // Draws one device from the current state.
@@ -215,6 +235,128 @@
       keyTimer = setTimeout(() => keycap.classList.remove('on'), 650);
     }
 
+    // A message from a phone goes to slidecast, then to the presenter's
+    // screens; done() runs when it gets there (at once while devices move).
+    function send(from, to, done) {
+      const shown = (el) => el.classList.contains('on');
+      if (reduced || performance.now() - sceneAt < 1100 || !shown(from)) return done();
+      const g = gen;
+      travel(center(from), center(dev.hub), 380).then(() => {
+        if (g !== gen) return done();
+        ping(dev.hub);
+        const hub = center(dev.hub);
+        Promise.all(to.filter(shown).map((t) => travel(hub, center(t), 420).then(() => { if (g === gen) ping(t); }))).then(done);
+      });
+    }
+
+    // The raised hand: up on Ana's phone at once, in the queue once it arrives.
+    function setHand(up) {
+      if (up === state.hand) return;
+      state.hand = up;
+      dev.aud1.classList.toggle('hand-up', up);
+      if (!up) {
+        state.handIn = false;
+        renderHand();
+        return;
+      }
+      send(dev.aud1, [dev.laptop], () => { state.handIn = state.hand; renderHand(); });
+    }
+    function renderHand() {
+      root.classList.toggle('hand-in', state.handIn);
+      for (const c of root.querySelectorAll('.chip.hands')) c.textContent = `✋ ${state.handIn ? 1 : 0}`;
+    }
+
+    // A poll. Each answer is chosen on its phone at once and counts once it
+    // has reached the presenter.
+    const pending = new Set();
+    function setPoll(poll) {
+      if (JSON.stringify(poll) === JSON.stringify(state.poll)) return;
+      const sameQ = state.poll?.q === poll?.q;
+      state.poll = poll;
+      const votes = poll?.votes ?? {};
+      for (const id of Object.keys(state.arrived)) if (!sameQ || votes[id] !== state.arrived[id]) delete state.arrived[id];
+      for (const id of Object.keys(votes)) {
+        if (state.arrived[id] != null || pending.has(id)) continue;
+        pending.add(id);
+        const qn = poll.q;
+        send(dev[id], [dev.laptop, dev.projector], () => {
+          pending.delete(id);
+          const now = state.poll?.q === qn ? state.poll.votes?.[id] : null;
+          if (now != null) state.arrived[id] = now;
+          renderPoll();
+        });
+      }
+      renderPoll();
+    }
+    // Result bars, one per answer, with the right one marked.
+    function bars(box, P) {
+      const def = POLLS[P.q];
+      if (box.dataset.q !== String(P.q)) {
+        box.dataset.q = P.q;
+        box.innerHTML = def.options.map((o) => `<span><i></i><em>${o}</em><b></b></span>`).join('');
+      }
+      const counts = def.options.map(() => 0);
+      for (const v of Object.values(state.arrived)) counts[v] += 1;
+      const total = Math.max(1, Object.keys(state.arrived).length);
+      [...box.children].forEach((row, i) => {
+        row.style.setProperty('--f', counts[i] / total);
+        row.querySelector('b').textContent = counts[i];
+        row.classList.toggle('right', i === def.right);
+      });
+    }
+    function ranking(box) {
+      if (!box.firstChild) box.innerHTML = RANKING.map(([name, pts], i) => `<span><b>${i + 1}</b><em>${name}</em><i>${pts}</i></span>`).join('');
+    }
+    function renderPoll() {
+      const P = state.poll;
+      root.classList.toggle('polling', !!P);
+      if (!P) {
+        for (const el of root.querySelectorAll('.vp, .pj-poll')) el.classList.remove('on');
+        return;
+      }
+      const def = POLLS[P.q];
+      const n = Object.keys(state.arrived).length;
+      const time = P.timer == null ? '' : `⏱ 0:${String(P.timer).padStart(2, '0')}`;
+      const answered = `${n} answered`;
+      // The presenter sees the results live, and the right answer, from the start.
+      const pv = dev.laptop.querySelector('.pv-poll');
+      pv.dataset.st = !P.open ? 'ready' : P.ranking ? 'ranking' : 'open';
+      pv.querySelector('.pp-title').textContent = P.ranking ? 'Ranking' : P.contest ? 'Contest' : 'Poll';
+      pv.querySelector('.pp-meta').textContent = !P.open || P.ranking ? '' : time || (P.shown ? 'Results shown' : answered);
+      bars(pv.querySelector('.pp-rows'), P);
+      ranking(pv.querySelector('.pp-rank'));
+      // The projector only says how many answered until the results are shown.
+      const pj = dev.projector.querySelector('.pj-poll');
+      pj.classList.toggle('on', !!P.open);
+      pj.dataset.st = P.ranking ? 'ranking' : P.shown ? 'results' : 'count';
+      pj.querySelector('.pjp-head').textContent = P.ranking ? 'Top 10' : P.shown ? 'Results' : answered;
+      pj.querySelector('.pjp-time').textContent = P.shown ? '' : time;
+      bars(pj.querySelector('.pjp-rows'), P);
+      ranking(pj.querySelector('.pjp-rank'));
+      // Each phone: its own answer, then whether it was right.
+      for (const el of root.querySelectorAll('.aud')) {
+        const id = el.dataset.dev;
+        const vp = el.querySelector('.vp');
+        const mine = P.votes?.[id];
+        vp.classList.toggle('on', !!P.open);
+        vp.classList.toggle('shown', !!P.shown);
+        vp.classList.toggle('timed', P.timer != null);
+        vp.style.setProperty('--t', (P.timer ?? 0) / 30);
+        vp.querySelectorAll('[data-o]').forEach((o, i) => {
+          o.textContent = def.options[i];
+          o.classList.toggle('mine', mine === i);
+          o.classList.toggle('right', !!P.shown && i === def.right);
+        });
+        const res = vp.querySelector('.vp-res');
+        const ok = mine === def.right;
+        res.className = `vp-res${P.shown && mine != null ? (ok ? ' ok' : ' no') : ''}`;
+        res.textContent = mine == null ? ''
+          : !P.shown ? 'Answer sent'
+            : P.contest ? `${ok ? `✓ +${POINTS[id]}` : '✗ 0'} pts · #${PLACE[id]}`
+              : ok ? '✓ Right!' : '✗ Not this time';
+      }
+    }
+
     function set(name, t) {
       enterScene(name);
       const chat = t.chat ?? 1;
@@ -257,6 +399,9 @@
         state.slider = slider;
         renderAll();
       }
+
+      setHand(!!t.hand);
+      setPoll(t.poll ?? null);
 
       root.classList.toggle('show-modes', !!t.mode);
       for (const m of root.querySelectorAll('[data-mode]')) m.classList.toggle('on', m.dataset.mode === t.mode);
@@ -301,12 +446,25 @@
       wires: ['laptop', 'projector', 'remote'], source: 'remote', viewers: 1,
     },
     audience: { layout: AUDIENCE, wires: ALL_AUD, viewers: 5 },
+    // Ana's phone up close, raising a hand towards the presenter view.
+    hands: {
+      layout: { laptop: [4, 8, 58], hub: [70, 6, 12], aud1: [74, 34, 15], aud3: [8, 64, 9], aud4: [21, 64, 9] },
+      wires: ['laptop', 'aud1', 'aud3', 'aud4'], viewers: 5,
+      labels: { aud4: 'Eva' },
+    },
     interactive: {
       layout: { hub: [44, 4, 12], aud1: [4, 34, 20], aud2: [28, 40, 44], aud3: [76, 34, 20] },
       wires: ['aud1', 'aud2', 'aud3'], viewers: 5,
     },
     pace: { layout: { laptop: [4, 12, 40], hub: [62, 18, 12], aud2: [20, 52, 60] }, wires: ['laptop', 'aud2'], viewers: 5 },
     blackout: { layout: AUDIENCE, wires: ALL_AUD, viewers: 5 },
+    // The presenter view runs the poll; the projector and three phones show it.
+    poll: {
+      layout: { laptop: [3, 3, 50], hub: [64, 12, 12], aud1: [4, 56, 13], aud3: [21, 56, 13], aud4: [38, 56, 13], projector: [58, 60, 39] },
+      wires: ['laptop', 'projector', 'aud1', 'aud3', 'aud4'], viewers: 5,
+      labels: { aud4: 'Eva' },
+    },
+    contest: { same: 'poll' },
     anywhere: {
       layout: { hub: [40, 6, 20], place1: [2, 50, 30], place2: [35, 50, 30], place3: [68, 50, 30] },
       wires: ['place1', 'place2', 'place3'], viewers: 5,
@@ -317,6 +475,8 @@
   // What each scene shows for a scroll progress p (0..1).
   const TARGETS = {
     deck: (p) => ({ chat: p }),
+    // The presenter view up close, then the projector joins it.
+    presenter: (p) => (p < 0.45 ? {} : { scene: 'projector' }),
     // Notes being typed, then passwords switched on, then a new look.
     admin: (p) => ({
       admin: p < 0.36 ? { tab: 'notes', typed: clamp(p / 0.3) }
@@ -325,21 +485,49 @@
     }),
     sync: (p) => ({ live: Math.min(3, Math.floor(p * 4.5)) }),
     remote: (p) => ({ live: p < 0.45 ? 3 : 4 }),
-    audience: () => ({ live: 4 }),
+    // Everyone follows; then Ana raises a hand, which reaches the presenter.
+    audience: (p) => (p < 0.4 ? { live: 4 } : { scene: 'hands', live: 4, hand: p > 0.55 }),
     interactive: (p) => ({ live: 4, slider: { aud1: p, aud2: clamp(p * 1.7 - 0.3), aud3: 0.1 + 0.3 * p } }),
     // Leo follows, steps back through the deck, sees "Back to live", returns.
     pace: (p) => ({
-      live: 6,
+      live: 4,
       mode: 'back',
-      behind: p < 0.2 || p >= 0.78 ? {} : { aud2: p < 0.55 ? 5 - Math.min(4, Math.floor(((p - 0.2) / 0.3) * 5)) : 1 },
+      behind: p < 0.2 || p >= 0.78 ? {} : { aud2: p < 0.55 ? 3 - Math.min(2, Math.floor(((p - 0.2) / 0.3) * 3)) : 1 },
       hint: p < 0.2 ? 'Leo follows you, slide by slide'
         : p < 0.55 ? 'Leo goes back to re-read a slide…'
           : p < 0.78 ? '…while you carry on presenting'
             : 'One tap on “Back to live” and Leo is with you again',
     }),
-    blackout: (p) => ({ live: 6, black: p > 0.2 && p < 0.8 }),
-    anywhere: () => ({ live: 7 }),
+    blackout: (p) => ({ live: 4, black: p > 0.2 && p < 0.8 }),
+    // Launched, answered phone by phone, then closed with the results shown.
+    poll: (p) => ({
+      live: 5,
+      poll: { q: 0, open: p >= 0.14, votes: votesAt(p, [[0.26, 'aud1', 3], [0.36, 'aud3', 2], [0.46, 'aud4', 3]]), shown: p >= 0.66 },
+      hint: p < 0.14 ? 'This slide has a poll: launch it from the presenter view'
+        : p < 0.66 ? 'Answers come in; only you see the results'
+          : 'Close and show results: each phone knows if it got it right',
+    }),
+    // A countdown, quick answers, points on the phones, then the ranking.
+    contest: (p) => ({
+      live: 7,
+      poll: {
+        q: 1, open: true, contest: true,
+        votes: votesAt(p, [[0.16, 'aud1', 2], [0.24, 'aud4', 2], [0.33, 'aud3', 1]]),
+        timer: p < 0.36 ? 30 - Math.round(clamp(p / 0.36) * 14) : null,
+        shown: p >= 0.48,
+        ranking: p >= 0.74,
+      },
+      hint: p < 0.36 ? 'A countdown on every screen: the faster, the more points'
+        : p < 0.74 ? 'Each phone shows its points and its place'
+          : 'And the ranking goes up on the screens',
+    }),
+    anywhere: () => ({ live: 9 }),
   };
+
+  // The answers given by progress p: [from p, device, answer].
+  function votesAt(p, list) {
+    return Object.fromEntries(list.filter(([at]) => p >= at).map(([, id, v]) => [id, v]));
+  }
 
   const stageEl = document.getElementById('stage');
   const story = stageEl && createStage(stageEl, SCENES);
@@ -370,7 +558,9 @@
       }
       for (const step of steps) step.classList.toggle('active', step === active);
       const name = active.dataset.scene;
-      story.set(name, (TARGETS[name] ?? (() => ({})))(p));
+      // A target can switch the step to another scene part of the way through.
+      const t = (TARGETS[name] ?? (() => ({})))(p);
+      story.set(t.scene ?? name, t);
     }
     const max = document.documentElement.scrollHeight - vh;
     bar.style.transform = `scaleX(${max > 0 ? scrollY / max : 0})`;
@@ -395,10 +585,16 @@
         ...run(0, 1, 2, 3, 4),
         { live: 4, slider: { aud1: 0.35, aud2: 0.7, aud3: 0.15 } },
         { live: 4, slider: { aud1: 0.9, aud2: 0.45, aud3: 0.6 } },
-        ...run(5, 6),
+        { live: 5 },
+        { live: 5, poll: { q: 0, open: true } },
+        { live: 5, poll: { q: 0, open: true, votes: { aud1: 3, aud2: 2 } } },
+        { live: 5, poll: { q: 0, open: true, votes: { aud1: 3, aud2: 2, aud3: 3 } } },
+        { live: 5, poll: { q: 0, open: true, votes: { aud1: 3, aud2: 2, aud3: 3 }, shown: true } },
+        { live: 5, poll: { q: 0, open: true, votes: { aud1: 3, aud2: 2, aud3: 3 }, shown: true } },
+        ...run(6),
         { live: 6, black: true },
         { live: 6, black: true },
-        ...run(7),
+        ...run(9),
       ],
     },
     talk: {
@@ -407,7 +603,7 @@
         wires: ['remote', 'projector', 'aud1', 'aud3', 'aud4'], source: 'remote', viewers: 4,
         labels: { remote: 'You, on stage', projector: 'The big screen', aud1: 'Row 12', aud3: 'Row 20', aud4: 'Row 31' },
       },
-      frames: run(0, 1, 2, 3, 4, 5, 6, 7),
+      frames: run(0, 1, 2, 3, 4, 5, 6, 9),
     },
     workshop: {
       scene: {
@@ -432,7 +628,7 @@
         wires: ['laptop', 'place3', 'projector', 'aud2', 'aud1'], viewers: 3,
         labels: { hub: 'slidecast, on a server', projector: 'In the room', aud2: 'At home', aud1: 'On the go' },
       },
-      frames: run(0, 1, 2, 3, 4, 5, 6, 7),
+      frames: run(0, 1, 2, 3, 4, 5, 6, 9),
     },
   };
 

@@ -47,8 +47,9 @@
 
   .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; width: 1200px; margin-top: 50px; }
   .choice { font-size: 50px; font-weight: 650; padding: 34px 44px; border-radius: 26px; background: rgba(255, 255, 255, .06); border: 3px solid rgba(255, 255, 255, .1); transition: all .4s; }
-  .reveal .choice { opacity: .3; }
-  .reveal .choice.right { opacity: 1; border-color: var(--amber); background: rgba(255, 179, 71, .16); transform: scale(1.03); }
+  .choices.one { grid-template-columns: 1fr; width: 760px; gap: 22px; margin-top: 40px; }
+  .choices.one .choice { font-size: 44px; padding: 26px 40px; }
+  #octave h2 { margin-top: 26px; }
 </style>
 </head>
 <body>
@@ -82,14 +83,25 @@
     <div class="keys" id="keys" aria-hidden="true"></div>
   </section>
 
-  <section class="slide" id="quiz" data-steps="2">
+  <section class="slide" id="quiz">
     <h2>Which one vibrates fastest?</h2>
     <p class="muted">All four play their lowest note.</p>
     <div class="choices">
       <div class="choice">A · Tuba</div>
       <div class="choice">B · Cello</div>
       <div class="choice">C · Your voice</div>
-      <div class="choice right">D · Piccolo</div>
+      <div class="choice">D · Piccolo</div>
+    </div>
+  </section>
+
+  <section class="slide" id="octave">
+    <canvas data-draw="string" aria-hidden="true"></canvas>
+    <span class="tag">Quick round · points count</span>
+    <h2>Halve a guitar string.<br>Its note…</h2>
+    <div class="choices one">
+      <div class="choice">A · Goes down an octave</div>
+      <div class="choice">B · Stays the same</div>
+      <div class="choice">C · Goes up an octave</div>
     </div>
   </section>
 
@@ -120,7 +132,6 @@
         el.classList.toggle('shown', s.id === at.slide && Number(el.dataset.step) <= at.step);
       });
     });
-    document.getElementById('quiz').classList.toggle('reveal', at.slide === 'quiz' && at.step >= 1);
     window.DECK_AT = at;
   }
 
@@ -226,6 +237,21 @@ updateLab();
         glow(g, 8, 750, 55, function (x) { return f(x) + o(x); }, from, from + (to - from) * Math.min(1, shown.mix - 2));
       }
       g.globalAlpha = 1;
+    },
+    // A string and its half, each vibrating: the half one twice as fast.
+    string: function (g, t) {
+      var x0 = 1000, full = 480, ys = [470, 650];
+      [[full, 1], [full / 2, 2]].forEach(function (s, i) {
+        var y = ys[i];
+        g.fillStyle = 'rgba(246,241,234,.5)';
+        g.fillRect(x0 - 6, y - 26, 6, 52); g.fillRect(x0 + s[0], y - 26, 6, 52);
+        g.strokeStyle = i ? grad(g, '#ff5e7e', '#ffb347') : '#ffb347';
+        glow(g, 5, y, 26 / s[1], function (x) {
+          return Math.sin((x - x0) / s[0] * Math.PI) * Math.sin(t * 7 * s[1]);
+        }, x0, x0 + s[0]);
+        g.fillStyle = 'rgba(246,241,234,.6)'; g.font = '600 28px Inter, system-ui, sans-serif';
+        g.fillText(i ? 'Half the length' : 'Full length', x0, y + 70);
+      });
     },
     // An oscilloscope: more cycles across the screen the higher the note.
     scope: function (g, t) {

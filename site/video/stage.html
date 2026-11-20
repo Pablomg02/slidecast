@@ -5,8 +5,9 @@
 <title>slidecast demo stage</title>
 <!-- The scenes record.js films, one after another: the problem, slidecast, a
      class with a laptop, a projector and a phone all live on the same server,
-     a quick tour of the rest (real admin, editor and remote pages) and the
-     call to action. record.js sets the pace; this page only draws. -->
+     the audience answering a poll and a contest on their phones, a quick tour
+     of the rest (real admin, editor and remote pages) and the call to action.
+     record.js sets the pace; this page only draws. -->
 <style>
   :root {
     --bg: #07080f; --ink: #eef0f7; --muted: #9aa0b4; --violet: #a78bfa; --indigo: #818cf8; --sky: #38bdf8;
@@ -26,6 +27,9 @@
 
   .scene { position: absolute; inset: 0; opacity: 0; visibility: hidden; transition: opacity .45s, visibility 0s .45s; }
   .scene.on { opacity: 1; visibility: visible; transition: opacity .45s; }
+  /* Scenes off screen sleep: the frames in them stop drawing, so the ones on
+     screen get the whole of the browser (the stage holds about twenty). */
+  .scene.asleep { content-visibility: hidden; }
 
   /* Kinetic type: each word rises into place. */
   .kin .w { display: inline-block; opacity: 0; transform: translateY(.45em); filter: blur(6px); animation: rise .5s var(--ease) forwards; }
@@ -88,7 +92,30 @@
   }
   #key.on, .keycap.on { opacity: 1; transform: none; }
 
-  /* ---- 4. Everything else ------------------------------------------------ */
+  /* ---- 4. The audience takes part ---------------------------------------- */
+  #world2 { position: absolute; left: 0; top: 0; width: 1600px; height: 900px; transform-origin: 0 0; transition: transform 1.2s var(--swing); }
+  #world2 > * { position: absolute; transition: opacity .6s; }
+  #world2[data-focus="laptop"] > :not(#laptop2), #world2[data-focus="phones"] > :not(.pphone),
+  #world2[data-focus="wall"] > :not(#wall2), #world2[data-focus^="phone-"] > :not(.focus) { opacity: .12; }
+  #laptop2 { left: 40px; top: 230px; }
+  #laptop2 .lid { padding: 14px; background: #1b1f2c; border-radius: 18px 18px 6px 6px; box-shadow: 0 0 0 1px rgba(255, 255, 255, .14), 0 30px 70px -30px #000; }
+  #laptop2 .screen { width: 666px; height: 416px; border-radius: 4px; }
+  #presenter2 { width: 1280px; height: 800px; transform: scale(.52); }
+  #laptop2 .base { height: 18px; margin: 0 -50px; background: linear-gradient(#d4d8e2, #8d93a5); border-radius: 0 0 22px 22px; }
+  #wall2 { left: 893px; top: 134px; }
+  #wall2 .screen { width: 563px; height: 317px; box-shadow: 0 0 0 6px #e8eaf2, 0 30px 70px -20px rgba(129, 140, 248, .35); }
+  #projector2 { width: 1280px; height: 720px; transform: scale(.44); }
+  .pphone { top: 500px; padding: 8px; background: #1b1f2c; border-radius: 26px; box-shadow: 0 0 0 1px rgba(255, 255, 255, .14), 0 26px 50px -24px #000; }
+  .pphone .screen { width: 158px; height: 326px; border-radius: 18px; }
+  .pphone iframe { width: 360px; height: 740px; transform: scale(.4389); }
+  #caption2 { position: absolute; left: 70px; top: 46px; width: 1460px; font-size: 50px; font-weight: 800; letter-spacing: -1.5px; line-height: 1.1; z-index: 2; text-shadow: 0 2px 30px var(--bg); }
+  /* A tap or a click on a real page, drawn over it. */
+  .tap { position: absolute; z-index: 4; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; pointer-events: none;
+    background: rgba(167, 139, 250, .45); border: 3px solid #fff; box-shadow: 0 0 0 5px rgba(129, 140, 248, .45), 0 6px 20px rgba(0, 0, 0, .5);
+    animation: tap .7s var(--ease) forwards; }
+  @keyframes tap { 0% { transform: scale(.5); opacity: 0; } 15% { transform: scale(1); opacity: 1; } 45% { transform: scale(.85); opacity: 1; } 100% { transform: scale(1.6); opacity: 0; } }
+
+  /* ---- 5. Everything else ------------------------------------------------ */
   #more { perspective: 1800px; }
   #dTitle { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; font-size: 120px; font-weight: 850; letter-spacing: -5px; line-height: 1; }
   #dTitle.gone { opacity: 0; transform: scale(1.15); transition: opacity .35s, transform .5s var(--ease); }
@@ -129,7 +156,7 @@
   .chips span { padding: 10px 20px; border-radius: 999px; font-size: 22px; font-weight: 600; color: var(--ink); background: rgba(129, 140, 248, .14); border: 1px solid rgba(129, 140, 248, .35); opacity: 0; transform: translateY(10px); transition: all .35s var(--ease); }
   .chips.on span { opacity: 1; transform: none; }
 
-  /* ---- 5. Call to action ------------------------------------------------- */
+  /* ---- 6. Call to action ------------------------------------------------- */
   #cta { display: grid; place-content: center; text-align: center; }
   #cta img { width: 150px; margin: 0 auto 8px; }
   #cta b { font-size: 130px; font-weight: 850; letter-spacing: -5px; line-height: 1.05; }
@@ -146,7 +173,7 @@
 <body>
   <div class="glow" id="glow1"></div><div class="glow" id="glow2"></div>
 
-  <section class="scene" id="problem">
+  <section class="scene asleep" id="problem">
     <div id="pHead" class="kin"></div>
     <div class="win" id="pWin"><div class="bar"><i></i><i></i><i></i><span>the-shape-of-sound.html</span></div><div class="view"><iframe id="raw" title="A deck opened in the browser"></iframe></div></div>
     <ul id="pList">
@@ -157,13 +184,13 @@
     </ul>
   </section>
 
-  <section class="scene" id="intro">
+  <section class="scene asleep" id="intro">
     <img src="/__stage/logo.svg" alt="">
     <b class="grad">slidecast</b>
     <p class="kin" id="tagline"></p>
   </section>
 
-  <section class="scene" id="class">
+  <section class="scene asleep" id="class">
     <div id="world">
       <div class="device" id="laptop">
         <div class="lid"><div class="screen"><iframe id="presenter" title="Presenter view"></iframe></div></div>
@@ -179,7 +206,23 @@
     <div id="key"></div>
   </section>
 
-  <section class="scene" id="more">
+  <section class="scene asleep" id="poll">
+    <div id="world2">
+      <div id="laptop2">
+        <div class="lid"><div class="screen"><iframe id="presenter2" title="Presenter view"></iframe></div></div>
+        <div class="base"></div>
+      </div>
+      <div class="label" style="left:40px;top:712px">Your laptop<small>presenter view</small></div>
+      <div id="wall2"><div class="screen"><iframe id="projector2" title="Projector"></iframe></div></div>
+      <div class="pphone" style="left:790px"><div class="screen"><iframe id="phoneA" data-name="Ana" title="Ana's phone"></iframe></div></div>
+      <div class="pphone" style="left:988px"><div class="screen"><iframe id="phoneB" data-name="Leo" title="Leo's phone"></iframe></div></div>
+      <div class="pphone" style="left:1186px"><div class="screen"><iframe id="phoneC" data-name="Maya" title="Maya's phone"></iframe></div></div>
+      <div class="pphone" style="left:1384px"><div class="screen"><iframe id="phoneD" data-name="Sam" title="Sam's phone"></iframe></div></div>
+    </div>
+    <div id="caption2" class="kin"></div>
+  </section>
+
+  <section class="scene asleep" id="more">
     <div id="dTitle"><div class="kin"></div></div>
     <div id="dLabel"></div>
     <div class="win tile" data-label="Manage every deck from one admin panel">
@@ -220,7 +263,7 @@
     <div id="gridCap" class="kin"></div>
   </section>
 
-  <section class="scene" id="cta">
+  <section class="scene asleep" id="cta">
     <img src="/__stage/logo.svg" alt="">
     <b class="grad">slidecast</b>
     <p>Free and open source</p>
@@ -243,7 +286,15 @@
     blankView: `/${deck}/view?control=off`,
     blankPhone1: `/${deck}/view?control=off`,
     blankPhone2: `/${deck}/view?control=off`,
+    presenter2: `/${deck}/present`,
+    projector2: `/${deck}/view?control=off`,
   };
+  // The audience's phones: each on a name of its own for this machine, so
+  // each is a participant with its own browser storage, not another screen
+  // of the presenter's (record.js lets the stage frame them).
+  for (const frame of document.querySelectorAll('.pphone iframe')) {
+    frame.src = `http://${frame.dataset.name.toLowerCase()}.localhost:${location.port}/${deck}/view`;
+  }
   for (const [id, src] of Object.entries(frames)) {
     const frame = document.getElementById(id);
     // The film shows plain viewers: no "take control" badge in the corner.
@@ -260,7 +311,12 @@
   fetch(`/api/decks/${deck}`).then((r) => r.json()).then((d) => { $('#raw').src = d.deckUrl; });
 
   function scene(id) {
-    document.querySelectorAll('.scene').forEach((s) => s.classList.toggle('on', s.id === id));
+    document.querySelectorAll('.scene').forEach((s) => {
+      const leaving = s.classList.contains('on') && s.id !== id;
+      s.classList.toggle('on', s.id === id);
+      if (s.id === id) s.classList.remove('asleep');
+      if (leaving) setTimeout(() => { if (!s.classList.contains('on')) s.classList.add('asleep'); }, 600);
+    });
   }
   // Words between *asterisks* get the gradient.
   function kinetic(el, text) {
@@ -272,9 +328,14 @@
       return `<span class="${cls}" style="animation-delay:${i * 55}ms">${w}</span>`;
     }).join(' ');
   }
-  function camera(s = 1, x = 0, y = 0, focus = '') {
-    $('#world').style.transform = `translate(${x}px, ${y}px) scale(${s})`;
-    $('#world').dataset.focus = focus;
+  function camera(s = 1, x = 0, y = 0, focus = '', world = '#world') {
+    $(world).style.transform = `translate(${x}px, ${y}px) scale(${s})`;
+    $(world).dataset.focus = focus;
+  }
+  // Frames a box of the poll scene (stage pixels) at `scale`, its top at `top`.
+  function frameBox(box, scale, top, focus) {
+    const x = (1600 - box.w * scale) / 2 - box.x * scale;
+    camera(scale, x, top - box.y * scale, focus, '#world2');
   }
   let keyTimer;
   function showKey(el, label) {
@@ -286,6 +347,8 @@
   const tiles = [...document.querySelectorAll('.tile')];
 
   window.cue = {
+    // Wakes a scene a moment before it comes on, so its frames are drawn.
+    wake(id) { document.getElementById(id).classList.remove('asleep'); },
     // 1. The problem
     problem() {
       scene('problem');
@@ -316,7 +379,35 @@
     zoomLaptop() { camera(1.24, 60 - 60 * 1.24, 160 - 170 * 1.24, 'laptop'); },
     zoomPhone() { camera(2.1, 420 - 1130 * 2.1, 250 - 580 * 2.1, 'phone'); },
     key(label) { showKey($('#key'), label); },
-    // 4. Everything else
+    // 4. The audience takes part
+    poll() {
+      camera(1.06, -50, -20, '', '#world2');
+      scene('poll');
+      requestAnimationFrame(() => camera(1, 0, 0, '', '#world2'));
+    },
+    say2(text) { kinetic($('#caption2'), text); },
+    wide() { camera(1, 0, 0, '', '#world2'); },
+    zoomPhones() { frameBox({ x: 780, y: 492, w: 788, h: 358 }, 1.95, 150, 'phones'); },
+    zoomLaptop2() { frameBox({ x: 40, y: 230, w: 694, h: 462 }, 1.6, 135, 'laptop'); },
+    zoomWall() { frameBox({ x: 887, y: 128, w: 575, h: 329 }, 2.3, 132, 'wall'); },
+    zoomOnePhone(id) {
+      const phone = document.getElementById(id).closest('.pphone');
+      document.querySelectorAll('.pphone').forEach((p) => p.classList.toggle('focus', p === phone));
+      frameBox({ x: phone.offsetLeft, y: 492, w: 174, h: 342 }, 2.25, 112, `phone-${id}`);
+    },
+    // x, y: a point inside the frame's page, in its own CSS pixels.
+    tap([id, x, y]) {
+      const frame = document.getElementById(id);
+      const box = frame.getBoundingClientRect();
+      const s = box.width / frame.offsetWidth;
+      const dot = document.createElement('div');
+      dot.className = 'tap';
+      dot.style.left = `${box.left + x * s}px`;
+      dot.style.top = `${box.top + y * s}px`;
+      document.body.append(dot);
+      setTimeout(() => dot.remove(), 800);
+    },
+    // 5. Everything else
     more() {
       scene('more');
       kinetic($('#dTitle .kin'), 'And that’s just *the start.*');
@@ -335,7 +426,7 @@
     terminal() {
       const lines = [
         '<span class="p">$</span> ./start.sh --network',
-        'slidecast 0.1.0',
+        'slidecast __VERSION__',
         'Decks: /home/you/slidecast/decks',
         'Open:  <span class="ok">http://192.168.1.20:4321/</span>',
         'Admin: http://127.0.0.1:4321/admin',
@@ -358,7 +449,7 @@
       });
       setTimeout(() => kinetic($('#gridCap'), 'If a browser can show it, *slidecast can present it.*'), 500);
     },
-    // 5. Call to action
+    // 6. Call to action
     cta() {
       scene('cta');
       setTimeout(() => $('#gh').classList.add('on'), 600);
