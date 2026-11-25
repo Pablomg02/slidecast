@@ -524,6 +524,42 @@ body.room-waiting .remote { visibility: hidden; }
 .ranking-top { font-weight: 700; border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 .ranking-top .ranking-pos { color: var(--accent); }
 .ranking-pos-1 { background: color-mix(in srgb, var(--accent) 14%, var(--surface)); }
+
+/* The join screen on the projector (0011): over the slide, the poll and the
+   ranking. Side by side on a wide screen, stacked on a tall one. */
+.share-overlay {
+  position: absolute; inset: 0; z-index: 9; display: grid; place-items: center; padding: 4vh 5vw;
+  background: var(--bg); color: var(--ink);
+}
+.share-card { display: flex; align-items: center; justify-content: center; gap: 5vw; width: 100%; max-height: 100%; }
+.share-qr-box { flex: none; line-height: 0; }
+.share-qr { width: min(72vh, 44vw); height: auto; border-radius: 2vh; box-shadow: 0 0 0 1px var(--line-strong); }
+.share-text { min-width: 0; max-width: 46vw; display: flex; flex-direction: column; gap: 1.2vh; }
+.share-text p { margin: 0; }
+.share-deck { color: var(--muted); font-weight: 600; font-size: clamp(1rem, 2.6vh, 2rem); }
+.share-title { margin: 0 0 1vh; font-size: clamp(1.6rem, 6vh, 5rem); line-height: 1.05; letter-spacing: -.02em; }
+.share-scan { color: var(--muted); font-size: clamp(1rem, 3vh, 2.4rem); }
+.share-url {
+  font-weight: 700; color: var(--accent); font-size: clamp(1.3rem, 5.4vh, 4.4rem); line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.share-password { display: flex; flex-wrap: wrap; align-items: baseline; gap: .2em .5em; margin-top: 2vh !important; font-size: clamp(1.2rem, 4.4vh, 3.6rem); }
+.share-password-label { color: var(--muted); font-weight: 600; font-size: .6em; }
+.share-password-value {
+  font-family: var(--mono); font-weight: 700; letter-spacing: .04em; padding: .1em .45em; border-radius: .3em;
+  background: var(--surface); border: 1px solid var(--line-strong); overflow-wrap: anywhere;
+}
+.share-ask, .share-none { color: var(--muted); font-size: clamp(1rem, 2.8vh, 2.2rem); }
+.share-none { max-width: 40em; }
+@media (max-aspect-ratio: 1/1) {
+  .share-card { flex-direction: column; gap: 3vh; text-align: center; }
+  .share-qr { width: min(78vw, 42vh); }
+  .share-title { font-size: clamp(1.4rem, 4.4vh, 4rem); }
+  .share-url { font-size: clamp(1.2rem, 3.8vh, 3.4rem); }
+  .share-password { font-size: clamp(1.1rem, 3.4vh, 3rem); }
+  .share-text { max-width: 100%; align-items: center; }
+  .share-password { justify-content: center; }
+}
 .poll-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 1.15rem 1.15rem 1.5rem; }
 .poll-question {
   margin: 0 0 1.1rem; font-size: 1.25rem; line-height: 1.3; font-weight: 650; letter-spacing: -.01em; overflow-wrap: anywhere;
@@ -762,6 +798,23 @@ body.room-waiting .remote { visibility: hidden; }
   background: var(--accent); vertical-align: .05em; animation: pulse 1.6s var(--ease) infinite;
 }
 @media (min-width: 900px) { .p-tab-poll-on .p-poll-strip { display: none; } }
+/* presenter: the join screen is on the screens (0011). */
+.p-share-strip {
+  flex: none; display: flex; align-items: center; gap: 8px; min-height: 2.9rem; padding: 6px 10px 6px 14px;
+  border-bottom: 1px solid var(--line); background: var(--accent-soft); font-size: .9rem;
+}
+.p-share-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.p-share-text strong { display: flex; align-items: center; gap: 6px; color: var(--accent); font-weight: 600; }
+.p-share-note { font-size: .82rem; line-height: 1.3; }
+.p-share-strip .p-poll-off {
+  flex: none; background: color-mix(in srgb, var(--info) 13%, var(--surface)); color: var(--info);
+  border-color: color-mix(in srgb, var(--info) 35%, transparent);
+}
+/* Its button: a small one beside the tabs on a computer, with its label behind "More" on a phone. */
+.p-share { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.p-notes-head .p-share { flex: none; width: 2.1rem; height: 2.1rem; padding: 0; }
+.p-notes-head .p-share-label { display: none; }
+.p-share.p-share-on { background: var(--accent); border-color: transparent; color: var(--accent-ink); }
 .p-tab-live .p-tab-count { background: var(--accent); color: var(--accent-ink); }
 .p-poll { display: flex; flex-direction: column; gap: 14px; padding-top: 14px; }
 .p-poll-card { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px 14px; background: var(--surface); }

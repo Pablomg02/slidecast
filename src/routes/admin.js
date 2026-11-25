@@ -5,11 +5,12 @@ import { zipStream } from '../zipwrite.js';
 import { parseSteps } from '../notes.js';
 import { issueDeckToken } from '../tokens.js';
 import { saveConfig } from '../config.js';
-import { checkPasswordInput } from '../auth.js';
+import { checkPasswordInput, verifyPassword, shownPassword, setShownPassword } from '../auth.js';
 import { sendPage } from './pages.js';
 import { parseAppearance } from '../appearance.js';
 import { parseRoomPatch } from '../rooms.js';
 import { contestOf } from '../contest.js';
+import { parseAudienceUrl } from '../share.js';
 
 const UPLOAD_LIMIT = 100 * 1024 * 1024;
 // The zip writer has no zip64 (D14 of 0004).
@@ -72,6 +73,8 @@ export function registerAdmin(app, ctx) {
           room: { ...rooms.settings(d.slug), ...live.counts(d.slug) },
           hasPresenterPassword: Boolean(a.presenterHash),
           hasViewerPassword: Boolean(a.viewerHash),
+          // The join screen can show it (0011); the password itself never leaves the server this way.
+          viewerPasswordShown: Boolean(shownPassword(config, d.slug)),
           ...(await readSettings(d.slug)),
         });
       }
@@ -182,7 +185,9 @@ export function registerAdmin(app, ctx) {
         return sendError(reply, err);
       }
       live.resetDeck(slug, { removed: true });
+      const forgot = setShownPassword(config, slug, null); // only while its room shows it (D6 of 0011)
       await rooms.remove(slug);
+      if (forgot) await saveConfig(ctx.stateDir, config);
       return reply.code(204).send();
     });
 
@@ -220,7 +225,29 @@ export function registerAdmin(app, ctx) {
       if (error) return reply.code(400).send({ error });
       if (decks.single && patch.open === false) return reply.code(409).send({ error: 'single-deck' });
       const before = rooms.settings(slug);
+      // Not shown any more: the clear copy goes (D6 of 0011).
+      if (patch.showPassword === false) setShownPassword(config, slug, null);
       const room = await rooms.update(slug, patch);
+      live.roomUpdated(slug, before);
+      return room;
+    });
+
+    // The current viewer password, typed once so the join screen can show
+    // it: checked against its hash, then kept in clear while the room shows
+    // it, which this turns on (D6 of 0011).
+    scope.put('/api/admin/rooms/:slug/shown-password', async (req, reply) => {
+      const { slug } = req.params;
+      if (!(await decks.exists(slug))) return reply.code(404).send({ error: 'not-found' });
+      const { password } = req.body ?? {};
+      if (typeof password !== 'string' || password.length > 1024) return reply.code(400).send({ error: 'bad-request' });
+      const hash = config.decks[slug]?.viewerHash;
+      if (!hash) return reply.code(409).send({ error: 'no-viewer-password' });
+      if (!(await verifyPassword(password, hash))) return reply.code(400).send({ error: 'wrong-password' });
+      // The password may have changed while it was being checked.
+      if (config.decks[slug]?.viewerHash !== hash) return reply.code(409).send({ error: 'password-changed' });
+      const before = rooms.settings(slug);
+      setShownPassword(config, slug, password);
+      const room = await rooms.update(slug, { showPassword: true });
       live.roomUpdated(slug, before);
       return room;
     });
@@ -239,6 +266,7 @@ export function registerAdmin(app, ctx) {
 
     scope.get('/api/admin/settings', async () => ({
       publicListing: config.publicListing,
+      audienceUrl: config.audienceUrl ?? null,
       appearance: config.appearance,
       hasAdminPassword: Boolean(config.adminHash),
       hasPresenterPassword: Boolean(config.presenterHash),
@@ -246,16 +274,20 @@ export function registerAdmin(app, ctx) {
     }));
 
     scope.put('/api/admin/settings', async (req, reply) => {
-      const { publicListing, appearance } = req.body ?? {};
+      const { publicListing, appearance, audienceUrl } = req.body ?? {};
       if (publicListing !== undefined && typeof publicListing !== 'boolean') {
         return reply.code(400).send({ error: 'bad-request' });
       }
       const look = appearance === undefined ? {} : parseAppearance(appearance);
       if (!look) return reply.code(400).send({ error: 'bad-request' });
+      const audience = audienceUrl === undefined ? null : parseAudienceUrl(audienceUrl);
+      if (audience?.error) return reply.code(400).send({ error: audience.error });
       if (publicListing !== undefined) config.publicListing = publicListing;
       config.appearance = { ...config.appearance, ...look };
+      if (audience) config.audienceUrl = audience.value;
       await saveConfig(ctx.stateDir, config);
-      return { publicListing: config.publicListing, appearance: config.appearance };
+      if (audience) live.shareChanged();
+      return { publicListing: config.publicListing, audienceUrl: config.audienceUrl ?? null, appearance: config.appearance };
     });
 
     scope.put('/api/admin/passwords', async (req, reply) => {
@@ -272,6 +304,7 @@ export function registerAdmin(app, ctx) {
         if (problem) return reply.code(400).send({ error: problem });
       }
       await auth.setPassword(kind, perDeck ? deck : null, password);
+      if (kind === 'deckViewer') live.shareChanged(deck); // the join screen's password (0011)
       // The change revoked every admin session, including this one: keep the
       // person who made it signed in, on a fresh session id.
       if (kind === 'admin') await auth.grant(req, reply, { admin: true });

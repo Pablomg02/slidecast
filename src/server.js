@@ -5,12 +5,12 @@ import fastifyWebsocket from '@fastify/websocket';
 import { readFileSync, watchFile, unwatchFile } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve, join } from 'node:path';
-import { loadConfig, isOwnConfigWrite } from './config.js';
+import { loadConfig, saveConfig, isOwnConfigWrite } from './config.js';
 import { readJson } from './store.js';
 import { createDeckStore } from './decks.js';
 import { registerDeckFiles } from './deckfiles.js';
 import { registerSecurity } from './security.js';
-import { createAuth, registerAuthRoutes } from './auth.js';
+import { createAuth, registerAuthRoutes, shownPassword } from './auth.js';
 import { createLive, registerLive, MAX_MESSAGE } from './live.js';
 import { createRooms } from './rooms.js';
 import { PUBLIC_DIR } from './paths.js';
@@ -51,6 +51,12 @@ export async function buildServer(opts = {}) {
       log: (msg) => app.log.warn(msg),
     }),
   };
+  // Where the server listens (null before listen): the join screen's last
+  // resort for an address (D3 of 0011).
+  ctx.listenAddress = () => {
+    const a = app.server.address();
+    return a && typeof a === 'object' ? a : null;
+  };
   ctx.auth = await createAuth(ctx);
   ctx.rooms = createRooms(ctx);
   ctx.live = await createLive(ctx, { heartbeatMs: o.heartbeatMs, graceMs: o.graceMs, now: o.now });
@@ -78,7 +84,14 @@ export async function buildServer(opts = {}) {
   // change in memory: those are skipped (see isOwnConfigWrite).
   const configPath = join(stateDir, 'config.json');
   ctx.configFileChanged = async (fresh) => {
-    if (fresh && !isOwnConfigWrite(configPath, fresh)) await ctx.auth.onConfigFileChanged(fresh);
+    if (!fresh || isOwnConfigWrite(configPath, fresh)) return;
+    await ctx.auth.onConfigFileChanged(fresh);
+    ctx.live.shareChanged(); // a viewer password the join screen shows (0011)
+    // A clear copy this server does not keep (its room stopped showing the
+    // password while the CLI wrote) must not stay on disk (D6 of 0011).
+    const stale = Object.entries(fresh.decks ?? {})
+      .some(([slug, d]) => typeof d?.viewerClear === 'string' && d.viewerClear !== shownPassword(config, slug));
+    if (stale) await saveConfig(stateDir, config);
   };
   watchFile(configPath, { interval: 2000, persistent: false }, async (cur, prev) => {
     if (cur.mtimeMs === prev.mtimeMs) return;

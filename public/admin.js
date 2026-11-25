@@ -23,7 +23,12 @@ function status(node, text, kind = '') {
   node.className = `status ${kind}`;
 }
 
-const FRIENDLY = { 'password-too-short': 'passwordTooShort', 'password-too-weak': 'passwordTooWeak' };
+const FRIENDLY = {
+  'password-too-short': 'passwordTooShort',
+  'password-too-weak': 'passwordTooWeak',
+  'bad-audience-url': 'audienceUrlBad',
+  'wrong-password': 'wrongPassword',
+};
 
 function errorText(res) {
   const code = res.data?.error ?? res.status;
@@ -42,7 +47,7 @@ function passwordControl({ label, scope, deck, isSet, canClear = true, hint, onD
     if (res.status === 204) {
       input.value = '';
       status(msg, t('saved'), 'ok');
-      onDone?.();
+      onDone?.(password);
     } else {
       status(msg, errorText(res), 'error');
     }
@@ -167,9 +172,30 @@ function render({ decks, single }) {
   const listingBlock = single ? null : el('div.listing', {},
     el('label.inline', { htmlFor: 'public-listing' }, listing, ` ${t('publicListing', { site })}`), listingMsg,
     el('p.hint.muted', {}, t('publicListingHint', { site })));
+  // The join screen's address (0011): empty lets each screen work it out.
+  const audience = el('input', {
+    type: 'url', id: 'audience-url', value: settings.audienceUrl ?? '', maxLength: 100,
+    placeholder: 'https://slides.example.org', autocomplete: 'off', spellcheck: false,
+  });
+  const audienceMsg = el('span.status');
+  const saveAudience = async () => {
+    const res = await api('/api/admin/settings', { method: 'PUT', body: { audienceUrl: audience.value.trim() || null } });
+    if (res.ok) {
+      settings.audienceUrl = res.data.audienceUrl;
+      audience.value = res.data.audienceUrl ?? '';
+    }
+    status(audienceMsg, res.ok ? t('saved') : errorText(res), res.ok ? 'ok' : 'error');
+  };
+  audience.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveAudience(); });
+  const audienceBlock = el('div.password-control.audience-url', {},
+    el('label', { htmlFor: 'audience-url' }, t('audienceUrl')),
+    el('div.row', {}, audience, el('button', { type: 'button', id: 'audience-save', onclick: saveAudience }, t('save'))),
+    el('p.hint.muted', {}, t('audienceUrlHint')),
+    audienceMsg);
   app.append(el('h2', {}, t('generalSettings')),
     el('section.card.settings', {},
       listingBlock,
+      audienceBlock,
       passwordControl({
         label: t('globalPresenterPassword'),
         scope: 'presenter',
@@ -580,6 +606,53 @@ function openSettings(d) {
   };
   frozen.addEventListener('input', describeScreens);
   describeScreens();
+  // The join screen may show the viewer password (0011). Saved at once, as
+  // the passwords are; the server needs it typed once to have it in clear.
+  const shown = { has: d.hasViewerPassword, known: d.viewerPasswordShown };
+  const showPassword = el('input', { type: 'checkbox', id: 'room-show-password', checked: d.room.showPassword });
+  const showMsg = el('span.status');
+  const showState = el('p.hint', { id: 'show-password-state' });
+  const confirmInput = el('input', { type: 'password', id: 'show-password-input', autocomplete: 'off', placeholder: t('password') });
+  const confirmMsg = el('span.status');
+  const confirmRow = el('div.password-control', { id: 'show-password-confirm', hidden: true },
+    el('label', { htmlFor: 'show-password-input' }, t('showPasswordConfirm')),
+    el('div.row', {}, confirmInput, el('button', {
+      type: 'button', id: 'show-password-go',
+      onclick: async () => {
+        const res = await api(`/api/admin/rooms/${encodeURIComponent(d.slug)}/shown-password`, {
+          method: 'PUT', body: { password: confirmInput.value },
+        });
+        if (res.ok) {
+          confirmInput.value = '';
+          shown.known = true;
+          status(confirmMsg, t('saved'), 'ok');
+        } else {
+          status(confirmMsg, errorText(res), 'error');
+        }
+        describeShown();
+      },
+    }, t('showPasswordConfirmBtn'))),
+    confirmMsg);
+  function describeShown() {
+    const on = showPassword.checked;
+    showState.textContent = !shown.has ? t('showPasswordNone') : shown.known ? t('showPasswordKnown') : '';
+    showState.hidden = !on || !showState.textContent;
+    confirmRow.hidden = !on || !shown.has || shown.known;
+  }
+  showPassword.addEventListener('change', async () => {
+    const on = showPassword.checked;
+    const res = await api(`/api/admin/rooms/${encodeURIComponent(d.slug)}`, { method: 'PATCH', body: { showPassword: on } });
+    if (!res.ok) showPassword.checked = !on;
+    else if (!on) shown.known = false; // the server forgot its copy
+    status(showMsg, res.ok ? t('saved') : errorText(res), res.ok ? 'ok' : 'error');
+    describeShown();
+  });
+  const showPasswordBlock = el('div.show-password', {},
+    el('label.inline', { htmlFor: 'room-show-password' }, showPassword, ` ${t('showPasswordSetting')}`), showMsg,
+    el('p.hint.muted', {}, t('showPasswordHint')),
+    showState,
+    confirmRow);
+  describeShown();
   const msg = el('span.status');
   const save = el('button.primary', {
     type: 'button',
@@ -642,7 +715,19 @@ function openSettings(d) {
     el('h3.settings-sub.settings-break', {}, t('passwordsHeading')),
     el('p.hint.muted', {}, t('passwordsHint')),
     passwordControl({ label: t('deckPresenterPassword'), scope: 'deckPresenter', deck: d.slug, isSet: d.hasPresenterPassword }),
-    passwordControl({ label: t('deckViewerPassword'), scope: 'deckViewer', deck: d.slug, isSet: d.hasViewerPassword }),
+    passwordControl({
+      label: t('deckViewerPassword'),
+      scope: 'deckViewer',
+      deck: d.slug,
+      isSet: d.hasViewerPassword,
+      onDone: (password) => {
+        // A room that shows it keeps the new one; a removed one has nothing to show.
+        shown.has = password !== null;
+        shown.known = password !== null && showPassword.checked;
+        describeShown();
+      },
+    }),
+    showPasswordBlock,
     el('div.row.end.settings-foot', {}, el('button', { type: 'button', onclick: () => dialog.close() }, t('close'))));
   dialog.addEventListener('close', () => {
     dialog.remove();

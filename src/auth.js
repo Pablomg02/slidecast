@@ -126,10 +126,33 @@ export function applyPasswordHash(config, kind, slug, hash) {
   else {
     const d = { presenterHash: null, viewerHash: null, ...config.decks[slug] };
     if (kind === 'deckPresenter') d.presenterHash = hash;
-    else d.viewerHash = hash;
+    else {
+      d.viewerHash = hash;
+      delete d.viewerClear; // it belonged to the old password (D6 of 0011)
+    }
     if (d.presenterHash || d.viewerHash) config.decks[slug] = d;
     else delete config.decks[slug];
   }
+}
+
+// The viewer password in clear, for the join screen (D6 of 0011): kept only
+// while the room shows it, beside the hash it belongs to; null otherwise.
+export function shownPassword(config, slug) {
+  const d = config.decks[slug];
+  return d?.viewerHash && typeof d.viewerClear === 'string' ? d.viewerClear : null;
+}
+
+// Keeps (a string) or forgets (null) that copy; returns whether it changed.
+export function setShownPassword(config, slug, password) {
+  const d = config.decks[slug];
+  if (password === null) {
+    if (!d || d.viewerClear === undefined) return false;
+    delete d.viewerClear;
+    return true;
+  }
+  if (!d?.viewerHash || d.viewerClear === password) return false;
+  d.viewerClear = password;
+  return true;
 }
 
 export function hashFields(config) {
@@ -284,6 +307,10 @@ export async function createAuth(ctx) {
   // held the scope it protects.
   async function setPassword(kind, slug, password) {
     applyPasswordHash(config, kind, slug, password === null ? null : await hashPassword(password));
+    // A room that shows its viewer password keeps the new one (D6 of 0011).
+    if (kind === 'deckViewer' && password !== null && ctx.rooms?.settings(slug).showPassword) {
+      setShownPassword(config, slug, password);
+    }
     lastHashes = hashFields(config);
     await saveConfig(ctx.stateDir, config);
     await revoke(kind, slug);
@@ -302,6 +329,12 @@ export async function createAuth(ctx) {
     for (const key of changed) {
       const [kind, slug = null] = key.split(':');
       applyPasswordHash(config, kind, slug, now[key] ?? null);
+      // The CLI keeps the clear copy of a viewer password it set for a room
+      // that shows it; it was written with that hash (D6 of 0011).
+      const clear = fresh.decks?.[slug]?.viewerClear;
+      if (kind === 'deckViewer' && now[key] && typeof clear === 'string' && ctx.rooms?.settings(slug).showPassword) {
+        setShownPassword(config, slug, clear);
+      }
     }
     for (const key of changed) {
       const [kind, slug = null] = key.split(':');

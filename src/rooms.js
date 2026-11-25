@@ -2,7 +2,10 @@ import { saveConfig } from './config.js';
 
 // Room settings per deck (D1 of 0003), kept in config.json under rooms[slug].
 // An open room that is not `listed` is hidden: reached only through its link.
-export const ROOM_DEFAULTS = { open: false, listed: true, maxPresenters: 20, maxViewers: 200, askNames: true, hands: true };
+// `showPassword`: the join screen shows the viewer password (D5 of 0011).
+export const ROOM_DEFAULTS = {
+  open: false, listed: true, maxPresenters: 20, maxViewers: 200, askNames: true, hands: true, showPassword: false,
+};
 export const ROOM_RANGES = { maxPresenters: [1, 20], maxViewers: [1, 1000] };
 
 export const MAX_NAME = 40;
@@ -14,7 +17,7 @@ export function parseRoomPatch(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return { error: 'bad-request' };
   const patch = {};
   for (const [k, v] of Object.entries(body)) {
-    if (k === 'open' || k === 'listed' || k === 'askNames' || k === 'hands') {
+    if (k === 'open' || k === 'listed' || k === 'askNames' || k === 'hands' || k === 'showPassword') {
       if (typeof v !== 'boolean') return { error: 'bad-request' };
     } else if (k in ROOM_RANGES) {
       const [min, max] = ROOM_RANGES[k];

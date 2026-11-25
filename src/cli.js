@@ -6,7 +6,7 @@ import { dirname, join, resolve, sep } from 'node:path';
 import { spawn } from 'node:child_process';
 import { loadConfig, saveConfig } from './config.js';
 import { readJson, writeJsonAtomic } from './store.js';
-import { applyPasswordHash, checkPasswordInput, hashPassword, revokeScope } from './auth.js';
+import { applyPasswordHash, checkPasswordInput, hashPassword, revokeScope, setShownPassword } from './auth.js';
 import { isValidSlug, slugFromFolder } from './decks.js';
 import { ROOT_DIR, EXAMPLES_DIR } from './paths.js';
 
@@ -227,8 +227,8 @@ async function passwd(argv) {
   if (values.deck && !isValidSlug(values.deck)) return fail(`invalid deck name: ${values.deck}`);
 
   let hash = null;
+  let password = null;
   if (!values.clear) {
-    let password;
     if (process.stdin.isTTY) {
       password = await readHidden('New password: ');
       const again = await readHidden('Repeat it: ');
@@ -248,6 +248,11 @@ async function passwd(argv) {
 
   const config = await loadConfig(values.state);
   applyPasswordHash(config, kind, values.deck ?? null, hash);
+  // A room that shows its viewer password on the join screen keeps it in
+  // clear (D6 of 0011); a running server takes it from the file.
+  if (kind === 'deckViewer' && password !== null && config.rooms[values.deck]?.showPassword === true) {
+    setShownPassword(config, values.deck, password);
+  }
   await saveConfig(values.state, config);
   // Revoke sessions here too, in case the server is not running (a running
   // server notices the config change and revokes them itself).

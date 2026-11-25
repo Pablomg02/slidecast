@@ -10,7 +10,7 @@ presents and administers. This page lists what it protects, from whom, and how.
 | --- | --- | --- |
 | Anyone with the URL | watch open rooms of decks that have no viewer password, give a name, raise a hand, answer the poll on the screens | present, administer, read speaker notes or polls not yet shown, see other viewers' names, notes or answers, answer twice as the same participant, watch a closed room |
 | Viewer with a deck's viewer password | the same, for that deck | anything else |
-| Presenter | drive the decks their password covers, read their notes, see the room's names and hands, show polls and their results, show a pointer on everyone's screen, remove viewers | administer, open, hide or close rooms, remove other presenters, see who answered what |
+| Presenter | drive the decks their password covers, read their notes, see the room's names and hands, show polls and their results, show a pointer on everyone's screen, put the join screen on the screens (with the viewer password, if the admin lets it show it), remove viewers | administer, open, hide or close rooms, remove other presenters, see who answered what |
 | Admin | everything | — |
 | A deck's own code (written by an AI, downloaded…) | run inside its slide | read sessions, call the API, act as the person viewing it |
 | Another website the admin visits | — | make the admin's browser change anything in slidecast |
@@ -24,8 +24,10 @@ file (it holds the secret that signs deck links).
 passwords are hashed with scrypt (N=16384, r=8, p=1, 16-byte random salt,
 64-byte key) and compared in constant time. They are set with
 `slidecast passwd` or from the admin panel, must have 8 characters or more with
-at least one letter and one digit, and are never stored or logged in clear.
-(Passwords set before this rule keep working.)
+at least one letter and one digit, and are never logged. They are never
+stored in clear either, with one exception the admin chooses: a viewer
+password the join screen shows (see *Join screen*). (Passwords set before
+this rule keep working.)
 
 **No password, no remote access.** When no password covers a role (admin, or
 presenter for a deck), that role is granted only to "local direct" requests:
@@ -153,6 +155,33 @@ server relays at most 30 a second per device and drops the rest, and skips
 moves for sockets with more than 16 KiB queued. A deck's own code cannot send
 it: the message goes over the page's WebSocket, which the sandboxed iframe
 has no access to.
+
+**Join screen** (0011). Only presenter windows may turn it on or off
+(`{t:'share', on}`, rights re-checked on every message). Its content goes
+only to windows with presenter rights in that room (the presenter view and
+projector pages), and each send re-checks those rights: a window that lost
+them is closed with 4401 instead. Participants never receive it. The
+address shown is the admin's **Address for the audience** (only an http or
+https origin, no path, no user or password), else the `Origin` of that
+screen's own WebSocket (already checked against `Host`), else, for a screen
+at a loopback name, this computer's private IPv4 address when the server
+listens on all interfaces (bridges, VPNs and link-local addresses left
+out). A crafted `Origin` can therefore change only what its own window
+shows.
+
+The viewer password is shown only if the admin ticks **Show the viewer
+password on the join screen** for that deck. As only its hash exists, turning
+it on asks for the current password, checked against the hash (admin only),
+or takes a new one set while it is on. That copy is kept in clear in
+`config.json`, next to the hash it belongs to: any change of that hash
+(admin panel, `slidecast passwd`, also while the server runs) deletes it,
+unless the new password was set for a room that still shows it; unticking
+the box or deleting the deck deletes it, and the server rewrites a copy the
+CLI wrote for a room that stopped showing it meanwhile. It is never sent to
+the admin panel, never logged, and reaches screens only while the join
+screen is on. Anyone who may present the deck can see it then, which is the
+point: it is meant for the people in the room. Keep it off for decks whose
+viewer password must stay with the admin.
 
 **Polls.** A poll's text is read from the deck's `deck.json` by the server
 when a presenter shows it, never taken from a message, and shown as text

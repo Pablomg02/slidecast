@@ -93,7 +93,7 @@ test('rooms start closed; the admin opens them', async (t) => {
   assert.equal((await app.inject({ method: 'PATCH', url: '/api/admin/rooms/talk', headers: LOCAL, payload: { maxViewers: 5000 } })).statusCode, 400);
   assert.equal((await app.inject({ method: 'PATCH', url: '/api/admin/rooms/nope', headers: LOCAL, payload: { open: true } })).statusCode, 404);
   const res = await app.inject({ method: 'PATCH', url: '/api/admin/rooms/talk', headers: LOCAL, payload: { open: true, maxViewers: 30 } });
-  assert.deepEqual(res.json(), { open: true, listed: true, maxPresenters: 20, maxViewers: 30, askNames: true, hands: true });
+  assert.deepEqual(res.json(), { open: true, listed: true, maxPresenters: 20, maxViewers: 30, askNames: true, hands: true, showPassword: false });
   assert.equal((await app.inject({ url: '/', headers: REMOTE })).headers.location, '/talk');
 
   await app.inject({ method: 'PATCH', url: '/api/admin/rooms/other', headers: LOCAL, payload: { open: true } });
@@ -104,7 +104,7 @@ test('rooms start closed; the admin opens them', async (t) => {
   assert.equal(ctx.config.rooms.talk.maxViewers, 30, 'settings kept while closed');
   const rows = (await app.inject({ url: '/api/admin/decks', headers: LOCAL })).json().decks;
   assert.deepEqual(rows.find((d) => d.slug === 'other').room, {
-    open: true, listed: true, maxPresenters: 20, maxViewers: 200, askNames: true, hands: true, viewers: 0, presenters: 0, raised: 0,
+    open: true, listed: true, maxPresenters: 20, maxViewers: 200, askNames: true, hands: true, showPassword: false, viewers: 0, presenters: 0, raised: 0,
   });
 });
 

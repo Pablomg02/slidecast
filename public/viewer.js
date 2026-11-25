@@ -3,7 +3,7 @@
 // viewer is a participant of the room (0003): name, hand, room notices. A poll
 // shown by the presenter takes a column beside the slide (0006): participants
 // answer it, the projector shows it, with its results once the presenter
-// shows them (0008).
+// shows them (0008). The presenter can cover it with the join screen (0011).
 import {
   t, el, api, slugFromPath, setTitle, connectLive, createDeckFrame, keyActionFromEvent,
   toggleFullscreen, acceptKey, isOwnKey, icon, parseAspect, parseLayout, layoutGuard,
@@ -11,6 +11,7 @@ import {
 import { createParticipant } from './participant.js';
 import { createViewerPoll } from './viewer-poll.js';
 import { createPointerLayer } from './pointer.js';
+import { createShareScreen } from './share-screen.js';
 
 const slug = slugFromPath();
 const app = document.getElementById('app');
@@ -104,6 +105,8 @@ function renderRanking() {
     el('span.ranking-name', {}, cut(r.name ?? `#${r.n}`, 20)),
     el('span.ranking-points', {}, t('rankingPts', { points: Number(r.points).toLocaleString() })))));
 }
+// QR code, address and password, over everything else (0011): screens only.
+const share = info.data.canPresent ? createShareScreen(app, { title: info.data.title }) : null;
 const participant = info.data.canPresent ? null : createParticipant(app, info.data);
 // A closed room gives its audience no deck: wait for it to open (D4 of 0003).
 const layout = parseLayout(info.data.layout); // frozen deck (0010)
@@ -196,7 +199,7 @@ const conn = connectLive(slug, controlling ? 'presenter' : 'viewer', (msg) => {
     if (!dots) return;
     if (msg.clear) dots.clear();
     else if (msg.off) dots.hide(msg.id);
-    else if (local === live.index && !live.blank && ranking.hidden) dots.show(msg.id, msg.id, msg.x, msg.y);
+    else if (local === live.index && !live.blank && ranking.hidden && !share?.visible) dots.show(msg.id, msg.id, msg.x, msg.y);
     return;
   }
   // Loaded while the room was closed, then admitted without the "again" signal
@@ -220,6 +223,11 @@ const conn = connectLive(slug, controlling ? 'presenter' : 'viewer', (msg) => {
     renderRanking();
     return;
   }
+  if (msg.t === 'share') {
+    share?.update(msg);
+    if (share?.visible) dots?.clear();
+    return;
+  }
   if (msg.t !== 'state') {
     if (msg.t === 'wait') poll.clear(); // the room closed: everything is forgotten
     participant?.onMessage(msg);
@@ -233,6 +241,7 @@ const conn = connectLive(slug, controlling ? 'presenter' : 'viewer', (msg) => {
   blank.hidden = !live.blank;
   poll.setBlank(live.blank);
   renderRanking();
+  share?.setBlank(live.blank);
   presence(live.presenting);
   if (live.viewerNav === 'follow' && navChanged) attached = true;
   if (!attached && live.viewerNav === 'back' && local > live.index) attached = true;

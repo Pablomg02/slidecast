@@ -11,6 +11,7 @@ export function defaultConfig() {
     adminHash: null,
     presenterHash: null,
     publicListing: true,
+    audienceUrl: null, // the join screen's address, when set (D4 of 0011)
     appearance: defaultAppearance(),
     decks: {},
     rooms: {},

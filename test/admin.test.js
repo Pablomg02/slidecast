@@ -131,6 +131,7 @@ test('settings, PATCH and DELETE', async (t) => {
   const s = await as({ method: 'PUT', url: '/api/admin/settings', payload: { publicListing: false } });
   assert.deepEqual(s.json(), {
     publicListing: false,
+    audienceUrl: null,
     appearance: { siteName: null, landingText: null, accent: null, showLogo: true, showCredit: true },
   });
   const patch = await as({ method: 'PATCH', url: '/api/admin/decks/talk', payload: { title: 'New title', viewerNav: 'follow' } });

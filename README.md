@@ -40,6 +40,9 @@ moves with you: the projector, your phone, your audience's laptops.
   download the ranking as a spreadsheet.
 - **Rooms you open and close**: open the deck you are about to present with
   one click; the main address takes everyone to it.
+- **A join screen**: one button puts a QR code, the address and, if you
+  allow it, the viewer password on the projector, so the room gets in in
+  seconds.
 - **Notes and polls in the browser**: write them slide by slide in the admin
   panel; they are saved next to the deck.
 - **Made for AI decks**: a deck is just a folder with an `index.html`. The
@@ -254,6 +257,27 @@ presenter view:
 - The admin can also remove another presenter's device; that device then
   needs the password again.
 
+**The join screen.** The QR button beside the tabs of the presenter view (on
+a phone, under **More**) puts a join screen on every screen showing the deck
+with presenter rights (the projector, not the audience's own devices): a QR
+code that opens the deck, the address to type and, if the admin allows it,
+the viewer password. A strip above the notes says it is on and takes it off;
+moving the slides, launching a poll, showing its results or the ranking take
+it off too, and blanking the screens hides it meanwhile.
+
+The address is the one each screen opened slidecast at. A screen opened at
+`localhost` shows this computer's address on the local network instead (when
+slidecast listens there, as with `--network`), and says so when it has none.
+If the audience comes in by another address, such as a Cloudflare tunnel,
+set it once in the admin panel as **Address for the audience**.
+
+To show the viewer password, tick **Show the viewer password on the join
+screen** in the deck's **Settings**. slidecast keeps only a one-way hash of
+each password, so the first time it asks you to type the current one (or
+set a new one); from then on it keeps that password in clear in
+`config.json` until you untick the box, and the deck's presenters can see
+it.
+
 ### Polls
 
 A slide can carry a poll: a question and 2 to 10 answers, with one answer or
@@ -387,7 +411,9 @@ password. From any other device, presenting and the admin panel stay closed
 until you set the password. Set them with `node bin/slidecast.js passwd …` or
 in the admin panel.
 
-Passwords are stored only as one-way hashes, so nobody can read them back. If
+Passwords are stored only as one-way hashes, so nobody can read them back
+(except a viewer password that the join screen shows, kept in clear while it
+does). If
 you forget one, set a new one on the computer running slidecast:
 `node bin/slidecast.js passwd admin` (or `presenter`); add `--clear` to remove
 it.

@@ -84,6 +84,32 @@ const fontToggle = el('button.p-font-toggle', {
     fontToggle.setAttribute('aria-expanded', String(!fontSteps.hidden));
   },
 }, 'Aa');
+// The join screen on the screens (0011): QR code, address and maybe the
+// password. A strip above the notes says it is on, why something is
+// missing, and takes it off.
+let share = null; // the last {t: 'share'} message
+const shareBtn = el('button.p-share', {
+  type: 'button', id: 'share-toggle', title: `${t('shareShow')}: ${t('shareShowHint')}`, 'aria-label': t('shareShow'), 'aria-pressed': 'false',
+  onclick: () => conn.send({ t: 'share', on: !share?.shown }),
+}, icon('qr'), el('span.p-share-label', {}, t('shareShow'))); // the label only on a phone
+const shareNote = el('span.p-share-note.muted', { id: 'share-note' });
+const shareStrip = el('div.p-share-strip', { id: 'share-strip', hidden: true },
+  el('div.p-share-text', {}, el('strong', {}, icon('qr'), t('shareOnScreens')), shareNote),
+  el('button.small.p-poll-off', { type: 'button', id: 'share-off', onclick: () => conn.send({ t: 'share', on: false }) }, t('shareTakeOff')));
+function renderShare() {
+  const on = Boolean(share?.shown);
+  shareStrip.hidden = !on;
+  shareBtn.setAttribute('aria-pressed', String(on));
+  shareBtn.classList.toggle('p-share-on', on);
+  const room = panels.room;
+  const notes = [
+    share?.passwordMissing && t('sharePasswordMissing'),
+    room && !room.open && t('shareRoomClosed'),
+    room?.locked && t('shareLocked'),
+  ].filter(Boolean);
+  shareNote.textContent = notes.join(' ');
+  shareNote.hidden = !notes.length;
+}
 const openViewer = el('a.button', { href: `/${slug}/view`, target: '_blank', rel: 'noopener' }, t('openViewer'));
 // Admins only: the notes editor, opened at the step being presented (render() keeps the link current).
 const editNotes = el('a.button', { id: 'edit-notes', href: `/admin/edit/${encodeURIComponent(slug)}`, hidden: !deck.canAdmin, target: '_blank', rel: 'noopener' }, t('edit'));
@@ -123,8 +149,20 @@ const fontBox = el('div.p-font', {}, fontSteps, fontToggle);
 
 // The slide id lives above the notes, not in the toolbar, so its changing
 // width never shifts the toolbar.
+const notesHead = el('div.p-notes-head', {}, el('div.p-tabs', { role: 'tablist' }, Object.values(tabs)), blanked, roomClosed, slideId, slideToggle);
+// The join screen's button: beside the tabs on a computer, where the toolbar
+// has no room left; behind "More" on a phone.
+const shareGroup = el('div.p-group.p-secondary.p-share-group');
+function placeShare() {
+  if (desktop.matches) notesHead.insertBefore(shareBtn, slideToggle);
+  else shareGroup.append(shareBtn);
+  shareGroup.hidden = desktop.matches;
+}
+placeShare();
+desktop.addEventListener('change', placeShare);
 const notesBox = el('section.p-notes', {},
-  el('div.p-notes-head', {}, el('div.p-tabs', { role: 'tablist' }, Object.values(tabs)), blanked, roomClosed, slideId, slideToggle),
+  notesHead,
+  shareStrip,
   poll.strip,
   notesBody,
   poll.panel,
@@ -152,6 +190,7 @@ const toolbar = el('div.p-toolbar', {},
   el('div.p-group.p-timer', {}, timerText, timerToggle, timerReset, moreToggle),
   el('div.p-group.p-secondary', {}, clock),
   el('div.p-group.p-secondary', {}, modeSelect, viewers),
+  shareGroup,
   el('div.p-group.p-secondary', { hidden: !deck.canAdmin }, roomBtn),
   el('div.p-group.p-extra', {}, openViewer, editNotes),
   rankingGroup,
@@ -607,6 +646,7 @@ const conn = connectLive(slug, 'presenter', (msg) => {
   } else if (msg.t === 'room') {
     panels.update(msg);
     renderRoom(msg);
+    renderShare();
     renderHandsTab();
     poll.setViewers(msg.viewers);
   } else if (msg.t === 'polls') {
@@ -616,6 +656,9 @@ const conn = connectLive(slug, 'presenter', (msg) => {
   } else if (msg.t === 'ranking') {
     ranking.update(msg);
     poll.setRanking(msg);
+  } else if (msg.t === 'share') {
+    share = msg;
+    renderShare();
   } else if (msg.t === 'error' && (msg.code === 'no-poll' || msg.code === 'time-up' || msg.code === 'contest-off')) {
     poll.onError(msg.code);
   } else if (msg.t === 'error' && msg.code === 'pointer-off') {

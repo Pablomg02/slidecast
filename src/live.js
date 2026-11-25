@@ -9,6 +9,9 @@ import { cleanName, cleanNote, slidingLimit } from './rooms.js';
 import { createPeople } from './participants.js';
 import { createPolls, pollOf } from './polls.js';
 import { contestOf, rankingOf, csvCell } from './contest.js';
+import { deckAuth } from './config.js';
+import { shownPassword } from './auth.js';
+import { audienceBase, joinLinks, lanAddresses } from './share.js';
 
 export const MAX_MESSAGE = 4096;
 const HEARTBEAT_MS = 25_000;
@@ -112,6 +115,7 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
       countdowns: new Map(), // slide → timer closing its answers (D10 of 0009)
       rankingTimer: null,
       rankingShown: false, // the top 10 on the screens (D20 of 0009)
+      shareShown: false, // the join screen on the screens (0011)
       pollQueue: Promise.resolve(), // poll commands, one after the other (D4 of 0006)
       pollPending: 0, // tasks in that queue
       epoch: 0, // +1 each time the room closes
@@ -299,6 +303,51 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
     rankingSoon(s);
   }
 
+  // ---- join screen (0011) --------------------------------------------------------
+
+  // What one screen shows to let people in (D2, D3, D5, D7): the address
+  // worked out for that screen, and the viewer password only while shown
+  // and only if the room shows it. `lan` is computed once per broadcast.
+  function shareFor(s, c, lan) {
+    const room = ctx.rooms.settings(s.slug);
+    const needsPassword = Boolean(deckAuth(ctx.config, s.slug).viewerHash);
+    const password = room.showPassword ? shownPassword(ctx.config, s.slug) : null;
+    const base = audienceBase({
+      configured: ctx.config.audienceUrl, origin: c.req.headers?.origin, listen: ctx.listenAddress?.(), lan,
+    });
+    return {
+      t: 'share',
+      shown: s.shareShown,
+      ...joinLinks(base, s.slug),
+      protected: needsPassword,
+      password: s.shareShown ? password : null,
+      // For the presenter: the room shows it, but the server has no copy yet.
+      passwordMissing: room.showPassword && needsPassword && !password,
+    };
+  }
+
+  // Only to windows that may still present; the audience never gets it (D7).
+  function sendShare(s, only = null) {
+    let addresses = null;
+    const lan = () => (addresses ??= lanAddresses());
+    for (const c of only ? [only] : s.clients) {
+      if (!isPresenterKind(c)) continue;
+      if (!ctx.auth.canPresent(c.req, s.slug)) {
+        c.socket.close(CLOSE.unauthorized, 'unauthorized');
+        continue;
+      }
+      send(c, shareFor(s, c, lan));
+    }
+  }
+
+  // The join screen leaves the screens: the slides moved, or a poll, its
+  // results or the ranking went on them (D8).
+  function shareOff(s) {
+    if (!s.shareShown) return;
+    s.shareShown = false;
+    sendShare(s);
+  }
+
   // ---- contest mode (0009) ------------------------------------------------------
 
   // One timer per open run with a countdown; it closes the answers through
@@ -436,6 +485,7 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
         s.rankingShown = on;
         // One overlay at a time on the screens.
         if (on && s.polls.hide()) pollChanged(s);
+        if (on) shareOff(s);
         sendRanking(s);
       } else if (msg.action === 'restart') {
         s.polls.clear();
@@ -520,8 +570,10 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
         send(client, { t: 'error', code: 'time-up' });
         return;
       }
+      if (changed && msg.results === true) shareOff(s);
     } else if (action === 'reveal' || action === 'conceal') {
       changed = s.polls.setRevealed(slide, action === 'reveal');
+      if (changed && action === 'reveal') shareOff(s);
     } else {
       const epoch = s.epoch;
       const meta = await ctx.decks.readMeta(s.slug).catch(() => null);
@@ -536,6 +588,7 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
         return;
       }
       rankingOff(s);
+      shareOff(s);
     }
     if (changed) pollChanged(s);
   }
@@ -669,6 +722,7 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
       }
       sendPolls(s, client);
       sendRanking(s, client);
+      sendShare(s, client);
       roomChanged(s);
     }
     for (const data of queue.splice(0)) onMessage(client, data);
@@ -823,7 +877,7 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
   }
 
   const DECK_COMMANDS = new Set(['meta', 'step', 'goto', 'blank', 'nav', 'hands']);
-  const ROOM_COMMANDS = new Set(['hand', 'hands-clear', 'lock', 'kick', 'kick-presenter', 'poll', 'contest', 'ptr']);
+  const ROOM_COMMANDS = new Set(['hand', 'hands-clear', 'lock', 'kick', 'kick-presenter', 'poll', 'contest', 'ptr', 'share']);
 
   // ---- shared pointer (0010) ---------------------------------------------------
 
@@ -922,6 +976,14 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
     if (msg.t === 'ptr') return pointerCommand(s, client, msg);
     if (msg.t === 'poll') return pollCommand(s, client, msg);
     if (msg.t === 'contest') return contestCommand(s, client, msg);
+    // {t: 'share', on}: the join screen on or off the screens (D1 of 0011).
+    if (msg.t === 'share') {
+      if (typeof msg.on !== 'boolean') return false;
+      if (s.shareShown === msg.on) return true;
+      s.shareShown = msg.on;
+      sendShare(s);
+      return true;
+    }
     if (msg.t === 'hand') {
       const p = s.people.byId(msg.id);
       if (!p?.hand) return true; // already resolved by another presenter
@@ -1049,7 +1111,10 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
     const wasBlank = s.blank;
     const changed = apply(s, msg);
     if (changed === null) return send(client, { t: 'error', code: 'bad-message' });
-    if (s.index !== index) rankingOff(s); // the slides moved on (D20 of 0009)
+    if (s.index !== index) {
+      rankingOff(s); // the slides moved on (D20 of 0009)
+      shareOff(s); // (D8 of 0011)
+    }
     // Dots hide on a new step or a blank screen; the pages do it on `state` (D19 of 0010).
     if (s.index !== index || (s.blank && !wasBlank)) for (const slot of s.pointers.values()) slot.shown = false;
     if (changed) {
@@ -1093,12 +1158,14 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
     s.polls.clear();
     clearContestTimers(s);
     s.rankingShown = false;
+    s.shareShown = false;
     s.epoch++;
     s.rev++;
     broadcast(s);
     sendRoom(s);
     sendPolls(s);
     sendRanking(s);
+    sendShare(s);
   }
 
   return {
@@ -1178,7 +1245,13 @@ export async function createLive(ctx, { heartbeatMs = HEARTBEAT_MS, graceMs = GR
         s.rev++;
         broadcast(s);
       }
+      sendShare(s); // whether it shows the password (D5 of 0011)
       return sendRoom(s);
+    },
+    // The audience address or a viewer password changed (0011): the screens
+    // of that deck, or of every deck, show the new one.
+    shareChanged(slug = null) {
+      for (const s of decks.values()) if (slug === null || s.slug === slug) sendShare(s);
     },
     // Live counts for the admin panel.
     counts(slug) {

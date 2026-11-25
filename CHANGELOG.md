@@ -6,6 +6,23 @@ include breaking changes, always listed here.
 
 ## [Unreleased]
 
+- Join screen. A QR button in the presenter view (beside the tabs; on a
+  phone, under **More**) puts a QR code that opens the deck, the address to
+  type and, if the admin allows it, the viewer password on every screen with
+  presenter rights; never on the audience's devices. Moving the slides, a
+  poll, its results or the ranking take it off; blanking hides it. The
+  address is the screen's own, or this computer's network address for a
+  screen at `localhost`, unless the admin sets **Address for the audience**
+  in the general settings. A deck's **Settings** get **Show the viewer
+  password on the join screen**: the server then keeps that password in
+  clear in `config.json` (typed once to turn it on, kept when it changes, also
+  with `slidecast passwd`, deleted when turned off or the deck is deleted).
+  Decisions in plan 0011. Protocol: `{t: 'share', on}` from presenters;
+  `{t: 'share', shown, url, text, protected, password, passwordMissing}` to
+  presenter windows and screens. API: `audienceUrl` in
+  `/api/admin/settings`, `showPassword` in room settings, `PUT
+  /api/admin/rooms/:slug/shown-password`.
+
 ## [1.0.0] - 2026-11-20
 
 First stable version: from now on, a change that breaks existing decks,
